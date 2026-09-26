@@ -1,7 +1,7 @@
 # Lior Management
 
 מערכת ניהול אישית מקומית: משימות, יומן, ניהול כללי וכספים חודשיים.
-האפיון המלא נמצא ב־[docs/SPEC.md](docs/SPEC.md).
+האפיון המלא נמצא ב־[docs/SPEC.md](docs/SPEC.md), ותוכנית ההמשך ב־[docs/SPRINTS.md](docs/SPRINTS.md).
 
 ## הרצה
 
