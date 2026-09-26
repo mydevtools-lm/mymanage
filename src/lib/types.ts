@@ -1,0 +1,77 @@
+export type Priority = "low" | "normal" | "high" | "urgent";
+export type CategoryKind = "task" | "finance";
+export type TransactionType = "income" | "expense";
+
+export type ColorKey =
+  "teal" | "coral" | "lavender" | "amber" | "sky" | "mint" | "rose" | "slate";
+
+export interface Category {
+  id: string;
+  name: string;
+  color: ColorKey;
+  kind: CategoryKind;
+}
+
+export interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  dueDate?: string; // yyyy-MM-dd
+  priority: Priority;
+  categoryId?: string;
+  completed: boolean;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  date: string; // yyyy-MM-dd
+  startTime?: string; // HH:mm
+  endTime?: string;
+  allDay: boolean;
+  location?: string;
+  notes?: string;
+  color: ColorKey;
+  createdAt: string;
+}
+
+export interface Transaction {
+  id: string;
+  type: TransactionType;
+  amount: number;
+  description: string;
+  date: string; // yyyy-MM-dd
+  categoryId?: string;
+  notes?: string;
+  recurring?: {
+    startMonth: string; // yyyy-MM
+    endMonth?: string; // yyyy-MM (inclusive)
+  };
+  createdAt: string;
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Settings {
+  startMonth: string; // yyyy-MM
+}
+
+export interface DataSnapshot {
+  version: 1;
+  exportedAt: string;
+  tasks: Task[];
+  events: CalendarEvent[];
+  transactions: Transaction[];
+  notes: Note[];
+  categories: Category[];
+  settings: Settings;
+}
