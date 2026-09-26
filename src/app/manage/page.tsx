@@ -5,16 +5,21 @@ import { Hydrated, PageHeader } from "@/components/shared";
 import { NotesTab } from "@/components/manage/notes-tab";
 import { CategoriesTab } from "@/components/manage/categories-tab";
 import { BackupTab } from "@/components/manage/backup-tab";
+import { ConnectionsTab } from "@/components/manage/connections-tab";
 
 export default function ManagePage() {
   return (
     <>
-      <PageHeader title="ניהול כללי" description="הערות, קטגוריות וגיבוי" />
+      <PageHeader
+        title="ניהול כללי"
+        description="הערות, קטגוריות, חיבורים וגיבוי"
+      />
       <Hydrated>
         <Tabs defaultValue="notes">
           <TabsList className="mb-4">
             <TabsTrigger value="notes">הערות</TabsTrigger>
             <TabsTrigger value="categories">קטגוריות</TabsTrigger>
+            <TabsTrigger value="connections">חיבורים</TabsTrigger>
             <TabsTrigger value="backup">גיבוי</TabsTrigger>
           </TabsList>
           <TabsContent value="notes">
@@ -22,6 +27,9 @@ export default function ManagePage() {
           </TabsContent>
           <TabsContent value="categories">
             <CategoriesTab />
+          </TabsContent>
+          <TabsContent value="connections">
+            <ConnectionsTab />
           </TabsContent>
           <TabsContent value="backup">
             <BackupTab />

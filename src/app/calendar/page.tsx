@@ -16,6 +16,7 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Lock,
   MapPin,
   Pencil,
   Plus,
@@ -36,10 +37,16 @@ import { TaskRow } from "@/components/tasks/task-row";
 import { useAppStore } from "@/lib/store";
 import { COLOR_STYLES } from "@/lib/colors";
 import { toDateKey, todayKey } from "@/lib/format";
+import { useGoogleEvents, type ExternalEvent } from "@/lib/use-google-events";
 import { cn } from "@/lib/utils";
 import type { CalendarEvent } from "@/lib/types";
 
 const WEEKDAYS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
+
+// Events pulled from Google are read-only, so they get their own look —
+// a tinted chip with a leading bar rather than the local category colors.
+const GOOGLE_CHIP =
+  "border-s-2 border-s-sky-500 bg-sky-50 text-sky-900 dark:bg-sky-950/50 dark:text-sky-100";
 
 function eventTime(e: CalendarEvent) {
   if (e.allDay || !e.startTime) return "";
@@ -62,6 +69,21 @@ export default function CalendarPage() {
     const end = endOfWeek(endOfMonth(cursor), { weekStartsOn: 0 });
     return eachDayOfInterval({ start, end });
   }, [cursor]);
+
+  const google = useGoogleEvents(
+    toDateKey(days[0]),
+    toDateKey(days[days.length - 1]),
+  );
+
+  const googleByDay = useMemo(() => {
+    const map = new Map<string, ExternalEvent[]>();
+    for (const e of google.events) {
+      const list = map.get(e.date) ?? [];
+      list.push(e);
+      map.set(e.date, list);
+    }
+    return map;
+  }, [google.events]);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>();
@@ -90,6 +112,7 @@ export default function CalendarPage() {
   const today = todayKey();
   const dayEvents = selectedDay ? (eventsByDay.get(selectedDay) ?? []) : [];
   const dayTasks = selectedDay ? (tasksByDay.get(selectedDay) ?? []) : [];
+  const dayGoogle = selectedDay ? (googleByDay.get(selectedDay) ?? []) : [];
 
   return (
     <>
@@ -150,8 +173,17 @@ export default function CalendarPage() {
               const key = toDateKey(day);
               const inMonth = isSameMonth(day, cursor);
               const dayEv = eventsByDay.get(key) ?? [];
+              const dayGo = googleByDay.get(key) ?? [];
               const dayTk = tasksByDay.get(key) ?? [];
-              const items = dayEv.length + dayTk.length;
+              const items = dayEv.length + dayGo.length + dayTk.length;
+              // Three chips fit in a cell; local events first, then Google,
+              // then tasks, with the remainder collapsed into a counter.
+              const shownEv = dayEv.slice(0, 2);
+              const shownGo = dayGo.slice(0, Math.max(0, 3 - shownEv.length));
+              const shownTk = dayTk.slice(
+                0,
+                Math.max(0, 3 - shownEv.length - shownGo.length),
+              );
               return (
                 <button
                   key={key}
@@ -173,7 +205,7 @@ export default function CalendarPage() {
                     {format(day, "d")}
                   </span>
                   <div className="flex flex-col gap-0.5">
-                    {dayEv.slice(0, 2).map((e) => (
+                    {shownEv.map((e) => (
                       <span
                         key={e.id}
                         className={cn(
@@ -189,21 +221,35 @@ export default function CalendarPage() {
                         {e.title}
                       </span>
                     ))}
-                    {dayTk
-                      .slice(0, Math.max(0, 3 - Math.min(dayEv.length, 2)))
-                      .map((t) => (
-                        <span
-                          key={t.id}
-                          className={cn(
-                            "truncate rounded border border-dashed px-1 text-[11px] leading-5",
-                            t.completed
-                              ? "text-muted-foreground line-through"
-                              : "border-primary/40 text-foreground",
-                          )}
-                        >
-                          {t.title}
-                        </span>
-                      ))}
+                    {shownGo.map((e) => (
+                      <span
+                        key={e.id}
+                        className={cn(
+                          "truncate rounded px-1 text-[11px] leading-5",
+                          GOOGLE_CHIP,
+                        )}
+                      >
+                        {e.startTime && (
+                          <span className="me-1 tabular-nums opacity-70">
+                            {e.startTime}
+                          </span>
+                        )}
+                        {e.title}
+                      </span>
+                    ))}
+                    {shownTk.map((t) => (
+                      <span
+                        key={t.id}
+                        className={cn(
+                          "truncate rounded border border-dashed px-1 text-[11px] leading-5",
+                          t.completed
+                            ? "text-muted-foreground line-through"
+                            : "border-primary/40 text-foreground",
+                        )}
+                      >
+                        {t.title}
+                      </span>
+                    ))}
                     {items > 3 && (
                       <span className="px-1 text-[10px] text-muted-foreground">
                         +{items - 3} נוספים
@@ -216,10 +262,14 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+        <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="size-3 rounded bg-teal-100 dark:bg-teal-900/50" />{" "}
             אירוע
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="size-3 rounded border-s-2 border-s-sky-500 bg-sky-50 dark:bg-sky-950/50" />{" "}
+            גוגל יומן
           </span>
           <span className="flex items-center gap-1.5">
             <span className="size-3 rounded border border-dashed border-primary/40" />{" "}
@@ -227,6 +277,21 @@ export default function CalendarPage() {
           </span>
           <span className="flex items-center gap-1.5">
             <span className="line-through">משימה</span> הושלמה
+          </span>
+
+          <span className="ms-auto flex items-center gap-1.5">
+            {google.error ? (
+              <span className="text-destructive">{google.error}</span>
+            ) : !google.configured ? (
+              <span>
+                גוגל יומן לא מחובר — ראה{" "}
+                <code className="rounded bg-muted px-1">.env.example</code>
+              </span>
+            ) : google.loading ? (
+              <span>טוען מגוגל…</span>
+            ) : (
+              <span>{google.events.length} אירועים מגוגל בחודש זה</span>
+            )}
           </span>
         </div>
       </Hydrated>
@@ -249,7 +314,8 @@ export default function CalendarPage() {
                   )}
                 </SheetTitle>
                 <SheetDescription>
-                  {dayEvents.length} אירועים · {dayTasks.length} משימות
+                  {dayEvents.length} אירועים · {dayGoogle.length} מגוגל ·{" "}
+                  {dayTasks.length} משימות
                 </SheetDescription>
               </SheetHeader>
 
@@ -322,6 +388,45 @@ export default function CalendarPage() {
                     </div>
                   ))}
                 </section>
+
+                {dayGoogle.length > 0 && (
+                  <section className="grid gap-2">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold">גוגל יומן</h3>
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Lock className="size-3" /> קריאה בלבד
+                      </span>
+                    </div>
+                    {dayGoogle.map((e) => (
+                      <div
+                        key={e.id}
+                        className={cn(
+                          "rounded-lg border p-3",
+                          "border-s-2 border-s-sky-500 bg-sky-50/60 dark:bg-sky-950/30",
+                        )}
+                      >
+                        <div className="font-medium">{e.title}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {e.allDay
+                            ? "כל היום"
+                            : e.endTime
+                              ? `${e.startTime}–${e.endTime}`
+                              : (e.startTime ?? "ללא שעה")}
+                        </div>
+                        {e.location && (
+                          <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                            <MapPin className="size-3" /> {e.location}
+                          </div>
+                        )}
+                        {e.notes && (
+                          <div className="mt-1 line-clamp-3 text-xs text-muted-foreground">
+                            {e.notes}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </section>
+                )}
 
                 <section className="grid gap-2">
                   <div className="flex items-center justify-between">

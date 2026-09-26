@@ -37,6 +37,7 @@ import {
   toMonthKey,
 } from "@/lib/format";
 import { COLOR_STYLES } from "@/lib/colors";
+import { useGoogleEvents } from "@/lib/use-google-events";
 import { cn } from "@/lib/utils";
 
 export default function DashboardPage() {
@@ -59,6 +60,9 @@ export default function DashboardPage() {
     [tasks, today],
   );
 
+  const weekEnd = toDateKey(addDays(new Date(), 6));
+  const google = useGoogleEvents(today, weekEnd);
+
   const week = useMemo(() => {
     const days = Array.from({ length: 7 }, (_, i) =>
       toDateKey(addDays(new Date(), i)),
@@ -69,10 +73,16 @@ export default function DashboardPage() {
         events: events
           .filter((e) => e.date === day)
           .sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? "")),
+        googleEvents: google.events.filter((e) => e.date === day),
         tasks: tasks.filter((t) => t.dueDate === day && !t.completed),
       }))
-      .filter((d) => d.events.length > 0 || d.tasks.length > 0);
-  }, [events, tasks]);
+      .filter(
+        (d) =>
+          d.events.length > 0 ||
+          d.googleEvents.length > 0 ||
+          d.tasks.length > 0,
+      );
+  }, [events, tasks, google.events]);
 
   const summary = useMemo(
     () => summarize(getMonthTransactions(transactions, month)),
@@ -206,44 +216,64 @@ export default function DashboardPage() {
                 </p>
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {week.map(({ day, events: dayEvents, tasks: dayTasks }) => (
-                    <div key={day} className="rounded-lg border p-3">
-                      <div className="mb-2 text-sm font-semibold">
-                        {day === today
-                          ? "היום"
-                          : format(new Date(day + "T00:00"), "EEEE d/M", {
-                              locale: he,
-                            })}
+                  {week.map(
+                    ({
+                      day,
+                      events: dayEvents,
+                      googleEvents: dayGoogle,
+                      tasks: dayTasks,
+                    }) => (
+                      <div key={day} className="rounded-lg border p-3">
+                        <div className="mb-2 text-sm font-semibold">
+                          {day === today
+                            ? "היום"
+                            : format(new Date(day + "T00:00"), "EEEE d/M", {
+                                locale: he,
+                              })}
+                        </div>
+                        <div className="grid gap-1">
+                          {dayEvents.map((e) => (
+                            <div
+                              key={e.id}
+                              className={cn(
+                                "truncate rounded px-1.5 py-0.5 text-xs",
+                                COLOR_STYLES[e.color].badge,
+                              )}
+                            >
+                              {e.startTime && !e.allDay && (
+                                <span className="me-1 tabular-nums opacity-70">
+                                  {e.startTime}
+                                </span>
+                              )}
+                              {e.title}
+                            </div>
+                          ))}
+                          {dayGoogle.map((e) => (
+                            <div
+                              key={e.id}
+                              className="truncate rounded border-s-2 border-s-sky-500 bg-sky-50 px-1.5 py-0.5 text-xs text-sky-900 dark:bg-sky-950/50 dark:text-sky-100"
+                            >
+                              {e.startTime && (
+                                <span className="me-1 tabular-nums opacity-70">
+                                  {e.startTime}
+                                </span>
+                              )}
+                              {e.title}
+                            </div>
+                          ))}
+                          {dayTasks.map((t) => (
+                            <div
+                              key={t.id}
+                              className="flex items-center gap-1.5 truncate px-1.5 py-0.5 text-xs text-muted-foreground"
+                            >
+                              <CheckSquare className="size-3 shrink-0" />
+                              {t.title}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div className="grid gap-1">
-                        {dayEvents.map((e) => (
-                          <div
-                            key={e.id}
-                            className={cn(
-                              "truncate rounded px-1.5 py-0.5 text-xs",
-                              COLOR_STYLES[e.color].badge,
-                            )}
-                          >
-                            {e.startTime && !e.allDay && (
-                              <span className="me-1 tabular-nums opacity-70">
-                                {e.startTime}
-                              </span>
-                            )}
-                            {e.title}
-                          </div>
-                        ))}
-                        {dayTasks.map((t) => (
-                          <div
-                            key={t.id}
-                            className="flex items-center gap-1.5 truncate px-1.5 py-0.5 text-xs text-muted-foreground"
-                          >
-                            <CheckSquare className="size-3 shrink-0" />
-                            {t.title}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+                    ),
+                  )}
                 </div>
               )}
             </CardContent>
