@@ -49,6 +49,8 @@ export default function TasksPage() {
     const q = query.trim().toLowerCase();
     return tasks
       .filter((t) => {
+        // Archived work lives on the daily screen's archive tab.
+        if (t.archivedAt) return false;
         if (status === "open" && t.completed) return false;
         if (status === "done" && !t.completed) return false;
         if (priority !== ALL && t.priority !== priority) return false;
@@ -60,13 +62,15 @@ export default function TasksPage() {
       .sort(sortTasks);
   }, [tasks, status, priority, categoryId, query]);
 
-  const openCount = tasks.filter((t) => !t.completed).length;
+  const openCount = tasks.filter((t) => !t.completed && !t.archivedAt).length;
+  const activeCount = tasks.filter((t) => !t.archivedAt).length;
+  const archivedCount = tasks.filter((t) => t.archivedAt).length;
 
   return (
     <>
       <PageHeader
         title="משימות"
-        description={`${openCount} משימות פתוחות מתוך ${tasks.length}`}
+        description={`${openCount} משימות פתוחות מתוך ${activeCount}${archivedCount ? ` · ${archivedCount} בארכיון` : ""}`}
         actions={
           <Button
             onClick={() => {

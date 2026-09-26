@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 import {
   CalendarDays,
   CheckSquare,
+  ListTodo,
   LayoutDashboard,
   Moon,
   Settings2,
@@ -17,7 +18,8 @@ import { Button } from "@/components/ui/button";
 
 const NAV = [
   { href: "/", label: "לוח בקרה", icon: LayoutDashboard },
-  { href: "/tasks", label: "משימות", icon: CheckSquare },
+  { href: "/daily", label: "משימות יומיות", icon: ListTodo },
+  { href: "/tasks", label: "כל המשימות", icon: CheckSquare },
   { href: "/calendar", label: "יומן", icon: CalendarDays },
   { href: "/finance", label: "כספים", icon: Wallet },
   { href: "/manage", label: "ניהול כללי", icon: Settings2 },

@@ -1,34 +1,34 @@
 "use client";
 
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
+import { toast } from "sonner";
 import type {
   CalendarEvent,
   Category,
+  Checklist,
   DataSnapshot,
   Note,
   Settings,
   Task,
   Transaction,
 } from "./types";
-import { newId, toMonthKey } from "./format";
+import { toMonthKey } from "./format";
 
-const DEFAULT_CATEGORIES: Omit<Category, "id">[] = [
-  { name: "עבודה", color: "teal", kind: "task" },
-  { name: "בית", color: "amber", kind: "task" },
-  { name: "אישי", color: "lavender", kind: "task" },
-  { name: "לימודים", color: "sky", kind: "task" },
-  { name: "משכורת", color: "mint", kind: "finance" },
-  { name: "הכנסה נוספת", color: "teal", kind: "finance" },
-  { name: "שכירות / משכנתא", color: "coral", kind: "finance" },
-  { name: "אוכל", color: "amber", kind: "finance" },
-  { name: "תחבורה", color: "sky", kind: "finance" },
-  { name: "חשבונות", color: "rose", kind: "finance" },
-  { name: "בילויים", color: "lavender", kind: "finance" },
-  { name: "אחר", color: "slate", kind: "finance" },
-];
+/**
+ * Client-side mirror of the SQLite database.
+ *
+ * Every screen reads from here synchronously, exactly as it did when the data
+ * lived in localStorage. Writes apply to the mirror first so the UI never
+ * waits on a round trip, then go to the API; if the server rejects one, the
+ * mirror is refetched so the screen can't drift from the file on disk.
+ */
 
-type TaskInput = Omit<Task, "id" | "createdAt" | "updatedAt" | "completed">;
+const LEGACY_KEY = "lior-management";
+
+type TaskInput = Omit<
+  Task,
+  "id" | "createdAt" | "updatedAt" | "completed" | "archivedAt"
+>;
 type EventInput = Omit<CalendarEvent, "id" | "createdAt">;
 type TransactionInput = Omit<Transaction, "id" | "createdAt">;
 type NoteInput = Pick<Note, "title" | "body">;
@@ -36,16 +36,22 @@ type CategoryInput = Omit<Category, "id">;
 
 interface AppState {
   hydrated: boolean;
+  syncing: boolean;
   tasks: Task[];
   events: CalendarEvent[];
   transactions: Transaction[];
   notes: Note[];
+  checklists: Checklist[];
   categories: Category[];
   settings: Settings;
+
+  load: () => Promise<void>;
 
   addTask: (input: TaskInput) => void;
   updateTask: (id: string, input: Partial<TaskInput>) => void;
   toggleTask: (id: string) => void;
+  archiveTask: (id: string) => void;
+  restoreTask: (id: string) => void;
   deleteTask: (id: string) => void;
 
   addEvent: (input: EventInput) => void;
@@ -60,188 +66,415 @@ interface AppState {
   updateNote: (id: string, input: Partial<NoteInput>) => void;
   deleteNote: (id: string) => void;
 
+  addChecklist: (title: string, items?: string[]) => void;
+  renameChecklist: (id: string, title: string) => void;
+  deleteChecklist: (id: string) => void;
+  addChecklistItem: (listId: string, text: string) => void;
+  toggleChecklistItem: (listId: string, itemId: string) => void;
+  deleteChecklistItem: (listId: string, itemId: string) => void;
+  clearDoneItems: (listId: string) => void;
+
   addCategory: (input: CategoryInput) => void;
   updateCategory: (id: string, input: Partial<CategoryInput>) => void;
   deleteCategory: (id: string) => void;
 
   exportData: () => DataSnapshot;
-  importData: (snapshot: DataSnapshot) => void;
-  clearAll: () => void;
+  importData: (snapshot: DataSnapshot) => Promise<void>;
+  clearAll: () => Promise<void>;
 }
 
 const now = () => new Date().toISOString();
 
-function seedCategories(): Category[] {
-  return DEFAULT_CATEGORIES.map((c) => ({ ...c, id: newId() }));
+async function api(
+  url: string,
+  method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
+  body?: unknown,
+) {
+  const response = await fetch(url, {
+    method,
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!response.ok) {
+    const detail = await response.json().catch(() => null);
+    throw new Error(detail?.error ?? `שגיאת שרת (${response.status})`);
+  }
+  return response.json();
 }
 
-export const useAppStore = create<AppState>()(
-  persist(
-    (set, get) => ({
-      hydrated: false,
-      tasks: [],
-      events: [],
-      transactions: [],
-      notes: [],
-      categories: [],
-      settings: { startMonth: toMonthKey(new Date()) },
+// Fire a write and keep the mirror honest if it fails.
+function push(work: Promise<unknown>) {
+  work.catch((error: Error) => {
+    toast.error(error.message || "השמירה נכשלה");
+    void useAppStore.getState().load();
+  });
+}
 
-      addTask: (input) =>
-        set((s) => ({
-          tasks: [
-            ...s.tasks,
-            {
-              ...input,
-              id: newId(),
-              completed: false,
-              createdAt: now(),
-              updatedAt: now(),
-            },
-          ],
-        })),
-      updateTask: (id, input) =>
+function applySnapshot(snapshot: DataSnapshot) {
+  useAppStore.setState({
+    tasks: snapshot.tasks ?? [],
+    events: snapshot.events ?? [],
+    transactions: snapshot.transactions ?? [],
+    notes: snapshot.notes ?? [],
+    checklists: snapshot.checklists ?? [],
+    categories: snapshot.categories ?? [],
+    settings: snapshot.settings ?? { startMonth: toMonthKey(new Date()) },
+    hydrated: true,
+  });
+}
+
+/**
+ * Data written by earlier versions lived in localStorage. Move it into the
+ * database once, the first time this browser meets an empty database, then
+ * keep the old copy under a renamed key as a safety net.
+ */
+async function migrateLegacyData(current: DataSnapshot) {
+  if (typeof localStorage === "undefined") return current;
+
+  const raw = localStorage.getItem(LEGACY_KEY);
+  if (!raw) return current;
+
+  const alreadyHasData =
+    current.tasks.length > 0 ||
+    current.events.length > 0 ||
+    current.transactions.length > 0 ||
+    current.notes.length > 0 ||
+    current.checklists.length > 0;
+  if (alreadyHasData) return current;
+
+  try {
+    const parsed = JSON.parse(raw);
+    const legacy: Partial<DataSnapshot> = parsed?.state ?? parsed;
+    const count =
+      (legacy.tasks?.length ?? 0) +
+      (legacy.events?.length ?? 0) +
+      (legacy.transactions?.length ?? 0) +
+      (legacy.notes?.length ?? 0);
+    if (count === 0) return current;
+
+    const migrated = (await api("/api/data", "PUT", {
+      ...legacy,
+      tasks: legacy.tasks ?? [],
+    })) as DataSnapshot;
+
+    localStorage.setItem(`${LEGACY_KEY}-migrated`, raw);
+    localStorage.removeItem(LEGACY_KEY);
+    toast.success(`${count} פריטים הועברו מהדפדפן למסד הנתונים`);
+    return migrated;
+  } catch (error) {
+    console.error("legacy migration failed", error);
+    return current;
+  }
+}
+
+export const useAppStore = create<AppState>()((set, get) => ({
+  hydrated: false,
+  syncing: false,
+  tasks: [],
+  events: [],
+  transactions: [],
+  notes: [],
+  checklists: [],
+  categories: [],
+  settings: { startMonth: toMonthKey(new Date()) },
+
+  load: async () => {
+    set({ syncing: true });
+    try {
+      let snapshot = (await api("/api/data", "GET")) as DataSnapshot;
+      snapshot = await migrateLegacyData(snapshot);
+      applySnapshot(snapshot);
+    } catch (error) {
+      console.error(error);
+      toast.error("לא הצלחנו לטעון את הנתונים מהשרת");
+      set({ hydrated: true });
+    } finally {
+      set({ syncing: false });
+    }
+  },
+
+  /* ---------------------------------------------------------- tasks */
+
+  addTask: (input) => {
+    const optimistic: Task = {
+      ...input,
+      id: `tmp-${crypto.randomUUID()}`,
+      completed: false,
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    set((s) => ({ tasks: [...s.tasks, optimistic] }));
+    push(
+      api("/api/tasks", "POST", input).then((saved) =>
         set((s) => ({
           tasks: s.tasks.map((t) =>
-            t.id === id ? { ...t, ...input, updatedAt: now() } : t,
+            t.id === optimistic.id ? (saved as Task) : t,
           ),
         })),
-      toggleTask: (id) =>
+      ),
+    );
+  },
+  updateTask: (id, input) => {
+    set((s) => ({
+      tasks: s.tasks.map((t) =>
+        t.id === id ? { ...t, ...input, updatedAt: now() } : t,
+      ),
+    }));
+    push(api(`/api/tasks/${id}`, "PATCH", input));
+  },
+  toggleTask: (id) => {
+    const task = get().tasks.find((t) => t.id === id);
+    if (!task) return;
+    const patch = task.completed
+      ? { completed: false, completedAt: undefined, archivedAt: undefined }
+      : { completed: true, completedAt: now(), archivedAt: now() };
+    set((s) => ({
+      tasks: s.tasks.map((t) =>
+        t.id === id ? { ...t, ...patch, updatedAt: now() } : t,
+      ),
+    }));
+    push(api(`/api/tasks/${id}`, "PATCH", patch));
+  },
+  archiveTask: (id) => {
+    const patch = { archivedAt: now() };
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    }));
+    push(api(`/api/tasks/${id}`, "PATCH", patch));
+  },
+  restoreTask: (id) => {
+    const patch = {
+      archivedAt: undefined,
+      completed: false,
+      completedAt: undefined,
+    };
+    set((s) => ({
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, ...patch } : t)),
+    }));
+    push(api(`/api/tasks/${id}`, "PATCH", patch));
+  },
+  deleteTask: (id) => {
+    set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+    push(api(`/api/tasks/${id}`, "DELETE"));
+  },
+
+  /* --------------------------------------------------------- events */
+
+  addEvent: (input) => {
+    const optimistic: CalendarEvent = {
+      ...input,
+      id: `tmp-${crypto.randomUUID()}`,
+      createdAt: now(),
+    };
+    set((s) => ({ events: [...s.events, optimistic] }));
+    push(
+      api("/api/events", "POST", input).then((saved) =>
         set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === id
-              ? {
-                  ...t,
-                  completed: !t.completed,
-                  completedAt: t.completed ? undefined : now(),
-                  updatedAt: now(),
-                }
-              : t,
+          events: s.events.map((e) =>
+            e.id === optimistic.id ? (saved as CalendarEvent) : e,
           ),
         })),
-      deleteTask: (id) =>
-        set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) })),
+      ),
+    );
+  },
+  updateEvent: (id, input) => {
+    set((s) => ({
+      events: s.events.map((e) => (e.id === id ? { ...e, ...input } : e)),
+    }));
+    push(api(`/api/events/${id}`, "PATCH", input));
+  },
+  deleteEvent: (id) => {
+    set((s) => ({ events: s.events.filter((e) => e.id !== id) }));
+    push(api(`/api/events/${id}`, "DELETE"));
+  },
 
-      addEvent: (input) =>
-        set((s) => ({
-          events: [...s.events, { ...input, id: newId(), createdAt: now() }],
-        })),
-      updateEvent: (id, input) =>
-        set((s) => ({
-          events: s.events.map((e) => (e.id === id ? { ...e, ...input } : e)),
-        })),
-      deleteEvent: (id) =>
-        set((s) => ({ events: s.events.filter((e) => e.id !== id) })),
+  /* --------------------------------------------------- transactions */
 
-      addTransaction: (input) =>
-        set((s) => ({
-          transactions: [
-            ...s.transactions,
-            { ...input, id: newId(), createdAt: now() },
-          ],
-        })),
-      updateTransaction: (id, input) =>
+  addTransaction: (input) => {
+    const optimistic: Transaction = {
+      ...input,
+      id: `tmp-${crypto.randomUUID()}`,
+      createdAt: now(),
+    };
+    set((s) => ({ transactions: [...s.transactions, optimistic] }));
+    push(
+      api("/api/transactions", "POST", input).then((saved) =>
         set((s) => ({
           transactions: s.transactions.map((t) =>
-            t.id === id ? { ...t, ...input } : t,
+            t.id === optimistic.id ? (saved as Transaction) : t,
           ),
         })),
-      deleteTransaction: (id) =>
-        set((s) => ({
-          transactions: s.transactions.filter((t) => t.id !== id),
-        })),
+      ),
+    );
+  },
+  updateTransaction: (id, input) => {
+    set((s) => ({
+      transactions: s.transactions.map((t) =>
+        t.id === id ? { ...t, ...input } : t,
+      ),
+    }));
+    push(api(`/api/transactions/${id}`, "PATCH", input));
+  },
+  deleteTransaction: (id) => {
+    set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }));
+    push(api(`/api/transactions/${id}`, "DELETE"));
+  },
 
-      addNote: (input) =>
-        set((s) => ({
-          notes: [
-            { ...input, id: newId(), createdAt: now(), updatedAt: now() },
-            ...s.notes,
-          ],
-        })),
-      updateNote: (id, input) =>
+  /* ---------------------------------------------------------- notes */
+
+  addNote: (input) => {
+    const optimistic: Note = {
+      ...input,
+      id: `tmp-${crypto.randomUUID()}`,
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    set((s) => ({ notes: [optimistic, ...s.notes] }));
+    push(
+      api("/api/notes", "POST", input).then((saved) =>
         set((s) => ({
           notes: s.notes.map((n) =>
-            n.id === id ? { ...n, ...input, updatedAt: now() } : n,
+            n.id === optimistic.id ? (saved as Note) : n,
           ),
         })),
-      deleteNote: (id) =>
-        set((s) => ({ notes: s.notes.filter((n) => n.id !== id) })),
+      ),
+    );
+  },
+  updateNote: (id, input) => {
+    set((s) => ({
+      notes: s.notes.map((n) =>
+        n.id === id ? { ...n, ...input, updatedAt: now() } : n,
+      ),
+    }));
+    push(api(`/api/notes/${id}`, "PATCH", input));
+  },
+  deleteNote: (id) => {
+    set((s) => ({ notes: s.notes.filter((n) => n.id !== id) }));
+    push(api(`/api/notes/${id}`, "DELETE"));
+  },
 
-      addCategory: (input) =>
-        set((s) => ({
-          categories: [...s.categories, { ...input, id: newId() }],
-        })),
-      updateCategory: (id, input) =>
-        set((s) => ({
-          categories: s.categories.map((c) =>
-            c.id === id ? { ...c, ...input } : c,
-          ),
-        })),
-      deleteCategory: (id) =>
-        set((s) => ({
-          categories: s.categories.filter((c) => c.id !== id),
-          tasks: s.tasks.map((t) =>
-            t.categoryId === id ? { ...t, categoryId: undefined } : t,
-          ),
-          transactions: s.transactions.map((t) =>
-            t.categoryId === id ? { ...t, categoryId: undefined } : t,
-          ),
-        })),
+  /* ----------------------------------------------------- checklists */
 
-      exportData: () => {
-        const s = get();
-        return {
-          version: 1,
-          exportedAt: now(),
-          tasks: s.tasks,
-          events: s.events,
-          transactions: s.transactions,
-          notes: s.notes,
-          categories: s.categories,
-          settings: s.settings,
-        };
-      },
-      importData: (snapshot) =>
-        set({
-          tasks: snapshot.tasks ?? [],
-          events: snapshot.events ?? [],
-          transactions: snapshot.transactions ?? [],
-          notes: snapshot.notes ?? [],
-          categories: snapshot.categories ?? seedCategories(),
-          settings: snapshot.settings ?? { startMonth: toMonthKey(new Date()) },
-        }),
-      clearAll: () =>
-        set({
-          tasks: [],
-          events: [],
-          transactions: [],
-          notes: [],
-          categories: seedCategories(),
-          settings: { startMonth: toMonthKey(new Date()) },
-        }),
-    }),
-    {
-      name: "lior-management",
-      storage: createJSONStorage(() => localStorage),
-      skipHydration: true,
-      partialize: (s) => ({
-        tasks: s.tasks,
-        events: s.events,
-        transactions: s.transactions,
-        notes: s.notes,
-        categories: s.categories,
-        settings: s.settings,
-      }),
-      onRehydrateStorage: () => (state) => {
-        if (!state) return;
-        // First run: seed default categories so the dialogs are not empty.
-        if (state.categories.length === 0) {
-          useAppStore.setState({ categories: seedCategories() });
-        }
-        useAppStore.setState({ hydrated: true });
-      },
-    },
-  ),
-);
+  addChecklist: (title, items = []) => {
+    push(
+      api("/api/checklists", "POST", { title, items }).then((saved) =>
+        set((s) => ({ checklists: [saved as Checklist, ...s.checklists] })),
+      ),
+    );
+  },
+  renameChecklist: (id, title) => {
+    set((s) => ({
+      checklists: s.checklists.map((l) => (l.id === id ? { ...l, title } : l)),
+    }));
+    push(api(`/api/checklists/${id}`, "PATCH", { title }));
+  },
+  deleteChecklist: (id) => {
+    set((s) => ({ checklists: s.checklists.filter((l) => l.id !== id) }));
+    push(api(`/api/checklists/${id}`, "DELETE"));
+  },
+  addChecklistItem: (listId, text) => {
+    push(
+      api(`/api/checklists/${listId}`, "PATCH", { addItem: text }).then(
+        (saved) =>
+          set((s) => ({
+            checklists: s.checklists.map((l) =>
+              l.id === listId ? (saved as Checklist) : l,
+            ),
+          })),
+      ),
+    );
+  },
+  toggleChecklistItem: (listId, itemId) => {
+    const list = get().checklists.find((l) => l.id === listId);
+    const item = list?.items.find((i) => i.id === itemId);
+    if (!item) return;
+    const done = !item.done;
+    set((s) => ({
+      checklists: s.checklists.map((l) =>
+        l.id === listId
+          ? {
+              ...l,
+              items: l.items.map((i) => (i.id === itemId ? { ...i, done } : i)),
+            }
+          : l,
+      ),
+    }));
+    push(api(`/api/checklists/${listId}/items/${itemId}`, "PATCH", { done }));
+  },
+  deleteChecklistItem: (listId, itemId) => {
+    set((s) => ({
+      checklists: s.checklists.map((l) =>
+        l.id === listId
+          ? { ...l, items: l.items.filter((i) => i.id !== itemId) }
+          : l,
+      ),
+    }));
+    push(api(`/api/checklists/${listId}/items/${itemId}`, "DELETE"));
+  },
+  clearDoneItems: (listId) => {
+    set((s) => ({
+      checklists: s.checklists.map((l) =>
+        l.id === listId ? { ...l, items: l.items.filter((i) => !i.done) } : l,
+      ),
+    }));
+    push(api(`/api/checklists/${listId}`, "PATCH", { clearDone: true }));
+  },
+
+  /* ----------------------------------------------------- categories */
+
+  addCategory: (input) => {
+    push(
+      api("/api/categories", "POST", input).then((saved) =>
+        set((s) => ({ categories: [...s.categories, saved as Category] })),
+      ),
+    );
+  },
+  updateCategory: (id, input) => {
+    set((s) => ({
+      categories: s.categories.map((c) =>
+        c.id === id ? { ...c, ...input } : c,
+      ),
+    }));
+    push(api(`/api/categories/${id}`, "PATCH", input));
+  },
+  deleteCategory: (id) => {
+    set((s) => ({
+      categories: s.categories.filter((c) => c.id !== id),
+      tasks: s.tasks.map((t) =>
+        t.categoryId === id ? { ...t, categoryId: undefined } : t,
+      ),
+      transactions: s.transactions.map((t) =>
+        t.categoryId === id ? { ...t, categoryId: undefined } : t,
+      ),
+    }));
+    push(api(`/api/categories/${id}`, "DELETE"));
+  },
+
+  /* ------------------------------------------------ whole snapshot */
+
+  exportData: () => {
+    const s = get();
+    return {
+      version: 1,
+      exportedAt: now(),
+      tasks: s.tasks,
+      events: s.events,
+      transactions: s.transactions,
+      notes: s.notes,
+      checklists: s.checklists,
+      categories: s.categories,
+      settings: s.settings,
+    };
+  },
+  importData: async (snapshot) => {
+    const saved = (await api("/api/data", "PUT", snapshot)) as DataSnapshot;
+    applySnapshot(saved);
+  },
+  clearAll: async () => {
+    const saved = (await api("/api/data", "DELETE")) as DataSnapshot;
+    applySnapshot(saved);
+  },
+}));
 
 export function useCategories(kind: Category["kind"]) {
   return useAppStore((s) => s.categories).filter((c) => c.kind === kind);

@@ -9,9 +9,9 @@ import { useAppStore } from "@/lib/store";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    // Persist is created with skipHydration so the server render never
-    // touches localStorage; hydrate once on the client.
-    useAppStore.persist.rehydrate();
+    // The screens render from an in-memory mirror; fill it from the database
+    // once, on the client, so the server render stays data-free.
+    void useAppStore.getState().load();
   }, []);
 
   return (

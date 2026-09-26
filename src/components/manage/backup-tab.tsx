@@ -37,6 +37,7 @@ export function BackupTab() {
       events: s.events.length,
       transactions: s.transactions.length,
       notes: s.notes.length,
+      checklists: s.checklists.length,
       startMonth: s.settings.startMonth,
     })),
   );
@@ -63,7 +64,7 @@ export function BackupTab() {
     try {
       const parsed = JSON.parse(await file.text()) as DataSnapshot;
       if (!parsed || !Array.isArray(parsed.tasks)) throw new Error("bad file");
-      importData(parsed);
+      await importData(parsed);
       toast.success("הנתונים יובאו בהצלחה");
     } catch {
       toast.error("הקובץ אינו גיבוי תקין");
@@ -79,7 +80,7 @@ export function BackupTab() {
         <CardHeader>
           <CardTitle>מצב הנתונים</CardTitle>
           <CardDescription>
-            נשמרים בדפדפן הזה בלבד (localStorage)
+            מסד נתונים מקומי — <code className="text-xs">data/lior.db</code>
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-1.5 text-sm">
@@ -88,6 +89,7 @@ export function BackupTab() {
           <Row label="אירועים" value={counts.events} />
           <Row label="תנועות כספיות" value={counts.transactions} />
           <Row label="הערות" value={counts.notes} />
+          <Row label="רשימות" value={counts.checklists} />
         </CardContent>
       </Card>
 
@@ -164,9 +166,13 @@ export function BackupTab() {
                 <AlertDialogCancel>ביטול</AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
-                  onClick={() => {
-                    clearAll();
-                    toast.success("כל הנתונים נמחקו");
+                  onClick={async () => {
+                    try {
+                      await clearAll();
+                      toast.success("כל הנתונים נמחקו");
+                    } catch {
+                      toast.error("המחיקה נכשלה");
+                    }
                   }}
                 >
                   מחיקה

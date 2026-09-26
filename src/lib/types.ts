@@ -21,6 +21,8 @@ export interface Task {
   categoryId?: string;
   completed: boolean;
   completedAt?: string;
+  /** Set when a finished task is moved out of the active list. */
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -61,6 +63,21 @@ export interface Note {
   updatedAt: string;
 }
 
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+/** A tickable list — shopping, packing, anything repeatable. */
+export interface Checklist {
+  id: string;
+  title: string;
+  items: ChecklistItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Settings {
   startMonth: string; // yyyy-MM
 }
@@ -72,6 +89,7 @@ export interface DataSnapshot {
   events: CalendarEvent[];
   transactions: Transaction[];
   notes: Note[];
+  checklists: Checklist[];
   categories: Category[];
   settings: Settings;
 }
