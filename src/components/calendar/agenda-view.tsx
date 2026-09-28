@@ -2,7 +2,7 @@
 
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { CalendarX2, Lock, MapPin } from "lucide-react";
+import { CalendarX2, Lock, MapPin, Repeat } from "lucide-react";
 import { COLOR_STYLES } from "@/lib/colors";
 import { toDateKey, todayKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -10,7 +10,7 @@ import type { CalendarEvent, Task } from "@/lib/types";
 import { TaskRow } from "@/components/tasks/task-row";
 import { TimeRange } from "@/components/time-range";
 import type { DayData } from "./use-calendar-data";
-import { GOOGLE_CHIP } from "./chips";
+import { googleChip, googleTint } from "./chips";
 
 /**
  * Days in sequence with what is on each — the natural way to read a calendar
@@ -104,7 +104,7 @@ export function AgendaView({
                         key={e.id}
                         className={cn(
                           "rounded-full px-2.5 py-0.5 text-sm",
-                          GOOGLE_CHIP,
+                          googleChip(e.color),
                         )}
                       >
                         {e.title}
@@ -130,7 +130,11 @@ export function AgendaView({
                 item.kind === "google" ? (
                   <div
                     key={item.e.id}
-                    className="rounded-lg border border-s-4 border-s-sky-500 bg-sky-50/70 px-3 py-2 dark:bg-sky-950/30"
+                    className={cn(
+                      "rounded-lg border border-s-4 px-3 py-2",
+                      googleTint(item.e.color).bar,
+                      googleTint(item.e.color).card,
+                    )}
                   >
                     <div className="flex items-center gap-2 font-medium">
                       {item.e.title}
@@ -153,7 +157,15 @@ export function AgendaView({
                       COLOR_STYLES[item.e.color].soft,
                     )}
                   >
-                    <div className="font-medium">{item.e.title}</div>
+                    <div className="flex items-center gap-1.5 font-medium">
+                      {item.e.title}
+                      {item.e.repeat && (
+                        <Repeat
+                          className="size-3.5 text-muted-foreground"
+                          aria-label="אירוע חוזר"
+                        />
+                      )}
+                    </div>
                     <div className="flex flex-wrap gap-x-3 text-xs text-muted-foreground">
                       <span className="tabular-nums">
                         <TimeRange

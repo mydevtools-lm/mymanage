@@ -87,3 +87,26 @@ describe("describeRepeat", () => {
     expect(describeRepeat({ kind: "monthly", day: 10 })).toBe("ב־10 בכל חודש");
   });
 });
+
+describe("yearly", () => {
+  it("falls on the start date's day and month", () => {
+    const birthday = {
+      repeat: { kind: "yearly" as const },
+      startDate: "1990-10-03",
+    };
+    expect(occursOn(birthday, "2026-10-03")).toBe(true);
+    expect(occursOn(birthday, "2026-10-04")).toBe(false);
+    expect(occursOn(birthday, "2026-11-03")).toBe(false);
+    expect(nextOccurrence(birthday, "2026-09-28")).toBe("2026-10-03");
+  });
+
+  it("29 February falls on the 28th in ordinary years", () => {
+    const leap = {
+      repeat: { kind: "yearly" as const },
+      startDate: "2024-02-29",
+    };
+    expect(occursOn(leap, "2027-02-28")).toBe(true);
+    expect(occursOn(leap, "2028-02-29")).toBe(true);
+    expect(occursOn(leap, "2028-02-28")).toBe(false);
+  });
+});

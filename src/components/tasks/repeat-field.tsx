@@ -13,6 +13,7 @@ const KIND_OPTIONS = [
   { value: "daily", label: "כל יום" },
   { value: "weekly", label: "בימים קבועים בשבוע" },
   { value: "monthly", label: "פעם בחודש" },
+  { value: "yearly", label: "פעם בשנה" },
 ];
 
 function weekdayOf(date: string) {
@@ -42,7 +43,9 @@ export function RepeatField({
     else if (next === "daily") onChange({ kind: "daily" });
     else if (next === "weekly")
       onChange({ kind: "weekly", days: [weekdayOf(startDate)] });
-    else onChange({ kind: "monthly", day: Number(startDate.slice(8, 10)) });
+    else if (next === "monthly")
+      onChange({ kind: "monthly", day: Number(startDate.slice(8, 10)) });
+    else onChange({ kind: "yearly" });
   }
 
   function toggleDay(day: number) {

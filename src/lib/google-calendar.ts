@@ -2,11 +2,14 @@ import "server-only";
 import ICAL from "ical.js";
 
 /**
- * Read-only bridge to a Google Calendar private iCal (.ics) address.
+ * Read-only bridge to Google Calendar private iCal (.ics) addresses.
  *
- * The address is a secret — anyone holding it can read the whole calendar —
- * so it lives in GOOGLE_CALENDAR_ICS_URL and is only ever used on the server.
- * It must never be sent to the browser.
+ * Each address is a secret — anyone holding it can read the whole calendar —
+ * so they live in .env.local and are only ever used on the server. They must
+ * never be sent to the browser; calendars are known there by number only.
+ *
+ * GOOGLE_CALENDAR_ICS_URL is calendar 1; GOOGLE_CALENDAR_ICS_URL_2 … _9 add
+ * more, each with an optional GOOGLE_CALENDAR_NAME / _NAME_<n> for display.
  */
 
 export interface ExternalEvent {
@@ -19,6 +22,38 @@ export interface ExternalEvent {
   location?: string;
   notes?: string;
   source: "google";
+  /** Which calendar (by number) the event comes from. */
+  calendarId: string;
+}
+
+export interface CalendarSource {
+  id: string;
+  name: string;
+  url: string;
+}
+
+export function calendarSources(
+  env: Record<string, string | undefined> = process.env,
+): CalendarSource[] {
+  const sources: CalendarSource[] = [];
+  const first = env.GOOGLE_CALENDAR_ICS_URL?.trim();
+  if (first) {
+    sources.push({
+      id: "1",
+      name: env.GOOGLE_CALENDAR_NAME?.trim() || "גוגל יומן",
+      url: first,
+    });
+  }
+  for (let n = 2; n <= 9; n++) {
+    const url = env[`GOOGLE_CALENDAR_ICS_URL_${n}`]?.trim();
+    if (!url) continue;
+    sources.push({
+      id: String(n),
+      name: env[`GOOGLE_CALENDAR_NAME_${n}`]?.trim() || `יומן ${n}`,
+      url,
+    });
+  }
+  return sources;
 }
 
 // A recurring rule with no end date would iterate forever; stop well past any
@@ -26,27 +61,58 @@ export interface ExternalEvent {
 const MAX_OCCURRENCES_PER_EVENT = 400;
 
 export function isConfigured() {
-  return !!process.env.GOOGLE_CALENDAR_ICS_URL?.trim();
+  return calendarSources().length > 0;
 }
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
-// ICAL.Time already carries the wall-clock fields in its own zone, which is
-// what a calendar grid shows — so format from those instead of a JS Date.
-function dateKey(t: ICAL.Time) {
+/** Wall-clock fields, as the calendar grid shows them. */
+interface WallTime {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  isDate: boolean;
+}
+
+function dateKey(t: WallTime) {
   return `${t.year}-${pad(t.month)}-${pad(t.day)}`;
 }
 
-function timeKey(t: ICAL.Time) {
+function timeKey(t: WallTime) {
   return `${pad(t.hour)}:${pad(t.minute)}`;
 }
 
-function toLocal(t: ICAL.Time) {
+/**
+ * The same moment on this machine's clock. Going through an absolute JS Date
+ * handles every form a feed uses — UTC ("…Z", common in Google feeds), a
+ * TZID with its VTIMEZONE, or floating. (ICAL's own "local timezone" leaves
+ * UTC times in UTC, which showed a 13:00 meeting at 10:00.)
+ */
+function toLocal(t: ICAL.Time): WallTime {
   // All-day values have no zone; leave them as written.
-  if (t.isDate) return t;
-  return t.convertToZone(ICAL.Timezone.localTimezone);
+  if (t.isDate) {
+    return {
+      year: t.year,
+      month: t.month,
+      day: t.day,
+      hour: 0,
+      minute: 0,
+      isDate: true,
+    };
+  }
+  const d = t.toJSDate();
+  return {
+    year: d.getFullYear(),
+    month: d.getMonth() + 1,
+    day: d.getDate(),
+    hour: d.getHours(),
+    minute: d.getMinutes(),
+    isDate: false,
+  };
 }
 
 function firstStringValue(
@@ -62,13 +128,14 @@ function buildEvent(
   start: ICAL.Time,
   end: ICAL.Time,
   idSuffix: string,
+  calendarId: string,
 ): ExternalEvent {
   const localStart = toLocal(start);
   const localEnd = toLocal(end);
   const allDay = localStart.isDate;
 
   return {
-    id: `google:${event.uid}:${idSuffix}`,
+    id: `google:${calendarId}:${event.uid}:${idSuffix}`,
     title: event.summary?.trim() || "(ללא כותרת)",
     date: dateKey(localStart),
     startTime: allDay ? undefined : timeKey(localStart),
@@ -77,10 +144,16 @@ function buildEvent(
     location: event.location?.trim() || undefined,
     notes: event.description?.trim() || undefined,
     source: "google",
+    calendarId,
   };
 }
 
-function parseEvents(ics: string, from: string, to: string): ExternalEvent[] {
+export function parseEvents(
+  ics: string,
+  from: string,
+  to: string,
+  calendarId = "1",
+): ExternalEvent[] {
   const root = new ICAL.Component(ICAL.parse(ics));
 
   // Google ships the VTIMEZONE definitions inside the feed; registering them
@@ -117,7 +190,9 @@ function parseEvents(ics: string, from: string, to: string): ExternalEvent[] {
     if (!event.isRecurring()) {
       const key = dateKey(toLocal(event.startDate));
       if (key >= from && key <= to) {
-        results.push(buildEvent(event, event.startDate, event.endDate, "once"));
+        results.push(
+          buildEvent(event, event.startDate, event.endDate, "once", calendarId),
+        );
       }
       continue;
     }
@@ -134,7 +209,13 @@ function parseEvents(ics: string, from: string, to: string): ExternalEvent[] {
 
       const details = event.getOccurrenceDetails(next);
       results.push(
-        buildEvent(details.item, details.startDate, details.endDate, key),
+        buildEvent(
+          details.item,
+          details.startDate,
+          details.endDate,
+          key,
+          calendarId,
+        ),
       );
     }
   }
@@ -146,22 +227,49 @@ function parseEvents(ics: string, from: string, to: string): ExternalEvent[] {
   );
 }
 
-export async function fetchGoogleEvents(
-  from: string,
-  to: string,
-): Promise<ExternalEvent[]> {
-  const url = process.env.GOOGLE_CALENDAR_ICS_URL?.trim();
-  if (!url) return [];
-
-  const response = await fetch(url, {
+async function fetchCalendar(source: CalendarSource, from: string, to: string) {
+  const response = await fetch(source.url, {
     // Google regenerates the feed slowly; re-fetching more often than this
     // only burns requests.
     next: { revalidate: 600 },
   });
-
   if (!response.ok) {
-    throw new Error(`Google Calendar returned ${response.status}`);
+    throw new Error(`Google Calendar ${source.id} returned ${response.status}`);
   }
+  return parseEvents(await response.text(), from, to, source.id);
+}
 
-  return parseEvents(await response.text(), from, to);
+export interface CalendarsResult {
+  /** Number and display name only — never the secret address. */
+  calendars: { id: string; name: string; failed?: boolean }[];
+  events: ExternalEvent[];
+}
+
+/** All configured calendars at once; one failing leaves the rest showing. */
+export async function fetchGoogleCalendars(
+  from: string,
+  to: string,
+): Promise<CalendarsResult> {
+  const sources = calendarSources();
+  const settled = await Promise.allSettled(
+    sources.map((source) => fetchCalendar(source, from, to)),
+  );
+  const calendars: CalendarsResult["calendars"] = [];
+  const events: ExternalEvent[] = [];
+  settled.forEach((result, index) => {
+    const { id, name } = sources[index];
+    if (result.status === "fulfilled") {
+      calendars.push({ id, name });
+      events.push(...result.value);
+    } else {
+      console.error(`Google Calendar ${id} fetch failed:`, result.reason);
+      calendars.push({ id, name, failed: true });
+    }
+  });
+  events.sort((a, b) =>
+    a.date === b.date
+      ? (a.startTime ?? "").localeCompare(b.startTime ?? "")
+      : a.date.localeCompare(b.date),
+  );
+  return { calendars, events };
 }

@@ -29,7 +29,7 @@ export function instanceId(routineId: string, date: string) {
   return `${routineId}_${date}`;
 }
 
-export function repeatFallsOn(repeat: Repeat, date: string) {
+export function repeatFallsOn(repeat: Repeat, date: string, startDate = date) {
   const d = parse(date);
   switch (repeat.kind) {
     case "daily":
@@ -39,6 +39,12 @@ export function repeatFallsOn(repeat: Repeat, date: string) {
     case "monthly":
       // "On the 31st" means the last day in shorter months.
       return d.getDate() === Math.min(repeat.day, daysInMonth(d));
+    case "yearly": {
+      const start = parse(startDate);
+      if (d.getMonth() !== start.getMonth()) return false;
+      // Born on 29 February: celebrate on the 28th in ordinary years.
+      return d.getDate() === Math.min(start.getDate(), daysInMonth(d));
+    }
   }
 }
 
@@ -47,7 +53,7 @@ export function occursOn(
   date: string,
 ) {
   if (routine.paused || date < routine.startDate) return false;
-  return repeatFallsOn(routine.repeat, date);
+  return repeatFallsOn(routine.repeat, date, routine.startDate);
 }
 
 /** The first day from `from` on that the routine falls on, if any soon. */
@@ -57,7 +63,7 @@ export function nextOccurrence(
 ) {
   if (routine.paused) return undefined;
   const d = parse(from < routine.startDate ? routine.startDate : from);
-  for (let i = 0; i < 62; i++) {
+  for (let i = 0; i < 366; i++) {
     const date = key(d);
     if (occursOn(routine, date)) return date;
     d.setDate(d.getDate() + 1);
@@ -78,5 +84,7 @@ export function describeRepeat(repeat: Repeat) {
     }
     case "monthly":
       return `ב־${repeat.day} בכל חודש`;
+    case "yearly":
+      return "כל שנה";
   }
 }

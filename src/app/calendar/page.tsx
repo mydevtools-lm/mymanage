@@ -31,8 +31,12 @@ import { WeekView } from "@/components/calendar/week-view";
 import { AgendaView } from "@/components/calendar/agenda-view";
 import { DayPanel } from "@/components/calendar/day-panel";
 import { useCalendarData } from "@/components/calendar/use-calendar-data";
+import { useEventActions } from "@/components/calendar/event-actions";
+import { googleChip } from "@/components/calendar/chips";
+import { useAppStore } from "@/lib/store";
 import { toDateKey } from "@/lib/format";
 import { useIsDesktop } from "@/lib/use-media";
+import { cn } from "@/lib/utils";
 import type { CalendarEvent, Task } from "@/lib/types";
 
 type View = "month" | "week" | "list";
@@ -128,6 +132,22 @@ export default function CalendarPage() {
     setSlot(null);
     setEventDialog(true);
   };
+  // Dragging in the month or week grid: a new day, and in the week a new time.
+  const { save: saveEvent } = useEventActions();
+  const updateTask = useAppStore((s) => s.updateTask);
+  const moveEvent = (
+    event: CalendarEvent,
+    date: string,
+    startTime?: string,
+    endTime?: string,
+  ) =>
+    void saveEvent(event, startTime ? { date, startTime, endTime } : { date });
+  const moveTask = (task: Task, date: string, dueTime?: string) =>
+    updateTask(
+      task.id,
+      dueTime ? { dueDate: date, dueTime } : { dueDate: date },
+    );
+
   const openNewTask = () => {
     setEditingTask(null);
     setTaskDialog(true);
@@ -202,6 +222,8 @@ export default function CalendarPage() {
             month={cursor}
             day={day}
             onSelectDay={setSelectedDay}
+            onMoveEvent={moveEvent}
+            onMoveTask={moveTask}
           />
         )}
         {current === "week" && (
@@ -212,6 +234,8 @@ export default function CalendarPage() {
             onEditEvent={openEditEvent}
             onEditTask={openEditTask}
             onCreateAt={(date, hour) => openNewEvent({ date, hour })}
+            onMoveEvent={moveEvent}
+            onMoveTask={moveTask}
           />
         )}
         {current === "list" && (
@@ -229,10 +253,14 @@ export default function CalendarPage() {
             <span className="size-3 rounded bg-teal-100 dark:bg-teal-900/50" />
             אירוע
           </span>
-          <span className="flex items-center gap-1.5">
-            <span className="size-3 rounded border-s-2 border-s-sky-500 bg-sky-50 dark:bg-sky-950/50" />
-            גוגל יומן
-          </span>
+          {google.calendars
+            .filter((c) => !c.hidden && !c.failed)
+            .map((c) => (
+              <span key={c.id} className="flex items-center gap-1.5">
+                <span className={cn("size-3 rounded", googleChip(c.color))} />
+                {c.name}
+              </span>
+            ))}
           <span className="flex items-center gap-1.5">
             <span className="size-3 rounded border border-dashed border-primary/40" />
             משימה

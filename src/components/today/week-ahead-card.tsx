@@ -19,6 +19,8 @@ import { useGoogleEvents } from "@/lib/use-google-events";
 import { COLOR_STYLES } from "@/lib/colors";
 import { toDateKey, todayKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { expandEvents } from "@/lib/event-series";
+import { googleChip } from "@/components/calendar/chips";
 
 /** The six days after today — today itself is the main body of the screen. */
 export function WeekAheadCard() {
@@ -30,19 +32,20 @@ export function WeekAheadCard() {
   const google = useGoogleEvents(from, to);
 
   const days = useMemo(() => {
+    const shown = expandEvents(events, from, to);
     return Array.from({ length: 6 }, (_, i) =>
       toDateKey(addDays(new Date(), i + 1)),
     )
       .map((day) => ({
         day,
-        events: events
+        events: shown
           .filter((e) => e.date === day)
           .sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? "")),
         google: google.events.filter((e) => e.date === day),
         tasks: tasks.filter((t) => t.dueDate === day && !t.archivedAt),
       }))
       .filter((d) => d.events.length + d.google.length + d.tasks.length > 0);
-  }, [events, tasks, google.events]);
+  }, [events, tasks, google.events, from, to]);
 
   return (
     <Card>
@@ -86,9 +89,7 @@ export function WeekAheadCard() {
                       )}
                     >
                       {e.startTime && !e.allDay && (
-                        <span className="me-1 tabular-nums opacity-70">
-                          {e.startTime}
-                        </span>
+                        <span className="me-1 tabular-nums">{e.startTime}</span>
                       )}
                       {e.title}
                     </div>
@@ -96,12 +97,13 @@ export function WeekAheadCard() {
                   {d.google.map((e) => (
                     <div
                       key={e.id}
-                      className="truncate rounded border-s-2 border-s-sky-500 bg-sky-50 px-1.5 py-0.5 text-xs text-sky-900 dark:bg-sky-950/50 dark:text-sky-100"
+                      className={cn(
+                        "truncate rounded px-1.5 py-0.5 text-xs",
+                        googleChip(e.color),
+                      )}
                     >
                       {e.startTime && (
-                        <span className="me-1 tabular-nums opacity-70">
-                          {e.startTime}
-                        </span>
+                        <span className="me-1 tabular-nums">{e.startTime}</span>
                       )}
                       {e.title}
                     </div>

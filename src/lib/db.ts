@@ -144,6 +144,10 @@ const MIGRATIONS: string[] = [
    ALTER TABLE tasks ADD COLUMN subtasks TEXT;
    ALTER TABLE tasks ADD COLUMN position REAL;
    CREATE INDEX tasks_routine ON tasks(routineId);`,
+  // v5 — recurring events: the rule and end day, and per-day changes (JSON).
+  `ALTER TABLE events ADD COLUMN repeat TEXT;
+   ALTER TABLE events ADD COLUMN until TEXT;
+   ALTER TABLE events ADD COLUMN exceptions TEXT;`,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

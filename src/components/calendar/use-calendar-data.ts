@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useAppStore } from "@/lib/store";
+import { expandEvents } from "@/lib/event-series";
 import { useGoogleEvents, type ExternalEvent } from "@/lib/use-google-events";
 import type { CalendarEvent, Task } from "@/lib/types";
 
@@ -37,9 +38,9 @@ export function useCalendarData(from: string, to: string) {
       }
       return entry;
     };
-    for (const e of events) {
-      if (e.date >= from && e.date <= to) bucket(e.date).events.push(e);
-    }
+    // Recurring events arrive as one occurrence per day they fall on.
+    for (const e of expandEvents(events, from, to))
+      bucket(e.date).events.push(e);
     for (const e of google.events) bucket(e.date).google.push(e);
     for (const t of tasks) {
       if (t.dueDate && t.dueDate >= from && t.dueDate <= to) {

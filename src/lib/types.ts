@@ -43,7 +43,9 @@ export interface Subtask {
 export type Repeat =
   | { kind: "daily" }
   | { kind: "weekly"; days: number[] }
-  | { kind: "monthly"; day: number };
+  | { kind: "monthly"; day: number }
+  /** Same day and month as the start date — birthdays, anniversaries. */
+  | { kind: "yearly" };
 
 /**
  * A task that comes back by itself — pills, workout, mail. Each day it is
@@ -76,7 +78,30 @@ export interface CalendarEvent {
   location?: string;
   notes?: string;
   color: ColorKey;
+  /** Comes back from `date` on, until `until` (inclusive) if set. */
+  repeat?: Repeat;
+  until?: string;
+  /** Per-day changes to a recurring event: skip a day, or change it. */
+  exceptions?: EventException[];
+  /** Set on an occurrence of a recurring event, as shown on screen: the
+   *  stored event it comes from, and the day it originally fell on. */
+  seriesId?: string;
+  occurrenceDate?: string;
   createdAt: string;
+}
+
+export interface EventException {
+  date: string; // the day the occurrence originally falls on
+  skip?: boolean;
+  /** Moved to another day. */
+  newDate?: string;
+  title?: string;
+  startTime?: string;
+  endTime?: string;
+  allDay?: boolean;
+  location?: string;
+  notes?: string;
+  color?: ColorKey;
 }
 
 export interface Transaction {
@@ -135,6 +160,13 @@ export interface Checklist {
 
 export interface Settings {
   startMonth: string; // yyyy-MM
+  /** Per Google calendar (by its number in .env.local): colour, hidden. */
+  calendars?: Record<string, CalendarPref>;
+}
+
+export interface CalendarPref {
+  color?: ColorKey;
+  hidden?: boolean;
 }
 
 export interface DataSnapshot {

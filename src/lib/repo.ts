@@ -7,6 +7,7 @@ import type {
   DataSnapshot,
   Note,
   Routine,
+  Settings,
   Subtask,
   Task,
   Transaction,
@@ -358,7 +359,19 @@ interface EventRow {
   location: string | null;
   notes: string | null;
   color: string;
+  repeat: string | null;
+  until: string | null;
+  exceptions: string | null;
   createdAt: string;
+}
+
+function parseJson<T>(raw: string | null): T | undefined {
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return undefined;
+  }
 }
 
 function toEvent(r: EventRow): CalendarEvent {
@@ -372,6 +385,10 @@ function toEvent(r: EventRow): CalendarEvent {
     location: r.location ?? undefined,
     notes: r.notes ?? undefined,
     color: r.color as CalendarEvent["color"],
+    repeat: parseJson(r.repeat),
+    until: r.until ?? undefined,
+    // Stored as NULL when empty, so a list here always has something in it.
+    exceptions: parseJson(r.exceptions),
     createdAt: r.createdAt,
   };
 }
@@ -386,8 +403,8 @@ export function createEvent(input: Partial<CalendarEvent>): CalendarEvent {
   const id = input.id ?? newId();
   getDb()
     .prepare(
-      `INSERT INTO events (id,title,date,startTime,endTime,allDay,location,notes,color,createdAt)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO events (id,title,date,startTime,endTime,allDay,location,notes,color,repeat,until,exceptions,createdAt)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     )
     .run(
       id,
@@ -399,6 +416,9 @@ export function createEvent(input: Partial<CalendarEvent>): CalendarEvent {
       input.location ?? null,
       input.notes ?? null,
       input.color ?? "teal",
+      input.repeat ? JSON.stringify(input.repeat) : null,
+      input.until ?? null,
+      input.exceptions?.length ? JSON.stringify(input.exceptions) : null,
       input.createdAt ?? now(),
     );
   return getEvent(id)!;
@@ -420,6 +440,9 @@ const EVENT_FIELDS = [
   "location",
   "notes",
   "color",
+  "repeat",
+  "until",
+  "exceptions",
 ] as const;
 
 export function updateEvent(
@@ -433,6 +456,12 @@ export function updateEvent(
     const value = patch[field];
     sets.push(`${field} = ?`);
     if (field === "allDay") values.push(value ? 1 : 0);
+    else if (field === "repeat")
+      values.push(value ? JSON.stringify(value) : null);
+    else if (field === "exceptions")
+      values.push(
+        Array.isArray(value) && value.length ? JSON.stringify(value) : null,
+      );
     else values.push((value as string | undefined) ?? null);
   }
   if (sets.length === 0) return getEvent(id);
@@ -887,6 +916,22 @@ export function deleteCategory(id: string) {
 
 /* ------------------------------------------------------------- settings */
 
+export function getCalendarPrefs(): Settings["calendars"] {
+  const found = row<{ value: string }>(
+    getDb().prepare("SELECT value FROM settings WHERE key='calendars'").get(),
+  );
+  return parseJson(found?.value ?? null) ?? {};
+}
+
+export function setCalendarPrefs(value: Settings["calendars"]) {
+  getDb()
+    .prepare(
+      "INSERT OR REPLACE INTO settings (key,value) VALUES ('calendars', ?)",
+    )
+    .run(JSON.stringify(value ?? {}));
+  return getCalendarPrefs();
+}
+
 export function getStartMonth(): string {
   const found = row<{ value: string }>(
     getDb().prepare("SELECT value FROM settings WHERE key='startMonth'").get(),
@@ -907,7 +952,7 @@ export function readAll(): DataSnapshot {
     checklists: listChecklists(),
     routines: listRoutines(),
     categories: listCategories(),
-    settings: { startMonth: getStartMonth() },
+    settings: { startMonth: getStartMonth(), calendars: getCalendarPrefs() },
   };
 }
 
@@ -956,6 +1001,9 @@ export function replaceAll(snapshot: Partial<DataSnapshot>) {
       db.prepare(
         "INSERT OR REPLACE INTO settings (key,value) VALUES ('startMonth', ?)",
       ).run(snapshot.settings.startMonth);
+    }
+    if (snapshot.settings?.calendars) {
+      setCalendarPrefs(snapshot.settings.calendars);
     }
     db.exec("COMMIT");
   } catch (error) {

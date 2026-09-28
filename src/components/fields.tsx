@@ -151,6 +151,8 @@ export function ColorSelect({
           key={key}
           type="button"
           title={COLOR_STYLES[key].label}
+          aria-label={COLOR_STYLES[key].label}
+          aria-pressed={value === key}
           onClick={() => onChange(key)}
           className={cn(
             "size-7 rounded-full ring-offset-2 ring-offset-background transition",

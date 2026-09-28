@@ -1,28 +1,47 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { format, isSameMonth } from "date-fns";
 import { COLOR_STYLES } from "@/lib/colors";
 import { toDateKey, todayKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type { CalendarEvent, Task } from "@/lib/types";
 import type { DayData } from "./use-calendar-data";
-import { GOOGLE_CHIP, TASK_CHIP_DONE, TASK_CHIP_OPEN } from "./chips";
+import {
+  googleChip,
+  googleTint,
+  TASK_CHIP_DONE,
+  TASK_CHIP_OPEN,
+} from "./chips";
 
 export const WEEKDAYS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const PER_CELL = 3;
 
-/** Classic month grid. Each chip shows its time; overflow becomes "+N". */
+type Dragged =
+  { kind: "event"; event: CalendarEvent } | { kind: "task"; task: Task };
+
+/**
+ * Classic month grid. Each chip shows its time; overflow becomes "+N".
+ * On a computer, an event or task chip can be dragged to another day.
+ */
 export function MonthView({
   days,
   month,
   day,
   onSelectDay,
+  onMoveEvent,
+  onMoveTask,
 }: {
   days: Date[];
   month: Date;
   day: (key: string) => DayData;
   onSelectDay: (key: string) => void;
+  onMoveEvent?: (event: CalendarEvent, date: string) => void;
+  onMoveTask?: (task: Task, date: string) => void;
 }) {
   const today = todayKey();
+  const dragged = useRef<Dragged | null>(null);
+  const [over, setOver] = useState<string | null>(null);
 
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
@@ -47,13 +66,17 @@ export function MonthView({
               title: e.title,
               className: COLOR_STYLES[e.color].badge,
               dot: COLOR_STYLES[e.color].dot,
+              drag: onMoveEvent
+                ? ({ kind: "event", event: e } as Dragged)
+                : undefined,
             })),
             ...google.map((e) => ({
               key: e.id,
               time: e.startTime,
               title: e.title,
-              className: GOOGLE_CHIP,
-              dot: "bg-sky-500",
+              className: googleChip(e.color),
+              dot: googleTint(e.color).dot,
+              drag: undefined,
             })),
             ...tasks.map((t) => ({
               key: t.id,
@@ -61,6 +84,9 @@ export function MonthView({
               title: t.title,
               className: t.completed ? TASK_CHIP_DONE : TASK_CHIP_OPEN,
               dot: t.completed ? "bg-muted-foreground/40" : "bg-primary",
+              drag: onMoveTask
+                ? ({ kind: "task", task: t } as Dragged)
+                : undefined,
             })),
           ];
           const shown = chips.slice(0, PER_CELL);
@@ -71,10 +97,30 @@ export function MonthView({
               key={key}
               type="button"
               onClick={() => onSelectDay(key)}
+              onDragOver={(e) => {
+                if (!dragged.current) return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+                if (over !== key) setOver(key);
+              }}
+              onDragLeave={() => setOver((o) => (o === key ? null : o))}
+              onDrop={(e) => {
+                e.preventDefault();
+                const item = dragged.current;
+                dragged.current = null;
+                setOver(null);
+                if (!item) return;
+                if (item.kind === "event") {
+                  if (item.event.date !== key) onMoveEvent?.(item.event, key);
+                } else if (item.task.dueDate !== key) {
+                  onMoveTask?.(item.task, key);
+                }
+              }}
               aria-label={`${format(date, "d.M")} — ${chips.length} פריטים`}
               className={cn(
                 "flex min-h-20 flex-col items-stretch gap-1 border-b border-e p-1 text-start transition-colors nth-[7n]:border-e-0 can-hover:hover:bg-accent/40 md:min-h-28 md:p-1.5",
                 !inMonth && "bg-muted/30 text-muted-foreground",
+                over === key && "bg-accent ring-2 ring-primary ring-inset",
               )}
             >
               <span
@@ -104,8 +150,20 @@ export function MonthView({
                   <span
                     key={c.key}
                     title={c.time ? `${c.time} ${c.title}` : c.title}
+                    draggable={!!c.drag}
+                    onDragStart={(e) => {
+                      if (!c.drag) return;
+                      dragged.current = c.drag;
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", c.title);
+                    }}
+                    onDragEnd={() => {
+                      dragged.current = null;
+                      setOver(null);
+                    }}
                     className={cn(
                       "flex min-w-0 items-baseline gap-1 rounded px-1 text-[11px] leading-5",
+                      c.drag && "cursor-grab active:cursor-grabbing",
                       c.className,
                     )}
                   >

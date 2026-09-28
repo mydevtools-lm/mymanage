@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { format } from "date-fns";
+import { useEffect, useRef, useState } from "react";
+import { addDays, format, parseISO } from "date-fns";
 import { he } from "date-fns/locale";
 import { Lock } from "lucide-react";
 import { COLOR_STYLES } from "@/lib/colors";
@@ -12,16 +12,44 @@ import { cn } from "@/lib/utils";
 import type { CalendarEvent, Task } from "@/lib/types";
 import type { ExternalEvent } from "@/lib/use-google-events";
 import type { DayData } from "./use-calendar-data";
-import {
-  GOOGLE_CHIP,
-  TASK_CHIP_DONE,
-  TASK_CHIP_OPEN,
-  timeRange,
-} from "./chips";
+import { googleChip, TASK_CHIP_DONE, TASK_CHIP_OPEN, timeRange } from "./chips";
 
 const HOUR_PX = 48;
 const PX_PER_MIN = HOUR_PX / 60;
 const FIRST_VISIBLE_HOUR = 7;
+const SNAP_MIN = 15;
+const DAY_MIN = 24 * 60;
+
+function toMinutes(time: string) {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function toTime(minutes: number) {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Where a block lands after being dragged by whole days and snapped minutes. */
+export function movedBlock(
+  block: { start: string; end?: string },
+  day: string,
+  days: number,
+  minutes: number,
+) {
+  const start = toMinutes(block.start);
+  const length = block.end ? toMinutes(block.end) - start : 0;
+  const nextStart = Math.max(
+    0,
+    Math.min(DAY_MIN - Math.max(length, SNAP_MIN), start + minutes),
+  );
+  return {
+    date: toDateKey(addDays(parseISO(day), days)),
+    start: toTime(nextStart),
+    end: block.end ? toTime(nextStart + length) : undefined,
+  };
+}
 
 type Block = Timed &
   (
@@ -78,6 +106,8 @@ export function WeekView({
   onEditEvent,
   onEditTask,
   onCreateAt,
+  onMoveEvent,
+  onMoveTask,
 }: {
   days: Date[];
   day: (key: string) => DayData;
@@ -85,9 +115,94 @@ export function WeekView({
   onEditEvent: (event: CalendarEvent) => void;
   onEditTask: (task: Task) => void;
   onCreateAt: (date: string, hour: number) => void;
+  onMoveEvent?: (
+    event: CalendarEvent,
+    date: string,
+    start: string,
+    end?: string,
+  ) => void;
+  onMoveTask?: (task: Task, date: string, time: string) => void;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const today = todayKey();
+
+  // Dragging a block with the mouse moves it: up and down by 15 minutes,
+  // sideways by whole days. Touch keeps scrolling; the dialog edits there.
+  const [drag, setDrag] = useState<{
+    key: string;
+    days: number;
+    minutes: number;
+    width: number;
+  } | null>(null);
+  const pressed = useRef<{
+    key: string;
+    x: number;
+    y: number;
+    moved: boolean;
+  } | null>(null);
+  const justDragged = useRef(false);
+  const firstColumn = useRef<HTMLDivElement>(null);
+
+  function offsets(dx: number, dy: number) {
+    const width = firstColumn.current?.getBoundingClientRect().width || 1;
+    return {
+      minutes: Math.round(dy / PX_PER_MIN / SNAP_MIN) * SNAP_MIN,
+      // Right to left: a later day sits further left.
+      days: Math.round(-dx / width),
+      width,
+    };
+  }
+
+  function dragHandlers(block: Block, dayKey: string) {
+    if (block.kind === "google") return {};
+    if (block.kind === "event" && !onMoveEvent) return {};
+    if (block.kind === "task" && !onMoveTask) return {};
+    return {
+      onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
+        if (e.pointerType === "touch" || e.button !== 0) return;
+        pressed.current = {
+          key: block.key,
+          x: e.clientX,
+          y: e.clientY,
+          moved: false,
+        };
+        try {
+          e.currentTarget.setPointerCapture(e.pointerId);
+        } catch {}
+      },
+      onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
+        const start = pressed.current;
+        if (!start || start.key !== block.key) return;
+        const dx = e.clientX - start.x;
+        const dy = e.clientY - start.y;
+        if (!start.moved && Math.hypot(dx, dy) < 5) return;
+        start.moved = true;
+        setDrag({ key: block.key, ...offsets(dx, dy) });
+      },
+      onPointerUp: (e: React.PointerEvent<HTMLElement>) => {
+        const start = pressed.current;
+        pressed.current = null;
+        setDrag(null);
+        if (!start?.moved || start.key !== block.key) return;
+        // The click that follows a drag must not open the editor.
+        justDragged.current = true;
+        const { days, minutes } = offsets(
+          e.clientX - start.x,
+          e.clientY - start.y,
+        );
+        if (days === 0 && minutes === 0) return;
+        const to = movedBlock(block, dayKey, days, minutes);
+        if (block.kind === "event")
+          onMoveEvent?.(block.event, to.date, to.start, to.end);
+        else if (block.kind === "task")
+          onMoveTask?.(block.task, to.date, to.start);
+      },
+      onPointerCancel: () => {
+        pressed.current = null;
+        setDrag(null);
+      },
+    };
+  }
 
   // Open on the working day, not at midnight.
   useEffect(() => {
@@ -159,7 +274,7 @@ export function WeekView({
                     title={e.title}
                     className={cn(
                       "truncate rounded px-1 text-[11px] leading-5",
-                      GOOGLE_CHIP,
+                      googleChip(e.color),
                     )}
                   >
                     {e.title}
@@ -217,8 +332,12 @@ export function WeekView({
             ))}
           </div>
 
-          {columns.map(({ key, placed }) => (
-            <div key={key} className="relative border-s">
+          {columns.map(({ key, placed }, index) => (
+            <div
+              key={key}
+              ref={index === 0 ? firstColumn : undefined}
+              className="relative border-s"
+            >
               {/* Clickable hour slots underneath the blocks */}
               {Array.from({ length: 24 }, (_, h) => (
                 <button
@@ -240,12 +359,16 @@ export function WeekView({
               )}
 
               {placed.map(({ item, top, height, lane, lanes }) => {
+                const dragging = drag?.key === item.key ? drag : null;
                 const style = {
                   top: top * PX_PER_MIN,
                   height: height * PX_PER_MIN - 2,
                   // Logical inset so lanes flow right-to-left like the page.
                   insetInlineStart: `calc(${(lane / lanes) * 100}% + 2px)`,
                   width: `calc(${100 / lanes}% - 4px)`,
+                  transform: dragging
+                    ? `translate(${-dragging.days * dragging.width}px, ${dragging.minutes * PX_PER_MIN}px)`
+                    : undefined,
                 };
                 const label =
                   item.kind === "task" ? item.task.title : item.event.title;
@@ -258,7 +381,7 @@ export function WeekView({
                       title={`${when} ${label} — מגוגל, קריאה בלבד`}
                       className={cn(
                         "absolute z-20 overflow-hidden rounded-md px-1 py-0.5 text-[11px] leading-4",
-                        GOOGLE_CHIP,
+                        googleChip(item.event.color),
                       )}
                       style={style}
                     >
@@ -278,13 +401,19 @@ export function WeekView({
                     key={item.key}
                     type="button"
                     title={`${when} ${label}`}
-                    onClick={() =>
-                      item.kind === "task"
-                        ? onEditTask(item.task)
-                        : onEditEvent(item.event)
-                    }
+                    {...dragHandlers(item, key)}
+                    onClick={() => {
+                      if (justDragged.current) {
+                        justDragged.current = false;
+                        return;
+                      }
+                      if (item.kind === "task") onEditTask(item.task);
+                      else onEditEvent(item.event);
+                    }}
                     className={cn(
                       "absolute z-20 overflow-hidden rounded-md px-1 py-0.5 text-start text-[11px] leading-4 shadow-xs",
+                      dragging &&
+                        "z-30 cursor-grabbing opacity-90 shadow-lg ring-2 ring-primary",
                       item.kind === "task"
                         ? cn(
                             "bg-card",

@@ -37,6 +37,7 @@ function google(id: string, extra: Partial<ExternalEvent> = {}): ExternalEvent {
     date: TODAY,
     allDay: false,
     source: "google",
+    calendarId: "1",
     ...extra,
   };
 }

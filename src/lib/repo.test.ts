@@ -39,6 +39,11 @@ import {
   listTasks,
   reorderTasks,
   updateRoutine,
+  createEvent,
+  getEvent,
+  updateEvent,
+  getCalendarPrefs,
+  setCalendarPrefs,
 } from "./repo";
 
 beforeEach(() => {
@@ -422,3 +427,46 @@ describe("subtasks and order", () => {
 function localToday() {
   return new Date().toLocaleDateString("sv");
 }
+
+describe("recurring events", () => {
+  it("stores the rule, the end day and per-day changes", () => {
+    createEvent({
+      id: "e1",
+      title: "חוג",
+      date: "2026-09-28",
+      allDay: false,
+      startTime: "17:00",
+      color: "sky",
+      repeat: { kind: "weekly", days: [1] },
+      until: "2026-12-31",
+      exceptions: [{ date: "2026-10-05", skip: true }],
+    });
+    expect(getEvent("e1")).toMatchObject({
+      repeat: { kind: "weekly", days: [1] },
+      until: "2026-12-31",
+      exceptions: [{ date: "2026-10-05", skip: true }],
+    });
+
+    updateEvent("e1", { exceptions: [], repeat: undefined, until: undefined });
+    const plain = getEvent("e1");
+    expect(plain?.repeat).toBeUndefined();
+    expect(plain?.until).toBeUndefined();
+    expect(plain?.exceptions).toBeUndefined();
+  });
+});
+
+describe("calendar preferences", () => {
+  it("round-trip, and travel with export and import", () => {
+    expect(getCalendarPrefs()).toEqual({});
+    setCalendarPrefs({ "1": { color: "rose" }, "2": { hidden: true } });
+    const snapshot = readAll();
+    expect(snapshot.settings.calendars).toEqual({
+      "1": { color: "rose" },
+      "2": { hidden: true },
+    });
+    clearAll();
+    expect(getCalendarPrefs()).toEqual({});
+    replaceAll(snapshot);
+    expect(getCalendarPrefs()).toEqual(snapshot.settings.calendars);
+  });
+});

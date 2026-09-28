@@ -38,6 +38,7 @@ import { buildDayAgenda, dayProgress } from "@/lib/agenda";
 import { formatDate, toDateKey, todayKey } from "@/lib/format";
 import { greeting } from "@/lib/greeting";
 import { cn } from "@/lib/utils";
+import { expandEvents } from "@/lib/event-series";
 import type { CalendarEvent, Task } from "@/lib/types";
 
 /**
@@ -68,7 +69,7 @@ export default function TodayPage() {
         date,
         today,
         tasks,
-        events,
+        events: expandEvents(events, date, date),
         googleEvents: google.events,
       }),
     [date, today, tasks, events, google.events],

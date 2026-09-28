@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { toast } from "sonner";
 import type {
   CalendarEvent,
+  CalendarPref,
   Category,
   Checklist,
   DataSnapshot,
@@ -18,6 +19,12 @@ import { instanceId, occursOn } from "./routines";
 import { todayKey, toDateKey, toMonthKey } from "./format";
 import { toJsonBody } from "./json-body";
 import { planSeriesDelete, planSeriesEdit, type SeriesPlan } from "./finance";
+import {
+  planEventDelete,
+  planEventEdit,
+  type EventFields,
+  type EventPlan,
+} from "./event-series";
 
 /**
  * Client-side mirror of the SQLite database.
@@ -89,6 +96,16 @@ interface AppState {
   addEvent: (input: EventInput) => void;
   updateEvent: (id: string, input: Partial<EventInput>) => void;
   deleteEvent: (id: string) => void;
+  /** Edit an event as shown on screen — for a recurring one, just that day,
+   *  that day onwards, or the whole series. */
+  editEventInSeries: (
+    event: CalendarEvent,
+    scope: SeriesScope,
+    fields: EventFields,
+  ) => void;
+  deleteEventInSeries: (event: CalendarEvent, scope: SeriesScope) => void;
+
+  setCalendarPref: (calendarId: string, pref: CalendarPref) => void;
 
   addTransaction: (input: TransactionInput) => void;
   updateTransaction: (id: string, input: Partial<TransactionInput>) => void;
@@ -554,6 +571,49 @@ export const useAppStore = create<AppState>()((set, get) => ({
     );
   },
 
+  editEventInSeries: (event, scope, fields) => {
+    const series = get().events.find(
+      (e) => e.id === (event.seriesId ?? event.id),
+    );
+    if (!series) return;
+    const day = event.occurrenceDate ?? event.date;
+    applyEventPlan(planEventEdit(series, day, scope, fields));
+  },
+  deleteEventInSeries: (event, scope) => {
+    const series = get().events.find(
+      (e) => e.id === (event.seriesId ?? event.id),
+    );
+    if (!series) return;
+    const day = event.occurrenceDate ?? event.date;
+    const plan = planEventDelete(series, day, scope);
+    if (plan.kind === "delete") {
+      get().deleteEvent(plan.id);
+      return;
+    }
+    // Only part of the series goes: put the old rule back on "undo".
+    applyEventPlan(plan);
+    const restore = {
+      until: series.until,
+      exceptions: series.exceptions ?? [],
+    };
+    toast(scope === "this" ? "המופע נמחק" : "המופעים מכאן והלאה נמחקו", {
+      duration: UNDO_MS,
+      action: {
+        label: "בטל",
+        onClick: () => get().updateEvent(series.id, restore),
+      },
+    });
+  },
+
+  setCalendarPref: (calendarId, pref) => {
+    const calendars = {
+      ...get().settings.calendars,
+      [calendarId]: { ...get().settings.calendars?.[calendarId], ...pref },
+    };
+    set((s) => ({ settings: { ...s.settings, calendars } }));
+    push(api("/api/settings", "PATCH", { calendars }));
+  },
+
   /* --------------------------------------------------- transactions */
 
   addTransaction: (input) => {
@@ -857,6 +917,25 @@ export const useAppStore = create<AppState>()((set, get) => ({
     applySnapshot(saved);
   },
 }));
+
+/** Carry out a plan from planEventDelete / planEventEdit. */
+function applyEventPlan(plan: EventPlan) {
+  const { setState: set, getState: get } = useAppStore;
+  if (plan.kind === "delete") {
+    get().deleteEvent(plan.id);
+    return;
+  }
+  get().updateEvent(plan.id, plan.patch);
+  if (plan.kind === "split") {
+    const created: CalendarEvent = {
+      ...plan.create,
+      id: crypto.randomUUID(),
+      createdAt: now(),
+    };
+    set((s) => ({ events: [...s.events, created] }));
+    push(api("/api/events", "POST", created));
+  }
+}
 
 /** Carry out a plan from planSeriesDelete / planSeriesEdit. */
 function applySeriesPlan(plan: SeriesPlan) {

@@ -9,6 +9,7 @@ import { MobileHeader } from "@/components/layout/mobile-header";
 import { SIDEBAR_KEY } from "@/components/layout/nav";
 import { GlobalQuickAdd, QuickAddFab } from "@/components/quick-add";
 import { Shortcuts } from "@/components/layout/shortcuts";
+import { SeriesPrompt } from "@/components/series-prompt";
 
 const heebo = Heebo({
   variable: "--font-sans",
@@ -76,6 +77,7 @@ export default function RootLayout({
           <QuickAddFab />
           <GlobalQuickAdd />
           <Shortcuts />
+          <SeriesPrompt />
         </Providers>
       </body>
     </html>

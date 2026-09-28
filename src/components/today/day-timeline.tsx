@@ -8,8 +8,7 @@ import { COLOR_STYLES } from "@/lib/colors";
 import type { AllDayItem, TimelineItem } from "@/lib/agenda";
 import type { CalendarEvent, Task } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const GOOGLE_STYLE = "border-s-sky-500 bg-sky-50/70 dark:bg-sky-950/30";
+import { googleChip, googleTint } from "@/components/calendar/chips";
 
 function nowKey() {
   const d = new Date();
@@ -43,7 +42,10 @@ export function AllDayStrip({
           <span
             key={item.key}
             title="מגוגל יומן — קריאה בלבד"
-            className="flex items-center gap-1.5 rounded-full border-s-2 border-s-sky-500 bg-sky-50 px-3 py-1 text-sm text-sky-900 dark:bg-sky-950/50 dark:text-sky-100"
+            className={cn(
+              "flex items-center gap-1.5 rounded-full px-3 py-1 text-sm",
+              googleChip(item.event.color),
+            )}
           >
             {item.event.title}
           </span>
@@ -140,7 +142,8 @@ export function DayTimeline({
                 <div
                   className={cn(
                     "rounded-lg border border-s-4 px-3 py-2",
-                    GOOGLE_STYLE,
+                    googleTint(item.event.color).bar,
+                    googleTint(item.event.color).card,
                   )}
                 >
                   <div className="flex items-center gap-2 font-medium">

@@ -2,7 +2,7 @@
 
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { Lock, MapPin, Pencil, Plus, Trash2 } from "lucide-react";
+import { Lock, MapPin, Pencil, Plus, Repeat, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Sheet,
@@ -14,12 +14,13 @@ import {
 import { RowActions } from "@/components/row-actions";
 import { TaskRow } from "@/components/tasks/task-row";
 import { TimeRange } from "@/components/time-range";
-import { useAppStore } from "@/lib/store";
+import { useEventActions } from "./event-actions";
 import { COLOR_STYLES } from "@/lib/colors";
 import { useIsDesktop } from "@/lib/use-media";
 import { cn } from "@/lib/utils";
 import type { CalendarEvent, Task } from "@/lib/types";
 import type { DayData } from "./use-calendar-data";
+import { googleTint } from "./chips";
 
 /**
  * Everything on one day. A side panel on desktop; on a phone it rises from
@@ -42,7 +43,7 @@ export function DayPanel({
   onNewTask: () => void;
   onEditTask: (task: Task) => void;
 }) {
-  const deleteEvent = useAppStore((s) => s.deleteEvent);
+  const { remove: removeEvent } = useEventActions();
   const isDesktop = useIsDesktop();
   const { events, google, tasks } = data;
 
@@ -99,7 +100,15 @@ export function DayPanel({
                     )}
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="font-medium">{e.title}</div>
+                      <div className="flex items-center gap-1.5 font-medium">
+                        {e.title}
+                        {e.repeat && (
+                          <Repeat
+                            className="size-3.5 text-muted-foreground"
+                            aria-label="אירוע חוזר"
+                          />
+                        )}
+                      </div>
                       <div className="text-xs text-muted-foreground tabular-nums">
                         {e.allDay || !e.startTime ? (
                           "כל היום"
@@ -129,7 +138,7 @@ export function DayPanel({
                           label: "מחיקה",
                           icon: Trash2,
                           destructive: true,
-                          onSelect: () => deleteEvent(e.id),
+                          onSelect: () => void removeEvent(e),
                         },
                       ]}
                     />
@@ -148,7 +157,11 @@ export function DayPanel({
                   {google.map((e) => (
                     <div
                       key={e.id}
-                      className="rounded-lg border border-s-2 border-s-sky-500 bg-sky-50/60 p-3 dark:bg-sky-950/30"
+                      className={cn(
+                        "rounded-lg border border-s-2 p-3",
+                        googleTint(e.color).bar,
+                        googleTint(e.color).card,
+                      )}
                     >
                       <div className="font-medium">{e.title}</div>
                       <div className="text-xs text-muted-foreground tabular-nums">

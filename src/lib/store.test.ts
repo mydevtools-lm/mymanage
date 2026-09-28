@@ -297,3 +297,58 @@ describe("bulk task actions", () => {
     ).toBe(true);
   });
 });
+
+describe("recurring events", () => {
+  it("deleting one day skips it, and undo brings it back", async () => {
+    const store = await freshStore();
+    store.getState().addEvent({
+      title: "חוג",
+      date: "2026-09-28",
+      allDay: true,
+      color: "sky",
+      repeat: { kind: "weekly", days: [1] },
+    });
+    const series = store.getState().events[0];
+    const { expandEvents } = await import("./event-series");
+    const [, second] = expandEvents([series], "2026-09-28", "2026-10-05");
+
+    store.getState().deleteEventInSeries(second, "this");
+    expect(store.getState().events[0].exceptions).toEqual([
+      { date: "2026-10-05", skip: true },
+    ]);
+    expect(calls.at(-1)).toMatchObject({
+      url: `/api/events/${series.id}`,
+      method: "PATCH",
+    });
+
+    toasts.at(-1)!.undo!();
+    expect(store.getState().events[0].exceptions).toEqual([]);
+    expect(calls.at(-1)?.body).toMatchObject({ exceptions: [] });
+  });
+
+  it("editing from a day onwards splits the series in two", async () => {
+    const store = await freshStore();
+    store.getState().addEvent({
+      title: "חוג",
+      date: "2026-09-28",
+      allDay: false,
+      startTime: "17:00",
+      color: "sky",
+      repeat: { kind: "weekly", days: [1] },
+    });
+    const { expandEvents } = await import("./event-series");
+    const [, second] = expandEvents(
+      store.getState().events,
+      "2026-09-28",
+      "2026-10-05",
+    );
+    store
+      .getState()
+      .editEventInSeries(second, "following", { startTime: "18:00" });
+
+    const [old, created] = store.getState().events;
+    expect(old.until).toBe("2026-10-04");
+    expect(created).toMatchObject({ date: "2026-10-05", startTime: "18:00" });
+    expect(calls.at(-1)).toMatchObject({ url: "/api/events", method: "POST" });
+  });
+});

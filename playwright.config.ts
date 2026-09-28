@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import path from "node:path";
 
 const PORT = 3100;
+const ICS_PORT = 3101;
 
 /**
  * End-to-end checks against a production build, on its own port and its own
@@ -21,13 +22,25 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
-    command: `node e2e/reset-db.mjs && npm run build && npm run start -- -p ${PORT}`,
-    url: `http://localhost:${PORT}/api/data`,
-    timeout: 240_000,
-    reuseExistingServer: false,
-    env: {
-      LIOR_DB_PATH: path.join(process.cwd(), "e2e", ".data", "e2e.db"),
+  webServer: [
+    {
+      // Stand-ins for two Google calendars (see e2e/ics-server.mjs).
+      command: `node e2e/ics-server.mjs`,
+      url: `http://localhost:${ICS_PORT}/one.ics`,
+      reuseExistingServer: false,
+      env: { ICS_PORT: String(ICS_PORT) },
     },
-  },
+    {
+      command: `node e2e/reset-db.mjs && npm run build && npm run start -- -p ${PORT}`,
+      url: `http://localhost:${PORT}/api/data`,
+      timeout: 240_000,
+      reuseExistingServer: false,
+      env: {
+        LIOR_DB_PATH: path.join(process.cwd(), "e2e", ".data", "e2e.db"),
+        GOOGLE_CALENDAR_ICS_URL: `http://localhost:${ICS_PORT}/one.ics`,
+        GOOGLE_CALENDAR_ICS_URL_2: `http://localhost:${ICS_PORT}/two.ics`,
+        GOOGLE_CALENDAR_NAME_2: "עבודה",
+      },
+    },
+  ],
 });
