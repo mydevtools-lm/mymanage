@@ -243,3 +243,57 @@ describe("snooze", () => {
     expect(calls.at(-1)?.body).toEqual({ dueDate: expected });
   });
 });
+
+describe("bulk task actions", () => {
+  it("deletes several tasks and one undo brings them all back in order", async () => {
+    const store = await freshStore();
+    for (const title of ["a", "b", "c", "d"]) {
+      store.getState().addTask({ title, priority: "normal" });
+    }
+    const [a, , c] = store.getState().tasks;
+    store.getState().deleteTasks([a.id, c.id]);
+    expect(store.getState().tasks.map((t) => t.title)).toEqual(["b", "d"]);
+
+    const offers = toasts.filter((t) => t.undo);
+    expect(offers).toHaveLength(1);
+    offers[0].undo!();
+    expect(store.getState().tasks.map((t) => t.title)).toEqual([
+      "a",
+      "b",
+      "c",
+      "d",
+    ]);
+  });
+
+  it("drops the time when a task moves to another day, keeps it otherwise", async () => {
+    const store = await freshStore();
+    store.getState().addTask({
+      title: "call",
+      priority: "normal",
+      dueDate: "2026-09-28",
+      dueTime: "10:00",
+    });
+    const id = store.getState().tasks[0].id;
+
+    store.getState().setTasksDate([id], "2026-09-28");
+    expect(store.getState().tasks[0].dueTime).toBe("10:00");
+
+    store.getState().setTasksDate([id], "2026-09-30");
+    expect(store.getState().tasks[0].dueTime).toBeUndefined();
+    expect(calls.at(-1)?.body).toEqual({
+      dueDate: "2026-09-30",
+      dueTime: null,
+    });
+  });
+
+  it("completes several tasks into the archive", async () => {
+    const store = await freshStore();
+    store.getState().addTask({ title: "a", priority: "normal" });
+    store.getState().addTask({ title: "b", priority: "normal" });
+    const ids = store.getState().tasks.map((t) => t.id);
+    store.getState().completeTasks(ids);
+    expect(
+      store.getState().tasks.every((t) => t.completed && t.archivedAt),
+    ).toBe(true);
+  });
+});

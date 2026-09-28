@@ -60,6 +60,12 @@ interface AppState {
   archiveTask: (id: string) => void;
   /** Move a task's due date to tomorrow. */
   snoozeTask: (id: string) => void;
+  /** Set (or clear, with undefined) the due date of several tasks at once. */
+  setTasksDate: (ids: string[], date: string | undefined) => void;
+  /** Tick off several tasks at once; they move to the archive. */
+  completeTasks: (ids: string[]) => void;
+  /** Delete several tasks with a single "undo". */
+  deleteTasks: (ids: string[]) => void;
   restoreTask: (id: string) => void;
   deleteTask: (id: string) => void;
 
@@ -302,6 +308,68 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }));
     push(api(`/api/tasks/${id}`, "PATCH", patch));
     toast("נדחה למחר");
+  },
+  setTasksDate: (ids, date) => {
+    const wanted = new Set(ids);
+    set((s) => ({
+      tasks: s.tasks.map((t) =>
+        wanted.has(t.id)
+          ? {
+              ...t,
+              dueDate: date,
+              // A time only makes sense on the day it was set for.
+              dueTime: date === t.dueDate ? t.dueTime : undefined,
+              updatedAt: now(),
+            }
+          : t,
+      ),
+    }));
+    // Send what the mirror now holds, so screen and server agree exactly.
+    for (const id of ids) {
+      const task = get().tasks.find((t) => t.id === id);
+      if (!task) continue;
+      push(
+        api(`/api/tasks/${id}`, "PATCH", {
+          dueDate: task.dueDate,
+          dueTime: task.dueTime,
+        }),
+      );
+    }
+  },
+  completeTasks: (ids) => {
+    const wanted = new Set(ids);
+    const patch = { completed: true, completedAt: now(), archivedAt: now() };
+    set((s) => ({
+      tasks: s.tasks.map((t) =>
+        wanted.has(t.id) ? { ...t, ...patch, updatedAt: now() } : t,
+      ),
+    }));
+    for (const id of ids) push(api(`/api/tasks/${id}`, "PATCH", patch));
+    toast.success(`${ids.length} משימות סומנו כבוצעו`);
+  },
+  deleteTasks: (ids) => {
+    const wanted = new Set(ids);
+    const before = get().tasks;
+    const removed = before
+      .map((task, index) => ({ task, index }))
+      .filter(({ task }) => wanted.has(task.id));
+    if (removed.length === 0) return;
+    set((s) => ({ tasks: s.tasks.filter((t) => !wanted.has(t.id)) }));
+    offerUndo(
+      `${removed.length} משימות נמחקו`,
+      Promise.all(ids.map((id) => api(`/api/tasks/${id}`, "DELETE"))),
+      () =>
+        set((s) => {
+          // Re-insert in original order so each lands back where it was.
+          let tasks = s.tasks;
+          for (const { task, index } of removed) {
+            tasks = insertAt(tasks, index, task);
+          }
+          return { tasks };
+        }),
+      () =>
+        Promise.all(removed.map(({ task }) => api("/api/tasks", "POST", task))),
+    );
   },
   restoreTask: (id) => {
     const patch = {

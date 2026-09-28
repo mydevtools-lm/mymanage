@@ -111,7 +111,12 @@ export function DayTimeline({
             </time>
             <div className={cn("min-w-0 flex-1", past(item) && "opacity-60")}>
               {item.kind === "task" ? (
-                <TaskRow task={item.task} onEdit={onEditTask} hideDate />
+                <TaskRow
+                  task={item.task}
+                  onEdit={onEditTask}
+                  hideDate
+                  hideTime
+                />
               ) : item.kind === "event" ? (
                 <button
                   type="button"
