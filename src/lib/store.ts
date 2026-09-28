@@ -13,7 +13,7 @@ import type {
   Task,
   Transaction,
 } from "./types";
-import { toMonthKey } from "./format";
+import { toDateKey, toMonthKey } from "./format";
 import { toJsonBody } from "./json-body";
 import { planSeriesDelete, planSeriesEdit, type SeriesPlan } from "./finance";
 
@@ -58,6 +58,8 @@ interface AppState {
   updateTask: (id: string, input: Partial<TaskInput>) => void;
   toggleTask: (id: string) => void;
   archiveTask: (id: string) => void;
+  /** Move a task's due date to tomorrow. */
+  snoozeTask: (id: string) => void;
   restoreTask: (id: string) => void;
   deleteTask: (id: string) => void;
 
@@ -128,6 +130,43 @@ function push(work: Promise<unknown>) {
     toast.error(error.message || "השמירה נכשלה");
     void useAppStore.getState().load();
   });
+}
+
+const UNDO_MS = 6000;
+
+function insertAt<T>(list: T[], index: number, item: T) {
+  const at = Math.max(0, Math.min(index, list.length));
+  return [...list.slice(0, at), item, ...list.slice(at)];
+}
+
+/**
+ * Deletes go out to the server immediately; "undo" puts the row back with the
+ * same id. On screen the row returns at once; the re-create request waits for
+ * the delete to settle, so the two can never reach the server out of order.
+ */
+function offerUndo(
+  label: string,
+  deleting: Promise<unknown>,
+  restoreLocal: () => void,
+  recreate: () => Promise<unknown>,
+) {
+  push(deleting);
+  toast(label, {
+    duration: UNDO_MS,
+    action: {
+      label: "בטל",
+      onClick: () => {
+        restoreLocal();
+        push(deleting.catch(() => undefined).then(recreate));
+      },
+    },
+  });
+}
+
+function tomorrowKey() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return toDateKey(d);
 }
 
 function applySnapshot(snapshot: DataSnapshot) {
@@ -254,6 +293,16 @@ export const useAppStore = create<AppState>()((set, get) => ({
     }));
     push(api(`/api/tasks/${id}`, "PATCH", patch));
   },
+  snoozeTask: (id) => {
+    const patch = { dueDate: tomorrowKey() };
+    set((s) => ({
+      tasks: s.tasks.map((t) =>
+        t.id === id ? { ...t, ...patch, updatedAt: now() } : t,
+      ),
+    }));
+    push(api(`/api/tasks/${id}`, "PATCH", patch));
+    toast("נדחה למחר");
+  },
   restoreTask: (id) => {
     const patch = {
       archivedAt: undefined,
@@ -266,8 +315,17 @@ export const useAppStore = create<AppState>()((set, get) => ({
     push(api(`/api/tasks/${id}`, "PATCH", patch));
   },
   deleteTask: (id) => {
+    const tasks = get().tasks;
+    const index = tasks.findIndex((t) => t.id === id);
+    if (index < 0) return;
+    const task = tasks[index];
     set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
-    push(api(`/api/tasks/${id}`, "DELETE"));
+    offerUndo(
+      "המשימה נמחקה",
+      api(`/api/tasks/${id}`, "DELETE"),
+      () => set((s) => ({ tasks: insertAt(s.tasks, index, task) })),
+      () => api("/api/tasks", "POST", task),
+    );
   },
 
   /* --------------------------------------------------------- events */
@@ -288,8 +346,17 @@ export const useAppStore = create<AppState>()((set, get) => ({
     push(api(`/api/events/${id}`, "PATCH", input));
   },
   deleteEvent: (id) => {
+    const events = get().events;
+    const index = events.findIndex((e) => e.id === id);
+    if (index < 0) return;
+    const event = events[index];
     set((s) => ({ events: s.events.filter((e) => e.id !== id) }));
-    push(api(`/api/events/${id}`, "DELETE"));
+    offerUndo(
+      "האירוע נמחק",
+      api(`/api/events/${id}`, "DELETE"),
+      () => set((s) => ({ events: insertAt(s.events, index, event) })),
+      () => api("/api/events", "POST", event),
+    );
   },
 
   /* --------------------------------------------------- transactions */
@@ -312,8 +379,20 @@ export const useAppStore = create<AppState>()((set, get) => ({
     push(api(`/api/transactions/${id}`, "PATCH", input));
   },
   deleteTransaction: (id) => {
+    const transactions = get().transactions;
+    const index = transactions.findIndex((t) => t.id === id);
+    if (index < 0) return;
+    const transaction = transactions[index];
     set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }));
-    push(api(`/api/transactions/${id}`, "DELETE"));
+    offerUndo(
+      "התנועה נמחקה",
+      api(`/api/transactions/${id}`, "DELETE"),
+      () =>
+        set((s) => ({
+          transactions: insertAt(s.transactions, index, transaction),
+        })),
+      () => api("/api/transactions", "POST", transaction),
+    );
   },
   deleteTransactionInSeries: (id, month, scope) => {
     const t = get().transactions.find((x) => x.id === id);
@@ -345,8 +424,17 @@ export const useAppStore = create<AppState>()((set, get) => ({
     push(api(`/api/notes/${id}`, "PATCH", input));
   },
   deleteNote: (id) => {
+    const notes = get().notes;
+    const index = notes.findIndex((n) => n.id === id);
+    if (index < 0) return;
+    const note = notes[index];
     set((s) => ({ notes: s.notes.filter((n) => n.id !== id) }));
-    push(api(`/api/notes/${id}`, "DELETE"));
+    offerUndo(
+      "ההערה נמחקה",
+      api(`/api/notes/${id}`, "DELETE"),
+      () => set((s) => ({ notes: insertAt(s.notes, index, note) })),
+      () => api("/api/notes", "POST", note),
+    );
   },
 
   /* ----------------------------------------------------- checklists */
@@ -414,14 +502,30 @@ export const useAppStore = create<AppState>()((set, get) => ({
     push(api(`/api/checklists/${listId}/items/${itemId}`, "PATCH", { done }));
   },
   deleteChecklistItem: (listId, itemId) => {
-    set((s) => ({
-      checklists: s.checklists.map((l) =>
-        l.id === listId
-          ? { ...l, items: l.items.filter((i) => i.id !== itemId) }
-          : l,
-      ),
-    }));
-    push(api(`/api/checklists/${listId}/items/${itemId}`, "DELETE"));
+    const list = get().checklists.find((l) => l.id === listId);
+    const index = list?.items.findIndex((i) => i.id === itemId) ?? -1;
+    if (!list || index < 0) return;
+    const item = list.items[index];
+    type Items = Checklist["items"];
+    const setItems = (fn: (items: Items) => Items) =>
+      set((s) => ({
+        checklists: s.checklists.map((l) =>
+          l.id === listId ? { ...l, items: fn(l.items) } : l,
+        ),
+      }));
+    setItems((items) => items.filter((i) => i.id !== itemId));
+    offerUndo(
+      `״${item.text}״ הוסר`,
+      api(`/api/checklists/${listId}/items/${itemId}`, "DELETE"),
+      () => setItems((items) => insertAt(items, index, item)),
+      () =>
+        api(`/api/checklists/${listId}`, "PATCH", {
+          addItem: item.text,
+          addItemId: item.id,
+          addItemIndex: index,
+          addItemDone: item.done,
+        }),
+    );
   },
   clearDoneItems: (listId) => {
     set((s) => ({

@@ -35,6 +35,7 @@ import {
   PageHeader,
 } from "@/components/shared";
 import { TransactionDialog } from "@/components/finance/transaction-dialog";
+import { RowActions } from "@/components/row-actions";
 import { TrendChart } from "@/components/finance/trend-chart";
 import { useAppStore } from "@/lib/store";
 import {
@@ -285,30 +286,27 @@ export default function FinancePage() {
                           {income ? "+" : "−"}
                           {formatCurrency(r.amount)}
                         </span>
-                        <div className="flex opacity-0 transition-opacity group-hover:opacity-100">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label="עריכה"
-                            onClick={() => {
-                              setEditing(
-                                transactions.find((t) => t.id === r.id) ?? null,
-                              );
-                              setDialogOpen(true);
-                            }}
-                          >
-                            <Pencil />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-destructive"
-                            aria-label="מחיקה"
-                            onClick={() => deleteTransaction(r.id)}
-                          >
-                            <Trash2 />
-                          </Button>
-                        </div>
+                        <RowActions
+                          actions={[
+                            {
+                              label: "עריכה",
+                              icon: Pencil,
+                              onSelect: () => {
+                                setEditing(
+                                  transactions.find((t) => t.id === r.id) ??
+                                    null,
+                                );
+                                setDialogOpen(true);
+                              },
+                            },
+                            {
+                              label: "מחיקה",
+                              icon: Trash2,
+                              destructive: true,
+                              onSelect: () => deleteTransaction(r.id),
+                            },
+                          ]}
+                        />
                       </div>
                     );
                   })}

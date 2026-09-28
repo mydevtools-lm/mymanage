@@ -54,6 +54,8 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           "fixed top-1/2 start-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // Phones: a full-screen sheet that scrolls, with the footer pinned.
+          "max-sm:flex max-sm:flex-col max-sm:[&>form]:flex max-sm:[&>form]:flex-1 max-sm:[&>form]:flex-col max-sm:inset-0 max-sm:h-dvh max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:overflow-y-auto max-sm:rounded-none max-sm:pt-[calc(1rem+env(safe-area-inset-top))] max-sm:ring-0 max-sm:rtl:translate-x-0",
           className,
         )}
         {...props}
@@ -102,6 +104,8 @@ function DialogFooter({
       data-slot="dialog-footer"
       className={cn(
         "-mx-4 -mb-4 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 p-4 sm:flex-row sm:justify-end",
+        // Phones: stays at the bottom of the screen while the form scrolls.
+        "max-sm:sticky max-sm:bottom-0 max-sm:mt-auto max-sm:rounded-none max-sm:bg-popover max-sm:pb-[calc(1rem+env(safe-area-inset-bottom))] max-sm:[&_button]:h-11",
         className,
       )}
       {...props}

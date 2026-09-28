@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/dialog";
 import { ColorSelect, Field } from "@/components/fields";
 import { ColorDot } from "@/components/shared";
+import { RowActions } from "@/components/row-actions";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useAppStore } from "@/lib/store";
 import type { Category, CategoryKind, ColorKey } from "@/lib/types";
 
@@ -44,6 +46,13 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
   const [editing, setEditing] = useState<Category | null>(null);
   const [name, setName] = useState("");
   const [color, setColor] = useState<ColorKey>("teal");
+  const [deleting, setDeleting] = useState<Category | null>(null);
+  const usage = useAppStore((s) =>
+    deleting
+      ? s.tasks.filter((t) => t.categoryId === deleting.id).length +
+        s.transactions.filter((t) => t.categoryId === deleting.id).length
+      : 0,
+  );
 
   function openDialog(category: Category | null) {
     setEditing(category);
@@ -83,35 +92,40 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
         {categories.map((c) => (
           <div
             key={c.id}
-            className="group flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-accent/40"
+            className="group flex items-center gap-3 rounded-md px-2 py-1.5 can-hover:hover:bg-accent/40"
           >
             <ColorDot color={c.color} className="size-3" />
             <span className="flex-1 text-sm">{c.name}</span>
-            <div className="flex opacity-0 transition-opacity group-hover:opacity-100">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="עריכה"
-                onClick={() => openDialog(c)}
-              >
-                <Pencil />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="text-destructive"
-                aria-label="מחיקה"
-                onClick={() => {
-                  deleteCategory(c.id);
-                  toast.success("הקטגוריה נמחקה; הפריטים נשארו ללא קטגוריה");
-                }}
-              >
-                <Trash2 />
-              </Button>
-            </div>
+            <RowActions
+              actions={[
+                { label: "עריכה", icon: Pencil, onSelect: () => openDialog(c) },
+                {
+                  label: "מחיקה",
+                  icon: Trash2,
+                  destructive: true,
+                  onSelect: () => setDeleting(c),
+                },
+              ]}
+            />
           </div>
         ))}
       </CardContent>
+
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        title={`למחוק את הקטגוריה ״${deleting?.name ?? ""}״?`}
+        description={
+          usage > 0
+            ? `${usage} פריטים משויכים אליה. הם יישארו, בלי קטגוריה.`
+            : "אין פריטים משויכים לקטגוריה הזו."
+        }
+        onConfirm={() => {
+          if (!deleting) return;
+          deleteCategory(deleting.id);
+          toast.success("הקטגוריה נמחקה");
+        }}
+      />
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

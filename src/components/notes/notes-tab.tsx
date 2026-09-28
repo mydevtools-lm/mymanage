@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field } from "@/components/fields";
 import { EmptyState } from "@/components/shared";
+import { RowActions } from "@/components/row-actions";
 import { useAppStore } from "@/lib/store";
 import { formatDate } from "@/lib/format";
 import type { Note } from "@/lib/types";
@@ -89,25 +90,21 @@ export function NotesTab() {
               <CardContent className="grid gap-2">
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="font-semibold">{n.title}</h3>
-                  <div className="flex shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label="עריכה"
-                      onClick={() => openDialog(n)}
-                    >
-                      <Pencil />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="text-destructive"
-                      aria-label="מחיקה"
-                      onClick={() => deleteNote(n.id)}
-                    >
-                      <Trash2 />
-                    </Button>
-                  </div>
+                  <RowActions
+                    actions={[
+                      {
+                        label: "עריכה",
+                        icon: Pencil,
+                        onSelect: () => openDialog(n),
+                      },
+                      {
+                        label: "מחיקה",
+                        icon: Trash2,
+                        destructive: true,
+                        onSelect: () => deleteNote(n.id),
+                      },
+                    ]}
+                  />
                 </div>
                 <p className="line-clamp-5 text-sm whitespace-pre-wrap text-muted-foreground">
                   {n.body}

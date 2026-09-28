@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/dialog";
 import { Field } from "@/components/fields";
 import { EmptyState } from "@/components/shared";
+import { RowActions, type RowAction } from "@/components/row-actions";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useAppStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import type { Checklist } from "@/lib/types";
@@ -31,8 +33,35 @@ function ListCard({ list }: { list: Checklist }) {
   const [draft, setDraft] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [title, setTitle] = useState(list.title);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const done = list.items.filter((i) => i.done).length;
+
+  const cardActions: RowAction[] = [
+    ...(done > 0
+      ? [
+          {
+            label: "הסרת המסומנים",
+            icon: Eraser,
+            onSelect: () => clearDone(list.id),
+          },
+        ]
+      : []),
+    {
+      label: "שינוי שם",
+      icon: Pencil,
+      onSelect: () => {
+        setTitle(list.title);
+        setRenaming(true);
+      },
+    },
+    {
+      label: "מחיקת הרשימה",
+      icon: Trash2,
+      destructive: true,
+      onSelect: () => setConfirmDelete(true),
+    },
+  ];
 
   function submitItem(e: React.FormEvent) {
     e.preventDefault();
@@ -64,39 +93,7 @@ function ListCard({ list }: { list: Checklist }) {
                 : `${done} מתוך ${list.items.length} סומנו`}
             </p>
           </div>
-          <div className="flex shrink-0 opacity-0 transition-opacity group-hover/card:opacity-100">
-            {done > 0 && (
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label="ניקוי מסומנים"
-                title="הסר את מה שסומן"
-                onClick={() => clearDone(list.id)}
-              >
-                <Eraser />
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label="שינוי שם"
-              onClick={() => {
-                setTitle(list.title);
-                setRenaming(true);
-              }}
-            >
-              <Pencil />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              className="text-destructive"
-              aria-label="מחיקת רשימה"
-              onClick={() => deleteList(list.id)}
-            >
-              <Trash2 />
-            </Button>
-          </div>
+          <RowActions actions={cardActions} group="card" />
         </div>
 
         {list.items.length > 0 && (
@@ -113,16 +110,18 @@ function ListCard({ list }: { list: Checklist }) {
         {list.items.map((item) => (
           <div
             key={item.id}
-            className="group/item flex items-center gap-2.5 rounded-md px-1 py-1 hover:bg-accent/40"
+            className="group/item flex items-center gap-2.5 rounded-md px-1 py-2 sm:py-1 can-hover:hover:bg-accent/40"
           >
             <Checkbox
               checked={item.done}
               onCheckedChange={() => toggleItem(list.id, item.id)}
               aria-label={item.text}
+              className="size-5 sm:size-4"
             />
             <span
+              onClick={() => toggleItem(list.id, item.id)}
               className={cn(
-                "flex-1 text-sm",
+                "flex-1 cursor-pointer text-sm select-none",
                 item.done && "text-muted-foreground line-through",
               )}
             >
@@ -132,7 +131,7 @@ function ListCard({ list }: { list: Checklist }) {
               variant="ghost"
               size="icon-xs"
               aria-label="הסרת פריט"
-              className="opacity-0 transition-opacity group-hover/item:opacity-100"
+              className="text-muted-foreground transition-opacity can-hover:opacity-0 can-hover:group-hover/item:opacity-100 can-hover:group-focus-within/item:opacity-100"
               onClick={() => deleteItem(list.id, item.id)}
             >
               <X />
@@ -158,6 +157,14 @@ function ListCard({ list }: { list: Checklist }) {
           </Button>
         </form>
       </CardContent>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={`למחוק את ״${list.title}״?`}
+        description={`הרשימה ו־${list.items.length} הפריטים שבה יימחקו.`}
+        onConfirm={() => deleteList(list.id)}
+      />
 
       <Dialog open={renaming} onOpenChange={setRenaming}>
         <DialogContent>

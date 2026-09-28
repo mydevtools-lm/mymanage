@@ -17,10 +17,11 @@ import { TaskDialog } from "@/components/tasks/task-dialog";
 import { EventDialog } from "@/components/calendar/event-dialog";
 import { TransactionDialog } from "@/components/finance/transaction-dialog";
 import { DayPicker } from "@/components/today/day-picker";
-import { DayTaskRow } from "@/components/today/day-task-row";
+import { TaskRow } from "@/components/tasks/task-row";
 import { MonthBalanceCard } from "@/components/today/month-balance-card";
 import { WeekAheadCard } from "@/components/today/week-ahead-card";
 import { useAppStore } from "@/lib/store";
+import type { Task } from "@/lib/types";
 import { formatDate, todayKey } from "@/lib/format";
 import { greeting } from "@/lib/greeting";
 
@@ -32,6 +33,11 @@ export default function TodayPage() {
   const tasks = useAppStore((s) => s.tasks);
   const [date, setDate] = useState(todayKey());
   const [taskDialog, setTaskDialog] = useState(false);
+  const [editing, setEditing] = useState<Task | null>(null);
+  const edit = (task: Task) => {
+    setEditing(task);
+    setTaskDialog(true);
+  };
   const [eventDialog, setEventDialog] = useState(false);
   const [txDialog, setTxDialog] = useState(false);
 
@@ -59,7 +65,12 @@ export default function TodayPage() {
         title="היום"
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => setTaskDialog(true)}>
+            <Button
+              onClick={() => {
+                setEditing(null);
+                setTaskDialog(true);
+              }}
+            >
               <Plus /> משימה
             </Button>
             <Button variant="secondary" onClick={() => setEventDialog(true)}>
@@ -112,7 +123,9 @@ export default function TodayPage() {
                   שום משימה לא מתוזמנת ליום הזה.
                 </p>
               ) : (
-                dayTasks.map((task) => <DayTaskRow key={task.id} task={task} />)
+                dayTasks.map((task) => (
+                  <TaskRow key={task.id} task={task} onEdit={edit} hideDate />
+                ))
               )}
             </CardContent>
           </Card>
@@ -130,7 +143,7 @@ export default function TodayPage() {
               <CardContent className="grid gap-2">
                 {carriedOver.map((task) => (
                   <div key={task.id} className="grid gap-1">
-                    <DayTaskRow task={task} />
+                    <TaskRow task={task} onEdit={edit} hideDate />
                     <span className="-mt-0.5 px-3 text-xs text-muted-foreground">
                       מועד מקורי: {formatDate(task.dueDate!)}
                     </span>
@@ -150,6 +163,7 @@ export default function TodayPage() {
       <TaskDialog
         open={taskDialog}
         onOpenChange={setTaskDialog}
+        task={editing}
         defaultDueDate={date}
       />
       <EventDialog

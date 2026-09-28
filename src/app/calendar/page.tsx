@@ -32,6 +32,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Hydrated, PageHeader } from "@/components/shared";
+import { RowActions } from "@/components/row-actions";
 import { EventDialog } from "@/components/calendar/event-dialog";
 import { TaskDialog } from "@/components/tasks/task-dialog";
 import { TaskRow } from "@/components/tasks/task-row";
@@ -366,28 +367,24 @@ export default function CalendarPage() {
                           </div>
                         )}
                       </div>
-                      <div className="flex opacity-0 transition-opacity group-hover:opacity-100">
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-label="עריכה"
-                          onClick={() => {
-                            setEditingEvent(e);
-                            setEventDialog(true);
-                          }}
-                        >
-                          <Pencil />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-destructive"
-                          aria-label="מחיקה"
-                          onClick={() => deleteEvent(e.id)}
-                        >
-                          <Trash2 />
-                        </Button>
-                      </div>
+                      <RowActions
+                        actions={[
+                          {
+                            label: "עריכה",
+                            icon: Pencil,
+                            onSelect: () => {
+                              setEditingEvent(e);
+                              setEventDialog(true);
+                            },
+                          },
+                          {
+                            label: "מחיקה",
+                            icon: Trash2,
+                            destructive: true,
+                            onSelect: () => deleteEvent(e.id),
+                          },
+                        ]}
+                      />
                     </div>
                   ))}
                 </section>

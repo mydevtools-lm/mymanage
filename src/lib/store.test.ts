@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toJsonBody } from "./json-body";
 
+// Capture toasts so a test can press "בטל" the way a user would.
+const toasts: { label: string; undo?: () => void }[] = [];
+vi.mock("sonner", () => {
+  const toast = (label: string, opts?: { action?: { onClick: () => void } }) =>
+    toasts.push({ label, undo: opts?.action?.onClick });
+  return {
+    toast: Object.assign(toast, { error: vi.fn(), success: vi.fn() }),
+  };
+});
+
 interface Call {
   url: string;
   method: string;
@@ -11,6 +21,7 @@ let calls: Call[];
 
 beforeEach(() => {
   calls = [];
+  toasts.length = 0;
   vi.resetModules();
   // A slow server: every request takes 30ms, so anything done right after a
   // create lands before the create has answered.
@@ -158,5 +169,77 @@ describe("recurring series", () => {
     expect(newSeries.amount).toBe(4800);
     expect(newSeries.recurring?.startMonth).toBe("2027-01");
     expect(calls.map((c) => c.method)).toEqual(["PATCH", "POST"]);
+  });
+});
+
+describe("undo delete", () => {
+  it("puts the task back in place and re-creates it with the same id", async () => {
+    const store = await freshStore();
+    store.getState().addTask({ title: "a", priority: "normal" });
+    store.getState().addTask({ title: "b", priority: "normal" });
+    store.getState().addTask({ title: "c", priority: "normal" });
+    const b = store.getState().tasks[1];
+
+    store.getState().deleteTask(b.id);
+    expect(store.getState().tasks.map((t) => t.title)).toEqual(["a", "c"]);
+
+    const offer = toasts.find((t) => t.label === "המשימה נמחקה");
+    expect(offer?.undo).toBeTypeOf("function");
+    offer!.undo!();
+    expect(store.getState().tasks.map((t) => t.title)).toEqual(["a", "b", "c"]);
+
+    // The re-create waits for the delete to finish before it is sent.
+    await new Promise((r) => setTimeout(r, 100));
+    const tail = calls.slice(-2).map((c) => [c.method, c.body?.id ?? c.url]);
+    expect(tail).toEqual([
+      ["DELETE", `/api/tasks/${b.id}`],
+      ["POST", b.id],
+    ]);
+  });
+
+  it("restores a list item at its old index, ticked state included", async () => {
+    const store = await freshStore();
+    store.getState().addChecklist("קניות", ["שמן", "חלב", "לחם"]);
+    const list = store.getState().checklists[0];
+    store.getState().toggleChecklistItem(list.id, list.items[1].id);
+    store.getState().deleteChecklistItem(list.id, list.items[1].id);
+
+    toasts.at(-1)!.undo!();
+    const items = store.getState().checklists[0].items;
+    expect(items.map((i) => [i.text, i.done])).toEqual([
+      ["שמן", false],
+      ["חלב", true],
+      ["לחם", false],
+    ]);
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(calls.at(-1)?.body).toMatchObject({
+      addItem: "חלב",
+      addItemIndex: 1,
+      addItemDone: true,
+    });
+  });
+});
+
+describe("snooze", () => {
+  it("moves the due date to tomorrow", async () => {
+    const store = await freshStore();
+    store.getState().addTask({
+      title: "x",
+      priority: "normal",
+      dueDate: "2020-01-01",
+    });
+    const id = store.getState().tasks[0].id;
+    store.getState().snoozeTask(id);
+
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const expected = [
+      tomorrow.getFullYear(),
+      String(tomorrow.getMonth() + 1).padStart(2, "0"),
+      String(tomorrow.getDate()).padStart(2, "0"),
+    ].join("-");
+    expect(store.getState().tasks[0].dueDate).toBe(expected);
+    expect(calls.at(-1)?.body).toEqual({ dueDate: expected });
   });
 });

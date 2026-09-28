@@ -459,22 +459,49 @@ function touchChecklist(listId: string) {
     .run(now(), listId);
 }
 
+/**
+ * Appends an item, or — when `index` is given — puts it back at that spot.
+ * The index form is how "undo" restores a deleted item to where it was.
+ */
 export function addChecklistItem(
   listId: string,
   text: string,
   itemId: string = newId(),
+  options: { index?: number; done?: boolean } = {},
 ) {
   const db = getDb();
-  const { next } = row<{ next: number }>(
-    db
-      .prepare(
-        "SELECT COALESCE(MAX(position), -1) + 1 AS next FROM checklist_items WHERE listId = ?",
-      )
-      .get(listId),
-  )!;
-  db.prepare(
-    "INSERT INTO checklist_items (id,listId,text,done,position) VALUES (?,?,?,0,?)",
-  ).run(itemId, listId, text, next);
+  const done = options.done ? 1 : 0;
+
+  if (options.index === undefined) {
+    const { next } = row<{ next: number }>(
+      db
+        .prepare(
+          "SELECT COALESCE(MAX(position), -1) + 1 AS next FROM checklist_items WHERE listId = ?",
+        )
+        .get(listId),
+    )!;
+    db.prepare(
+      "INSERT INTO checklist_items (id,listId,text,done,position) VALUES (?,?,?,?,?)",
+    ).run(itemId, listId, text, done, next);
+  } else {
+    // Renumber densely in the current order, leaving a gap at `index`.
+    const ids = rows<{ id: string }>(
+      db
+        .prepare(
+          "SELECT id FROM checklist_items WHERE listId = ? ORDER BY position, rowid",
+        )
+        .all(listId),
+    ).map((r) => r.id);
+    const at = Math.max(0, Math.min(options.index, ids.length));
+    const setPosition = db.prepare(
+      "UPDATE checklist_items SET position = ? WHERE id = ?",
+    );
+    ids.forEach((id, i) => setPosition.run(i < at ? i : i + 1, id));
+    db.prepare(
+      "INSERT INTO checklist_items (id,listId,text,done,position) VALUES (?,?,?,?,?)",
+    ).run(itemId, listId, text, done, at);
+  }
+
   touchChecklist(listId);
   return getChecklist(listId);
 }

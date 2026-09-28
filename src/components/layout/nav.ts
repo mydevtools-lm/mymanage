@@ -11,6 +11,8 @@ import {
 export interface NavItem {
   href: string;
   label: string;
+  /** Fits under an icon in the phone tab bar. */
+  shortLabel?: string;
   icon: LucideIcon;
 }
 
@@ -23,7 +25,12 @@ export const MAIN_NAV: NavItem[] = [
   { href: "/tasks", label: "משימות", icon: CheckSquare },
   { href: "/calendar", label: "יומן", icon: CalendarDays },
   { href: "/finance", label: "כספים", icon: Wallet },
-  { href: "/notes", label: "הערות ורשימות", icon: NotebookPen },
+  {
+    href: "/notes",
+    label: "הערות ורשימות",
+    shortLabel: "רשימות",
+    icon: NotebookPen,
+  },
 ];
 
 export const SETTINGS_NAV: NavItem = {
@@ -31,6 +38,9 @@ export const SETTINGS_NAV: NavItem = {
   label: "הגדרות",
   icon: Settings2,
 };
+
+/** localStorage key for the collapsed desktop sidebar. */
+export const SIDEBAR_KEY = "sidebar-collapsed";
 
 export function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);

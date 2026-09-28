@@ -19,7 +19,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <DirectionProvider direction="rtl">
         <TooltipProvider>
           {children}
-          <Toaster position="bottom-left" dir="rtl" />
+          {/* On phones, sit above the bottom tab bar and the "+" button. */}
+          <Toaster
+            position="bottom-left"
+            dir="rtl"
+            mobileOffset={{
+              bottom: "calc(5.5rem + env(safe-area-inset-bottom))",
+            }}
+          />
         </TooltipProvider>
       </DirectionProvider>
     </ThemeProvider>

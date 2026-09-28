@@ -4,6 +4,14 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* A real mouse or trackpad. Row actions reveal on hover only here; on touch
+   screens they sit behind an always-visible menu instead. */
+@custom-variant can-hover (@media (hover: hover) and (pointer: fine));
+
+/* Set on <html> by an inline script before hydration, so a collapsed sidebar
+   never flashes open on load. */
+@custom-variant sidebar-collapsed (&:where([data-sidebar="collapsed"] *));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

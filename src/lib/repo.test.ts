@@ -125,6 +125,22 @@ describe("checklists", () => {
   });
 });
 
+describe("checklist undo", () => {
+  it("re-inserts an item at a given index and keeps the order dense", () => {
+    createChecklist("קניות", ["שמן", "לחם"], "l");
+    addChecklistItem("l", "חלב", "milk", { index: 1, done: true });
+    const [list] = listChecklists();
+    expect(list.items.map((i) => [i.text, i.done])).toEqual([
+      ["שמן", false],
+      ["חלב", true],
+      ["לחם", false],
+    ]);
+    // A later append still lands at the end.
+    addChecklistItem("l", "ביצים");
+    expect(listChecklists()[0].items.at(-1)?.text).toBe("ביצים");
+  });
+});
+
 describe("categories", () => {
   it("unlinks items instead of deleting them", () => {
     const c = createCategory({

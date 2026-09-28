@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { Archive, CheckCircle2, RotateCcw, Search, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Card,
@@ -12,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { EmptyState } from "@/components/shared";
+import { RowActions } from "@/components/row-actions";
 import { useAppStore } from "@/lib/store";
 import { formatDate, todayKey } from "@/lib/format";
 import type { Task } from "@/lib/types";
@@ -82,32 +82,27 @@ export function ArchiveList() {
             {dayTasks.map((task) => (
               <div
                 key={task.id}
-                className="group flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-accent/40"
+                className="group flex items-center gap-3 rounded-md px-2 py-1.5 can-hover:hover:bg-accent/40"
               >
                 <CheckCircle2 className="size-4 shrink-0 text-income" />
                 <span className="flex-1 truncate text-sm text-muted-foreground line-through">
                   {task.title}
                 </span>
-                <div className="flex shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="החזרה לרשימה"
-                    title="החזר לרשימה הפעילה"
-                    onClick={() => restoreTask(task.id)}
-                  >
-                    <RotateCcw />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-destructive"
-                    aria-label="מחיקה"
-                    onClick={() => deleteTask(task.id)}
-                  >
-                    <Trash2 />
-                  </Button>
-                </div>
+                <RowActions
+                  actions={[
+                    {
+                      label: "החזרה לרשימה",
+                      icon: RotateCcw,
+                      onSelect: () => restoreTask(task.id),
+                    },
+                    {
+                      label: "מחיקה",
+                      icon: Trash2,
+                      destructive: true,
+                      onSelect: () => deleteTask(task.id),
+                    },
+                  ]}
+                />
               </div>
             ))}
           </CardContent>
