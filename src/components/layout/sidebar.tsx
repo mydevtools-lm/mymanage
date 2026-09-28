@@ -3,9 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Moon, PanelRightClose, PanelRightOpen, Sun } from "lucide-react";
+import {
+  Moon,
+  PanelRightClose,
+  PanelRightOpen,
+  Sun,
+  Search,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { usePalette } from "@/components/command-palette";
 import {
   MAIN_NAV,
   SETTINGS_NAV,
@@ -66,6 +73,23 @@ export function Sidebar() {
         <div className="hidden text-lg font-bold text-sidebar-primary sidebar-collapsed:block">
           נ
         </div>
+      </div>
+
+      <div className="px-3 pb-3 sidebar-collapsed:px-2">
+        <Button
+          variant="outline"
+          title="חיפוש בכל המערכת (Ctrl+K)"
+          className="w-full justify-start gap-2 text-muted-foreground sidebar-collapsed:justify-center"
+          onClick={() => usePalette.getState().setOpen(true)}
+        >
+          <Search className="size-4" />
+          <span className="flex-1 text-start sidebar-collapsed:sr-only">
+            חיפוש
+          </span>
+          <kbd className="rounded border bg-muted px-1 text-[10px] sidebar-collapsed:hidden">
+            Ctrl K
+          </kbd>
+        </Button>
       </div>
 
       <nav

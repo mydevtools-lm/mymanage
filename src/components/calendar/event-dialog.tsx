@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ColorSelect, Field } from "@/components/fields";
 import { RepeatField } from "@/components/tasks/repeat-field";
+import { LinksSection } from "@/components/links-section";
 import { useEventActions } from "@/components/calendar/event-actions";
 import { todayKey } from "@/lib/format";
 import type { CalendarEvent, ColorKey, Repeat } from "@/lib/types";
@@ -192,6 +193,14 @@ function EventForm({
       <Field label="צבע">
         <ColorSelect value={color} onChange={setColor} />
       </Field>
+
+      {event && (
+        <LinksSection
+          kind="event"
+          id={event.seriesId ?? event.id}
+          onLeave={() => onOpenChange(false)}
+        />
+      )}
 
       <DialogFooter>
         {event && (

@@ -8,6 +8,8 @@ import type {
   Category,
   Checklist,
   DataSnapshot,
+  Link,
+  LinkKind,
   Note,
   Routine,
   SeriesScope,
@@ -64,10 +66,18 @@ interface AppState {
   notes: Note[];
   checklists: Checklist[];
   routines: Routine[];
+  links: Link[];
   categories: Category[];
   settings: Settings;
 
   load: () => Promise<void>;
+
+  /** Tie two items together; the same pair twice is one link. */
+  addLink: (
+    a: { kind: LinkKind; id: string },
+    b: { kind: LinkKind; id: string },
+  ) => void;
+  removeLink: (id: string) => void;
 
   addTask: (input: TaskInput) => void;
   updateTask: (id: string, input: Partial<TaskInput>) => void;
@@ -225,6 +235,7 @@ function applySnapshot(snapshot: DataSnapshot) {
     notes: snapshot.notes ?? [],
     checklists: snapshot.checklists ?? [],
     routines: snapshot.routines ?? [],
+    links: snapshot.links ?? [],
     categories: snapshot.categories ?? [],
     settings: snapshot.settings ?? { startMonth: toMonthKey(new Date()) },
     hydrated: true,
@@ -284,8 +295,33 @@ export const useAppStore = create<AppState>()((set, get) => ({
   notes: [],
   checklists: [],
   routines: [],
+  links: [],
   categories: [],
   settings: { startMonth: toMonthKey(new Date()) },
+
+  addLink: (a, b) => {
+    if (a.id === b.id) return;
+    const exists = get().links.some(
+      (l) =>
+        (l.aId === a.id && l.bId === b.id) ||
+        (l.aId === b.id && l.bId === a.id),
+    );
+    if (exists) return;
+    const link: Link = {
+      id: crypto.randomUUID(),
+      aKind: a.kind,
+      aId: a.id,
+      bKind: b.kind,
+      bId: b.id,
+      createdAt: now(),
+    };
+    set((s) => ({ links: [...s.links, link] }));
+    push(api("/api/links", "POST", link));
+  },
+  removeLink: (id) => {
+    set((s) => ({ links: s.links.filter((l) => l.id !== id) }));
+    push(api(`/api/links/${id}`, "DELETE"));
+  },
 
   load: async () => {
     set({ syncing: true });
@@ -948,6 +984,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       notes: s.notes,
       checklists: s.checklists,
       routines: s.routines,
+      links: s.links,
       categories: s.categories,
       settings: s.settings,
     };

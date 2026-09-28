@@ -31,6 +31,7 @@ import { EmptyState } from "@/components/shared";
 import { RowActions, type RowAction } from "@/components/row-actions";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SortableList } from "@/components/sortable-list";
+import { useFocusTarget } from "./use-focus-target";
 import { useAppStore } from "@/lib/store";
 import { listMatches, listToText, sortLists } from "@/lib/list-text";
 import { cn } from "@/lib/utils";
@@ -332,6 +333,7 @@ function ListCard({ list }: { list: Checklist }) {
 }
 
 export function ListsTab({ query = "" }: { query?: string }) {
+  useFocusTarget(true);
   const checklists = useAppStore((s) => s.checklists);
   const addChecklist = useAppStore((s) => s.addChecklist);
 
@@ -389,7 +391,13 @@ export function ListsTab({ query = "" }: { query?: string }) {
       ) : (
         <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {shown.map((list) => (
-            <ListCard key={list.id} list={list} />
+            <div
+              key={list.id}
+              id={`item-${list.id}`}
+              className="scroll-mt-20 rounded-xl transition-shadow data-focused:ring-2 data-focused:ring-primary"
+            >
+              <ListCard list={list} />
+            </div>
           ))}
         </div>
       )}

@@ -49,6 +49,9 @@ import {
   createTransactions,
   deleteTransactions,
   listTransactions,
+  createLink,
+  deleteLink,
+  listLinks,
 } from "./repo";
 
 beforeEach(() => {
@@ -511,5 +514,32 @@ describe("bulk transactions", () => {
 
     deleteTransactions(["a", "b"]);
     expect(listTransactions()).toHaveLength(0);
+  });
+});
+
+describe("links", () => {
+  it("links two items once, either way round, and unlinks", () => {
+    const first = createLink({
+      aKind: "task",
+      aId: "t",
+      bKind: "event",
+      bId: "e",
+    });
+    const again = createLink({
+      aKind: "event",
+      aId: "e",
+      bKind: "task",
+      bId: "t",
+    });
+    expect(again.id).toBe(first.id);
+    expect(listLinks()).toHaveLength(1);
+
+    const snapshot = readAll();
+    clearAll();
+    replaceAll(snapshot);
+    expect(listLinks()).toEqual(snapshot.links);
+
+    deleteLink(first.id);
+    expect(listLinks()).toEqual([]);
   });
 });

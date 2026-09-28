@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { Moon, Settings2, Sun } from "lucide-react";
+import { Moon, Search, Settings2, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePalette } from "@/components/command-palette";
 
 /** Phone top bar. Settings live here because the tab bar holds five only. */
 export function MobileHeader() {
@@ -15,6 +16,14 @@ export function MobileHeader() {
         ניהול אישי
       </Link>
       <div className="flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label="חיפוש"
+          onClick={() => usePalette.getState().setOpen(true)}
+        >
+          <Search />
+        </Button>
         <Button
           variant="ghost"
           size="icon"

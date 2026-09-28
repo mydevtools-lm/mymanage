@@ -40,6 +40,8 @@ export default defineConfig({
         GOOGLE_CALENDAR_ICS_URL: `http://localhost:${ICS_PORT}/one.ics`,
         GOOGLE_CALENDAR_ICS_URL_2: `http://localhost:${ICS_PORT}/two.ics`,
         GOOGLE_CALENDAR_NAME_2: "עבודה",
+        // Never the real Claude API from tests: the local reader answers.
+        ANTHROPIC_API_KEY: "",
       },
     },
   ],

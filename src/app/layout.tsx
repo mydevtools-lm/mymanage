@@ -11,6 +11,8 @@ import { GlobalQuickAdd, QuickAddFab } from "@/components/quick-add";
 import { Shortcuts } from "@/components/layout/shortcuts";
 import { SeriesPrompt } from "@/components/series-prompt";
 import { BudgetWatch } from "@/components/finance/budget-watch";
+import { CommandPalette } from "@/components/command-palette";
+import { SmartAdd } from "@/components/smart-add";
 
 const heebo = Heebo({
   variable: "--font-sans",
@@ -80,6 +82,8 @@ export default function RootLayout({
           <Shortcuts />
           <SeriesPrompt />
           <BudgetWatch />
+          <CommandPalette />
+          <SmartAdd />
         </Providers>
       </body>
     </html>

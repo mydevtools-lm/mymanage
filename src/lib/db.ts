@@ -148,6 +148,18 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE events ADD COLUMN repeat TEXT;
    ALTER TABLE events ADD COLUMN until TEXT;
    ALTER TABLE events ADD COLUMN exceptions TEXT;`,
+  // v6 — links between any two items (a task and the event it prepares, the
+  // payment that settled a bill…). Undirected; stored once.
+  `CREATE TABLE links (
+     id        TEXT PRIMARY KEY,
+     aKind     TEXT NOT NULL,
+     aId       TEXT NOT NULL,
+     bKind     TEXT NOT NULL,
+     bId       TEXT NOT NULL,
+     createdAt TEXT NOT NULL
+   );
+   CREATE INDEX links_a ON links(aId);
+   CREATE INDEX links_b ON links(bId);`,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

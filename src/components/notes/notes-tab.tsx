@@ -10,6 +10,7 @@ import { useAppStore } from "@/lib/store";
 import { COLOR_KEYS, COLOR_STYLES } from "@/lib/colors";
 import { formatDate, localDayOf } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useFocusTarget } from "./use-focus-target";
 import type { ColorKey, Note } from "@/lib/types";
 
 /** Pinned first, then most recently edited. */
@@ -250,6 +251,7 @@ function DraftNote({ onClose }: { onClose: () => void }) {
 }
 
 export function NotesTab({ query = "" }: { query?: string }) {
+  useFocusTarget(true);
   const notes = useAppStore((s) => s.notes);
   const updateNote = useAppStore((s) => s.updateNote);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -288,17 +290,22 @@ export function NotesTab({ query = "" }: { query?: string }) {
         <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {drafting && <DraftNote onClose={() => setDrafting(false)} />}
           {shown.map((n) => (
-            <NoteCard
+            <div
               key={n.id}
-              note={n}
-              editing={editingId === n.id}
-              onStartEdit={() => {
-                setDrafting(false);
-                setEditingId(n.id);
-              }}
-              onDone={() => setEditingId(null)}
-              onSave={(patch) => updateNote(n.id, patch)}
-            />
+              id={`item-${n.id}`}
+              className="scroll-mt-20 rounded-xl transition-shadow data-focused:ring-2 data-focused:ring-primary"
+            >
+              <NoteCard
+                note={n}
+                editing={editingId === n.id}
+                onStartEdit={() => {
+                  setDrafting(false);
+                  setEditingId(n.id);
+                }}
+                onDone={() => setEditingId(null)}
+                onSave={(patch) => updateNote(n.id, patch)}
+              />
+            </div>
           ))}
           {query && shown.length === 0 && !drafting && (
             <p className="py-6 text-center text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">

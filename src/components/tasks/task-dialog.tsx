@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CategorySelect, Field, NONE, SimpleSelect } from "@/components/fields";
 import { PRIORITY_LABELS } from "@/components/shared";
 import { RepeatField } from "@/components/tasks/repeat-field";
+import { LinksSection } from "@/components/links-section";
 import { useAppStore } from "@/lib/store";
 import { describeRepeat } from "@/lib/routines";
 import { todayKey } from "@/lib/format";
@@ -316,6 +317,14 @@ function TaskForm({
         <Field label="תת־משימות">
           <SubtaskEditor value={subtasks} onChange={setSubtasks} />
         </Field>
+      )}
+
+      {task && (
+        <LinksSection
+          kind="task"
+          id={task.id}
+          onLeave={() => onOpenChange(false)}
+        />
       )}
 
       <DialogFooter>

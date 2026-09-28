@@ -6,6 +6,7 @@ import type {
   Checklist,
   DataSnapshot,
   Note,
+  Link,
   Routine,
   Settings,
   Subtask,
@@ -916,6 +917,44 @@ export function deleteCategory(id: string) {
 
 /* ------------------------------------------------------------- settings */
 
+/* ---------------------------------------------------------------- links */
+
+export function listLinks(): Link[] {
+  return rows<Link>(
+    getDb().prepare("SELECT * FROM links ORDER BY createdAt, rowid").all(),
+  );
+}
+
+/** Linking the same two items twice keeps the first link. */
+export function createLink(input: Partial<Link>): Link {
+  const db = getDb();
+  const existing = row<Link>(
+    db
+      .prepare(
+        `SELECT * FROM links
+         WHERE (aId = ? AND bId = ?) OR (aId = ? AND bId = ?)`,
+      )
+      .get(input.aId ?? "", input.bId ?? "", input.bId ?? "", input.aId ?? ""),
+  );
+  if (existing) return existing;
+  const id = input.id ?? newId();
+  db.prepare(
+    "INSERT INTO links (id,aKind,aId,bKind,bId,createdAt) VALUES (?,?,?,?,?,?)",
+  ).run(
+    id,
+    input.aKind ?? "task",
+    input.aId ?? "",
+    input.bKind ?? "task",
+    input.bId ?? "",
+    input.createdAt ?? now(),
+  );
+  return row<Link>(db.prepare("SELECT * FROM links WHERE id = ?").get(id))!;
+}
+
+export function deleteLink(id: string) {
+  getDb().prepare("DELETE FROM links WHERE id = ?").run(id);
+}
+
 export function getCalendarPrefs(): Settings["calendars"] {
   const found = row<{ value: string }>(
     getDb().prepare("SELECT value FROM settings WHERE key='calendars'").get(),
@@ -1000,6 +1039,7 @@ export function readAll(): DataSnapshot {
     notes: listNotes(),
     checklists: listChecklists(),
     routines: listRoutines(),
+    links: listLinks(),
     categories: listCategories(),
     settings: {
       startMonth: getStartMonth(),
@@ -1023,6 +1063,7 @@ export function replaceAll(snapshot: Partial<DataSnapshot>) {
       "events",
       "tasks",
       "routines",
+      "links",
       "categories",
     ]) {
       db.exec(`DELETE FROM ${table}`);
@@ -1034,6 +1075,7 @@ export function replaceAll(snapshot: Partial<DataSnapshot>) {
       ).run(c.id, c.name, c.color, c.kind);
     }
     for (const r of snapshot.routines ?? []) createRoutine(r);
+    for (const l of snapshot.links ?? []) createLink(l);
     for (const t of snapshot.tasks ?? []) createTask(t);
     for (const e of snapshot.events ?? []) createEvent(e);
     for (const t of snapshot.transactions ?? []) createTransaction(t);
@@ -1079,6 +1121,7 @@ export function clearAll() {
     "events",
     "tasks",
     "routines",
+    "links",
     "categories",
     "settings",
   ]) {

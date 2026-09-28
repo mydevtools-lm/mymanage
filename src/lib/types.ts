@@ -158,6 +158,18 @@ export interface Checklist {
   updatedAt: string;
 }
 
+export type LinkKind = "task" | "event" | "transaction" | "note" | "list";
+
+/** Two items that belong together. Either end can be read as the start. */
+export interface Link {
+  id: string;
+  aKind: LinkKind;
+  aId: string;
+  bKind: LinkKind;
+  bId: string;
+  createdAt: string;
+}
+
 export interface Settings {
   startMonth: string; // yyyy-MM
   /** Per Google calendar (by its number in .env.local): colour, hidden. */
@@ -180,6 +192,7 @@ export interface DataSnapshot {
   notes: Note[];
   checklists: Checklist[];
   routines?: Routine[];
+  links?: Link[];
   categories: Category[];
   settings: Settings;
 }

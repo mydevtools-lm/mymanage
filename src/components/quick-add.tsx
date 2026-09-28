@@ -8,6 +8,7 @@ import {
   CheckSquare,
   ListChecks,
   Plus,
+  Sparkles,
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,23 +28,41 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Field, SimpleSelect } from "@/components/fields";
 import { TaskDialog } from "@/components/tasks/task-dialog";
+import { useSmartAdd } from "@/components/smart-add";
 import { EventDialog } from "@/components/calendar/event-dialog";
 import { TransactionDialog } from "@/components/finance/transaction-dialog";
 import { useAppStore } from "@/lib/store";
 import { todayKey } from "@/lib/format";
+import type { CalendarEvent, Routine, Task, Transaction } from "@/lib/types";
 
 type Kind = "task" | "event" | "transaction" | "item";
 
+/** An existing item to open in its dialog — from search, or from a link. */
+export type EditTarget =
+  | { kind: "task"; task: Task }
+  | { kind: "routine"; routine: Routine }
+  | { kind: "event"; event: CalendarEvent }
+  | { kind: "transaction"; transaction: Transaction };
+
 interface QuickAddState {
   kind: Kind | null;
+  editing: EditTarget | null;
   open: (kind: Kind) => void;
+  openEdit: (target: EditTarget) => void;
   close: () => void;
 }
 
-/** Which "new …" dialog is open, from anywhere in the app. */
+/** Which "new …" or "edit …" dialog is open, from anywhere in the app. */
 export const useQuickAdd = create<QuickAddState>()((set) => ({
   kind: null,
-  open: (kind) => set({ kind }),
+  editing: null,
+  open: (kind) => set({ kind, editing: null }),
+  openEdit: (target) =>
+    set({
+      kind: target.kind === "routine" ? "task" : target.kind,
+      editing: target,
+    }),
+  // The target stays while the dialog animates closed, so its text holds.
   close: () => set({ kind: null }),
 }));
 
@@ -126,6 +145,7 @@ function ListItemForm({ onDone }: { onDone: () => void }) {
 /** Rendered once in the layout; every quick-add entry point opens these. */
 export function GlobalQuickAdd() {
   const kind = useQuickAdd((s) => s.kind);
+  const editing = useQuickAdd((s) => s.editing);
   const close = useQuickAdd((s) => s.close);
   const onOpenChange = (open: boolean) => !open && close();
 
@@ -134,12 +154,21 @@ export function GlobalQuickAdd() {
       <TaskDialog
         open={kind === "task"}
         onOpenChange={onOpenChange}
+        task={editing?.kind === "task" ? editing.task : null}
+        routine={editing?.kind === "routine" ? editing.routine : null}
         defaultDueDate={todayKey()}
       />
-      <EventDialog open={kind === "event"} onOpenChange={onOpenChange} />
+      <EventDialog
+        open={kind === "event"}
+        onOpenChange={onOpenChange}
+        event={editing?.kind === "event" ? editing.event : null}
+      />
       <TransactionDialog
         open={kind === "transaction"}
         onOpenChange={onOpenChange}
+        transaction={
+          editing?.kind === "transaction" ? editing.transaction : null
+        }
       />
       <Dialog open={kind === "item"} onOpenChange={onOpenChange}>
         <DialogContent>
@@ -184,6 +213,13 @@ export function QuickAddFab() {
             {label}
           </DropdownMenuItem>
         ))}
+        <DropdownMenuItem
+          onClick={() => useSmartAdd.getState().open()}
+          className="py-2.5 text-base"
+        >
+          <Sparkles />
+          במשפט אחד
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

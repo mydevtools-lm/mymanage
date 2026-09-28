@@ -20,6 +20,7 @@ import { CategoryChips, Field, NONE } from "@/components/fields";
 import { useAppStore } from "@/lib/store";
 import { formatMonth, todayKey } from "@/lib/format";
 import { suggestCategory } from "@/lib/bank-import";
+import { LinksSection } from "@/components/links-section";
 import type { MonthTransaction } from "@/lib/finance";
 import type { SeriesScope, Transaction, TransactionType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -263,6 +264,14 @@ function TransactionForm({
             onChange={(e) => setNotes(e.target.value)}
           />
         </Field>
+      )}
+
+      {(transaction || series) && (
+        <LinksSection
+          kind="transaction"
+          id={transaction?.id ?? series!.row.id}
+          onLeave={() => onOpenChange(false)}
+        />
       )}
 
       <DialogFooter>

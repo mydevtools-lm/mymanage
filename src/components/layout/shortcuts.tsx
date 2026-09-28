@@ -22,6 +22,7 @@ const NEW_BY_ROUTE: Record<string, "task" | "event" | "transaction" | "item"> =
   };
 
 const SHORTCUTS = [
+  { keys: "Ctrl K", what: "חיפוש בכל המערכת, והוספה במשפט" },
   { keys: "N", what: "חדש — משימה, אירוע, תנועה או פריט, לפי המסך" },
   { keys: "/", what: "מעבר לחיפוש במסך" },
   { keys: "T", what: "מעבר למסך ״היום״" },
