@@ -106,6 +106,10 @@ interface AppState {
   deleteEventInSeries: (event: CalendarEvent, scope: SeriesScope) => void;
 
   setCalendarPref: (calendarId: string, pref: CalendarPref) => void;
+  /** Monthly budget per category; 0 or missing means none. */
+  setBudgets: (budgets: Record<string, number>) => void;
+  /** Add many rows at once (a bank statement), with one "undo". */
+  importTransactions: (rows: TransactionInput[]) => void;
 
   addTransaction: (input: TransactionInput) => void;
   updateTransaction: (id: string, input: Partial<TransactionInput>) => void;
@@ -614,8 +618,48 @@ export const useAppStore = create<AppState>()((set, get) => ({
     push(api("/api/settings", "PATCH", { calendars }));
   },
 
+  setBudgets: (budgets) => {
+    const clean = Object.fromEntries(
+      Object.entries(budgets).filter(([, amount]) => amount > 0),
+    );
+    set((s) => ({ settings: { ...s.settings, budgets: clean } }));
+    push(api("/api/settings", "PATCH", { budgets: clean }));
+  },
+
   /* --------------------------------------------------- transactions */
 
+  importTransactions: (rows) => {
+    const created: Transaction[] = rows.map((input) => ({
+      ...input,
+      id: crypto.randomUUID(),
+      createdAt: now(),
+    }));
+    const ids = new Set(created.map((t) => t.id));
+    set((s) => ({ transactions: [...s.transactions, ...created] }));
+    const saving = api("/api/transactions/bulk", "POST", {
+      transactions: created,
+    });
+    push(saving);
+    toast.success(`${created.length} תנועות יובאו`, {
+      duration: UNDO_MS,
+      action: {
+        label: "בטל",
+        onClick: () => {
+          set((s) => ({
+            transactions: s.transactions.filter((t) => !ids.has(t.id)),
+          }));
+          // Wait for the import to land, so the delete can't overtake it.
+          push(
+            saving
+              .catch(() => undefined)
+              .then(() =>
+                api("/api/transactions/bulk", "DELETE", { ids: [...ids] }),
+              ),
+          );
+        },
+      },
+    });
+  },
   addTransaction: (input) => {
     const row: Transaction = {
       ...input,

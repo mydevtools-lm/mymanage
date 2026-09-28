@@ -162,6 +162,8 @@ export interface Settings {
   startMonth: string; // yyyy-MM
   /** Per Google calendar (by its number in .env.local): colour, hidden. */
   calendars?: Record<string, CalendarPref>;
+  /** Monthly budget per expense category id, in shekels. */
+  budgets?: Record<string, number>;
 }
 
 export interface CalendarPref {

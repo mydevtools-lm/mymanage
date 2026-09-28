@@ -932,6 +932,55 @@ export function setCalendarPrefs(value: Settings["calendars"]) {
   return getCalendarPrefs();
 }
 
+export function getBudgets(): Settings["budgets"] {
+  const found = row<{ value: string }>(
+    getDb().prepare("SELECT value FROM settings WHERE key='budgets'").get(),
+  );
+  return parseJson(found?.value ?? null) ?? {};
+}
+
+/** Replaces all budgets; a category left out has none. */
+export function setBudgets(value: Settings["budgets"]) {
+  const clean = Object.fromEntries(
+    Object.entries(value ?? {}).filter(
+      ([, amount]) => typeof amount === "number" && amount > 0,
+    ),
+  );
+  getDb()
+    .prepare(
+      "INSERT OR REPLACE INTO settings (key,value) VALUES ('budgets', ?)",
+    )
+    .run(JSON.stringify(clean));
+  return getBudgets();
+}
+
+/** Many rows in one database transaction — a bank statement import. */
+export function createTransactions(inputs: Partial<Transaction>[]) {
+  const db = getDb();
+  db.exec("BEGIN");
+  try {
+    const created = inputs.map((input) => createTransaction(input));
+    db.exec("COMMIT");
+    return created;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+export function deleteTransactions(ids: string[]) {
+  const db = getDb();
+  const stmt = db.prepare("DELETE FROM transactions WHERE id = ?");
+  db.exec("BEGIN");
+  try {
+    for (const id of ids) stmt.run(id);
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
 export function getStartMonth(): string {
   const found = row<{ value: string }>(
     getDb().prepare("SELECT value FROM settings WHERE key='startMonth'").get(),
@@ -952,7 +1001,11 @@ export function readAll(): DataSnapshot {
     checklists: listChecklists(),
     routines: listRoutines(),
     categories: listCategories(),
-    settings: { startMonth: getStartMonth(), calendars: getCalendarPrefs() },
+    settings: {
+      startMonth: getStartMonth(),
+      calendars: getCalendarPrefs(),
+      budgets: getBudgets(),
+    },
   };
 }
 
@@ -1004,6 +1057,9 @@ export function replaceAll(snapshot: Partial<DataSnapshot>) {
     }
     if (snapshot.settings?.calendars) {
       setCalendarPrefs(snapshot.settings.calendars);
+    }
+    if (snapshot.settings?.budgets) {
+      setBudgets(snapshot.settings.budgets);
     }
     db.exec("COMMIT");
   } catch (error) {

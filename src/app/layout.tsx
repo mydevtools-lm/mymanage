@@ -10,6 +10,7 @@ import { SIDEBAR_KEY } from "@/components/layout/nav";
 import { GlobalQuickAdd, QuickAddFab } from "@/components/quick-add";
 import { Shortcuts } from "@/components/layout/shortcuts";
 import { SeriesPrompt } from "@/components/series-prompt";
+import { BudgetWatch } from "@/components/finance/budget-watch";
 
 const heebo = Heebo({
   variable: "--font-sans",
@@ -67,7 +68,7 @@ export default function RootLayout({
               <main
                 id="main"
                 tabIndex={-1}
-                className="flex-1 outline-none overflow-x-hidden px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] md:px-8 md:py-6"
+                className="flex-1 outline-none overflow-x-hidden px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] md:px-8 md:py-6 print:p-0"
               >
                 <div className="mx-auto max-w-6xl">{children}</div>
               </main>
@@ -78,6 +79,7 @@ export default function RootLayout({
           <GlobalQuickAdd />
           <Shortcuts />
           <SeriesPrompt />
+          <BudgetWatch />
         </Providers>
       </body>
     </html>

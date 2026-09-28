@@ -19,6 +19,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CategoryChips, Field, NONE } from "@/components/fields";
 import { useAppStore } from "@/lib/store";
 import { formatMonth, todayKey } from "@/lib/format";
+import { suggestCategory } from "@/lib/bank-import";
 import type { MonthTransaction } from "@/lib/finance";
 import type { SeriesScope, Transaction, TransactionType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -60,6 +61,7 @@ function TransactionForm({
   const updateTransaction = useAppStore((s) => s.updateTransaction);
   const editInSeries = useAppStore((s) => s.editTransactionInSeries);
   const categories = useAppStore((s) => s.categories);
+  const history = useAppStore((s) => s.transactions);
 
   // In a series edit the form starts from what that month actually shows,
   // including any earlier one-month override.
@@ -77,6 +79,14 @@ function TransactionForm({
     transaction?.date ?? defaultDate ?? todayKey(),
   );
   const [categoryId, setCategoryId] = useState(source?.categoryId ?? NONE);
+  // A new entry picks its category from how the same description was filed
+  // before — until the person picks one themselves.
+  const [categoryPicked, setCategoryPicked] = useState(!!source);
+  const describe = (value: string) => {
+    setDescription(value);
+    if (categoryPicked) return;
+    setCategoryId(suggestCategory(value, history, type) ?? NONE);
+  };
   const [notes, setNotes] = useState(source?.notes ?? "");
   const [recurring, setRecurring] = useState(!!transaction?.recurring);
   const [endMonth, setEndMonth] = useState(
@@ -188,7 +198,10 @@ function TransactionForm({
         <CategoryChips
           kind="finance"
           value={categoryId}
-          onChange={setCategoryId}
+          onChange={(id) => {
+            setCategoryPicked(true);
+            setCategoryId(id);
+          }}
         />
       </Field>
 
@@ -197,7 +210,7 @@ function TransactionForm({
           <Input
             id="tx-desc"
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            onChange={(e) => describe(e.target.value)}
             placeholder={type === "income" ? "למשל: משכורת" : "למשל: סופר"}
           />
         </Field>

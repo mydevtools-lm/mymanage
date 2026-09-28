@@ -44,6 +44,11 @@ import {
   updateEvent,
   getCalendarPrefs,
   setCalendarPrefs,
+  getBudgets,
+  setBudgets,
+  createTransactions,
+  deleteTransactions,
+  listTransactions,
 } from "./repo";
 
 beforeEach(() => {
@@ -468,5 +473,43 @@ describe("calendar preferences", () => {
     expect(getCalendarPrefs()).toEqual({});
     replaceAll(snapshot);
     expect(getCalendarPrefs()).toEqual(snapshot.settings.calendars);
+  });
+});
+
+describe("budgets", () => {
+  it("replaces the whole set, drops zeros, and travels with a backup", () => {
+    setBudgets({ food: 2000, fun: 0 });
+    expect(getBudgets()).toEqual({ food: 2000 });
+    setBudgets({ car: 500 });
+    expect(getBudgets()).toEqual({ car: 500 });
+    const snapshot = readAll();
+    clearAll();
+    replaceAll(snapshot);
+    expect(getBudgets()).toEqual({ car: 500 });
+  });
+});
+
+describe("bulk transactions", () => {
+  it("saves all or nothing, and deletes by ids", () => {
+    const row = (id: string) => ({
+      id,
+      type: "expense" as const,
+      amount: 10,
+      description: id,
+      date: "2026-09-01",
+    });
+    createTransactions([row("a"), row("b")]);
+    expect(listTransactions()).toHaveLength(2);
+
+    // A duplicate id fails the whole batch; "c" must not stay behind.
+    expect(() => createTransactions([row("c"), row("a")])).toThrow();
+    expect(
+      listTransactions()
+        .map((t) => t.id)
+        .sort(),
+    ).toEqual(["a", "b"]);
+
+    deleteTransactions(["a", "b"]);
+    expect(listTransactions()).toHaveLength(0);
   });
 });

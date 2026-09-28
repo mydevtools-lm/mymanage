@@ -55,7 +55,7 @@ export function Sidebar() {
   const { resolvedTheme, setTheme } = useTheme();
 
   return (
-    <aside className="sticky top-0 hidden h-screen w-56 shrink-0 flex-col border-e border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:flex sidebar-collapsed:w-16">
+    <aside className="sticky top-0 hidden print:hidden h-screen w-56 shrink-0 flex-col border-e border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:flex sidebar-collapsed:w-16">
       <div className="px-5 pt-6 pb-4 sidebar-collapsed:px-0 sidebar-collapsed:text-center">
         <div className="text-lg font-bold text-sidebar-primary sidebar-collapsed:hidden">
           ניהול אישי

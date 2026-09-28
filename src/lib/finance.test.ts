@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  budgetStatus,
+  transactionsToCsv,
+  yearSummary,
   categoryBreakdown,
   getMonthTransactions,
   monthRange,
@@ -261,5 +264,128 @@ describe("planSeriesEdit", () => {
       id: "rent",
       patch: { amount: 1 },
     });
+  });
+});
+
+describe("yearSummary", () => {
+  it("adds up twelve months, recurring rows included", () => {
+    const { months, total } = yearSummary(
+      [
+        {
+          id: "salary",
+          type: "income",
+          amount: 10000,
+          description: "משכורת",
+          date: "2026-01-10",
+          recurring: { startMonth: "2026-01", endMonth: "2026-06" },
+          createdAt: "",
+        },
+        {
+          id: "tv",
+          type: "expense",
+          amount: 3000,
+          description: "טלוויזיה",
+          date: "2026-03-05",
+          createdAt: "",
+        },
+        {
+          id: "other-year",
+          type: "expense",
+          amount: 99,
+          description: "x",
+          date: "2025-12-31",
+          createdAt: "",
+        },
+      ],
+      2026,
+    );
+    expect(months).toHaveLength(12);
+    expect(months[2]).toMatchObject({
+      month: "2026-03",
+      income: 10000,
+      expense: 3000,
+    });
+    expect(months[6]).toMatchObject({ income: 0, expense: 0 });
+    expect(total).toEqual({ income: 60000, expense: 3000, balance: 57000 });
+  });
+});
+
+describe("budgetStatus", () => {
+  it("compares each budgeted category with the month's expenses", () => {
+    const rows = [
+      {
+        id: "1",
+        type: "expense",
+        amount: 700,
+        description: "",
+        date: "2026-09-01",
+        categoryId: "food",
+        createdAt: "",
+      },
+      {
+        id: "2",
+        type: "expense",
+        amount: 400,
+        description: "",
+        date: "2026-09-02",
+        categoryId: "food",
+        createdAt: "",
+      },
+      {
+        id: "3",
+        type: "income",
+        amount: 400,
+        description: "",
+        date: "2026-09-02",
+        categoryId: "food",
+        createdAt: "",
+      },
+      {
+        id: "4",
+        type: "expense",
+        amount: 50,
+        description: "",
+        date: "2026-09-02",
+        categoryId: "fun",
+        createdAt: "",
+      },
+    ] as Transaction[];
+    expect(budgetStatus(rows, { food: 1000, fun: 200, zero: 0 })).toEqual([
+      { categoryId: "food", budget: 1000, spent: 1100, ratio: 1.1, over: true },
+      { categoryId: "fun", budget: 200, spent: 50, ratio: 0.25, over: false },
+    ]);
+  });
+});
+
+describe("transactionsToCsv", () => {
+  it("writes Excel-friendly CSV: BOM, signed amounts, quoted commas", () => {
+    const csv = transactionsToCsv(
+      [
+        {
+          id: "b",
+          type: "expense",
+          amount: 80.5,
+          description: 'פז, "דלק"',
+          date: "2026-09-02",
+          categoryId: "car",
+          createdAt: "",
+        },
+        {
+          id: "a",
+          type: "income",
+          amount: 100,
+          description: "החזר",
+          date: "2026-09-01",
+          createdAt: "",
+        },
+      ] as Transaction[],
+      [{ id: "car", name: "רכב", color: "sky", kind: "finance" }],
+    );
+    expect(csv.startsWith("﻿")).toBe(true);
+    expect(csv.slice(1).split("\r\n")).toEqual([
+      "תאריך,תיאור,קטגוריה,סוג,סכום,חוזרת,הערות",
+      "2026-09-01,החזר,,הכנסה,100.00,,",
+      '2026-09-02,"פז, ""דלק""",רכב,הוצאה,-80.50,,',
+    ]);
   });
 });

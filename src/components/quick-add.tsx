@@ -167,7 +167,7 @@ export function QuickAddFab() {
         render={
           <Button
             aria-label="הוספה מהירה"
-            className="fixed end-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 size-14 rounded-full shadow-lg md:hidden [&_svg:not([class*='size-'])]:size-6"
+            className="fixed end-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 size-14 rounded-full shadow-lg md:hidden print:hidden [&_svg:not([class*='size-'])]:size-6"
           />
         }
       >

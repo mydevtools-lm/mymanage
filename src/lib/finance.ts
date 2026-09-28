@@ -235,3 +235,95 @@ export function planSeriesEdit(
     },
   };
 }
+
+/* ---------------------------------------------------------- year view */
+
+export interface YearRow extends MonthSummary {
+  month: string;
+}
+
+/** Twelve months of a year, with totals — "where did the money go". */
+export function yearSummary(transactions: Transaction[], year: number) {
+  const months: YearRow[] = Array.from({ length: 12 }, (_, i) => {
+    const month = `${year}-${String(i + 1).padStart(2, "0")}`;
+    return { month, ...summarize(getMonthTransactions(transactions, month)) };
+  });
+  const total = months.reduce(
+    (sum, m) => ({
+      income: sum.income + m.income,
+      expense: sum.expense + m.expense,
+      balance: sum.balance + m.balance,
+    }),
+    { income: 0, expense: 0, balance: 0 },
+  );
+  const rows = months.flatMap((m) =>
+    getMonthTransactions(transactions, m.month),
+  );
+  return { months, total, rows };
+}
+
+/* ------------------------------------------------------------ budgets */
+
+export interface BudgetLine {
+  categoryId: string;
+  budget: number;
+  spent: number;
+  /** spent / budget; above 1 means over. */
+  ratio: number;
+  over: boolean;
+}
+
+/** Each budgeted expense category against what the month's rows spent. */
+export function budgetStatus(
+  rows: Transaction[],
+  budgets: Record<string, number> | undefined,
+): BudgetLine[] {
+  if (!budgets) return [];
+  const spent = new Map<string, number>();
+  for (const r of rows) {
+    if (r.type !== "expense" || !r.categoryId) continue;
+    spent.set(r.categoryId, (spent.get(r.categoryId) ?? 0) + r.amount);
+  }
+  return Object.entries(budgets)
+    .filter(([, budget]) => budget > 0)
+    .map(([categoryId, budget]) => {
+      const used = spent.get(categoryId) ?? 0;
+      return {
+        categoryId,
+        budget,
+        spent: used,
+        ratio: used / budget,
+        over: used > budget,
+      };
+    });
+}
+
+/* ------------------------------------------------------------- export */
+
+function csvCell(value: string | number) {
+  const text = String(value);
+  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/**
+ * A month (or any rows) as CSV that opens right in Excel: a BOM so Hebrew
+ * isn't garbled, expenses as negative amounts so a sum is the balance.
+ */
+export function transactionsToCsv(rows: Transaction[], categories: Category[]) {
+  const names = new Map(categories.map((c) => [c.id, c.name]));
+  const lines = [
+    ["תאריך", "תיאור", "קטגוריה", "סוג", "סכום", "חוזרת", "הערות"],
+    ...[...rows]
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((r) => [
+        r.date,
+        r.description,
+        (r.categoryId && names.get(r.categoryId)) || "",
+        r.type === "income" ? "הכנסה" : "הוצאה",
+        (r.type === "income" ? r.amount : -r.amount).toFixed(2),
+        r.recurring ? "כן" : "",
+        r.notes ?? "",
+      ]),
+  ];
+  return "﻿" + lines.map((l) => l.map(csvCell).join(",")).join("\r\n");
+}
