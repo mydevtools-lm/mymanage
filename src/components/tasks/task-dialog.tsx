@@ -47,6 +47,7 @@ function TaskForm({ onOpenChange, task, defaultDueDate }: TaskDialogProps) {
   const [title, setTitle] = useState(task?.title ?? "");
   const [description, setDescription] = useState(task?.description ?? "");
   const [dueDate, setDueDate] = useState(task?.dueDate ?? defaultDueDate ?? "");
+  const [dueTime, setDueTime] = useState(task?.dueTime ?? "");
   const [priority, setPriority] = useState<Priority>(
     task?.priority ?? "normal",
   );
@@ -62,6 +63,8 @@ function TaskForm({ onOpenChange, task, defaultDueDate }: TaskDialogProps) {
       title: title.trim(),
       description: description.trim() || undefined,
       dueDate: dueDate || undefined,
+      // A time without a date has nowhere to be shown, so it is dropped.
+      dueTime: (dueDate && dueTime) || undefined,
       priority,
       categoryId: categoryId === NONE ? undefined : categoryId,
     };
@@ -109,6 +112,18 @@ function TaskForm({ onOpenChange, task, defaultDueDate }: TaskDialogProps) {
             onChange={(e) => setDueDate(e.target.value)}
           />
         </Field>
+        <Field label="שעה (רשות)" htmlFor="task-time">
+          <Input
+            id="task-time"
+            type="time"
+            value={dueTime}
+            disabled={!dueDate}
+            onChange={(e) => setDueTime(e.target.value)}
+          />
+        </Field>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
         <Field label="עדיפות">
           <SimpleSelect
             value={priority}
@@ -116,15 +131,14 @@ function TaskForm({ onOpenChange, task, defaultDueDate }: TaskDialogProps) {
             options={PRIORITY_OPTIONS}
           />
         </Field>
+        <Field label="קטגוריה">
+          <CategorySelect
+            kind="task"
+            value={categoryId}
+            onChange={setCategoryId}
+          />
+        </Field>
       </div>
-
-      <Field label="קטגוריה">
-        <CategorySelect
-          kind="task"
-          value={categoryId}
-          onChange={setCategoryId}
-        />
-      </Field>
 
       <DialogFooter>
         <Button

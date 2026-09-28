@@ -19,6 +19,7 @@ export function TaskRow({
   onEdit,
   compact,
   hideDate,
+  trailing,
 }: {
   task: Task;
   onEdit?: (task: Task) => void;
@@ -26,6 +27,8 @@ export function TaskRow({
   compact?: boolean;
   /** Skip the due date when the surrounding screen already says which day. */
   hideDate?: boolean;
+  /** A one-tap action shown in the row itself, before the "⋯" menu. */
+  trailing?: React.ReactNode;
 }) {
   const toggleTask = useAppStore((s) => s.toggleTask);
   const snoozeTask = useAppStore((s) => s.snoozeTask);
@@ -64,6 +67,9 @@ export function TaskRow({
         >
           <CalendarClock className="size-3.5" />
           {formatDate(task.dueDate)}
+          {task.dueTime && (
+            <span className="tabular-nums">· {task.dueTime}</span>
+          )}
         </span>
       )}
       <CategoryBadge category={category} />
@@ -118,6 +124,7 @@ export function TaskRow({
           </div>
         </div>
         <div className="hidden shrink-0 items-center gap-2 sm:flex">{meta}</div>
+        {trailing}
         <RowActions actions={actions} />
       </div>
     </SwipeRow>

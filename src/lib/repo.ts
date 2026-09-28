@@ -28,6 +28,7 @@ interface TaskRow {
   title: string;
   description: string | null;
   dueDate: string | null;
+  dueTime: string | null;
   priority: string;
   categoryId: string | null;
   completed: number;
@@ -43,6 +44,7 @@ function toTask(r: TaskRow): Task {
     title: r.title,
     description: r.description ?? undefined,
     dueDate: r.dueDate ?? undefined,
+    dueTime: r.dueTime ?? undefined,
     priority: r.priority as Task["priority"],
     categoryId: r.categoryId ?? undefined,
     completed: !!r.completed,
@@ -65,14 +67,15 @@ export function createTask(input: Partial<Task>): Task {
   getDb()
     .prepare(
       `INSERT INTO tasks
-       (id,title,description,dueDate,priority,categoryId,completed,completedAt,archivedAt,createdAt,updatedAt)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+       (id,title,description,dueDate,dueTime,priority,categoryId,completed,completedAt,archivedAt,createdAt,updatedAt)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
     )
     .run(
       id,
       input.title ?? "",
       input.description ?? null,
       input.dueDate ?? null,
+      input.dueTime ?? null,
       input.priority ?? "normal",
       input.categoryId ?? null,
       input.completed ? 1 : 0,
@@ -95,6 +98,7 @@ const TASK_FIELDS = [
   "title",
   "description",
   "dueDate",
+  "dueTime",
   "priority",
   "categoryId",
   "completed",

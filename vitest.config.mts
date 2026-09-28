@@ -17,6 +17,7 @@ export default defineConfig({
     pool: "forks",
     execArgv: ["--experimental-sqlite", "--no-warnings"],
     // Every test file gets its own in-memory database unless it says otherwise.
-    env: { LIOR_DB_PATH: ":memory:" },
+    // Pin the zone: day boundaries are tested, and they depend on it.
+    env: { LIOR_DB_PATH: ":memory:", TZ: "Asia/Jerusalem" },
   },
 });

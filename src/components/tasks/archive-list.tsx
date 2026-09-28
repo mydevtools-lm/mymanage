@@ -13,7 +13,7 @@ import {
 import { EmptyState } from "@/components/shared";
 import { RowActions } from "@/components/row-actions";
 import { useAppStore } from "@/lib/store";
-import { formatDate, todayKey } from "@/lib/format";
+import { formatDate, localDayOf, todayKey } from "@/lib/format";
 import type { Task } from "@/lib/types";
 
 /** Finished tasks, grouped by the day they were ticked off, newest first. */
@@ -32,7 +32,7 @@ export function ArchiveList() {
     );
     const map = new Map<string, Task[]>();
     for (const task of archived) {
-      const day = (task.completedAt ?? task.archivedAt!).slice(0, 10);
+      const day = localDayOf(task.completedAt ?? task.archivedAt!);
       const list = map.get(day) ?? [];
       list.push(task);
       map.set(day, list);

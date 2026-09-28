@@ -117,6 +117,9 @@ CREATE TABLE IF NOT EXISTS settings (
 const MIGRATIONS: string[] = [
   // v1 — per-month exceptions for recurring transactions (JSON array).
   `ALTER TABLE transactions ADD COLUMN exceptions TEXT;`,
+  // v2 — optional time of day for a task (HH:mm), so it can sit on the
+  // Today timeline between events.
+  `ALTER TABLE tasks ADD COLUMN dueTime TEXT;`,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

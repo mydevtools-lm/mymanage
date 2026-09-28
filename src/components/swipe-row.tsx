@@ -51,7 +51,7 @@ export function SwipeRow({
   const armed = Math.abs(dx) >= THRESHOLD;
 
   return (
-    <div className="relative overflow-hidden rounded-lg">
+    <div data-swipe-row className="relative overflow-hidden rounded-lg">
       {active && (
         <div
           aria-hidden

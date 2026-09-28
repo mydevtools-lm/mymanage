@@ -17,6 +17,7 @@ export interface Task {
   title: string;
   description?: string;
   dueDate?: string; // yyyy-MM-dd
+  dueTime?: string; // HH:mm, only meaningful with a dueDate
   priority: Priority;
   categoryId?: string;
   completed: boolean;

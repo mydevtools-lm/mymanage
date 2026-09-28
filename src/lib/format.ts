@@ -32,6 +32,14 @@ export function formatMonth(monthKey: string) {
   return format(parseISO(`${monthKey}-01`), "MMMM yyyy", { locale: he });
 }
 
+/**
+ * The local calendar day of an ISO timestamp. Timestamps are stored in UTC,
+ * so slicing the first 10 characters puts 01:30 in Israel on the previous day.
+ */
+export function localDayOf(iso: string) {
+  return toDateKey(new Date(iso));
+}
+
 export function todayKey() {
   return toDateKey(new Date());
 }

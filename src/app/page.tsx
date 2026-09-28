@@ -1,12 +1,21 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { format } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import { he } from "date-fns/locale";
-import { CalendarDays, CheckCircle2, Plus, Wallet } from "lucide-react";
+import {
+  CalendarDays,
+  CalendarPlus,
+  CheckCircle2,
+  ChevronDown,
+  Inbox,
+  Plus,
+  Wallet,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -14,50 +23,72 @@ import {
 } from "@/components/ui/card";
 import { Hydrated, PageHeader } from "@/components/shared";
 import { TaskDialog } from "@/components/tasks/task-dialog";
+import { TaskRow } from "@/components/tasks/task-row";
 import { EventDialog } from "@/components/calendar/event-dialog";
 import { TransactionDialog } from "@/components/finance/transaction-dialog";
 import { DayPicker } from "@/components/today/day-picker";
-import { TaskRow } from "@/components/tasks/task-row";
+import { AllDayStrip, DayTimeline } from "@/components/today/day-timeline";
+import { DaySwipe } from "@/components/today/day-swipe";
 import { MonthBalanceCard } from "@/components/today/month-balance-card";
 import { WeekAheadCard } from "@/components/today/week-ahead-card";
 import { useAppStore } from "@/lib/store";
-import type { Task } from "@/lib/types";
-import { formatDate, todayKey } from "@/lib/format";
+import { useGoogleEvents } from "@/lib/use-google-events";
+import { buildDayAgenda, dayProgress } from "@/lib/agenda";
+import { formatDate, toDateKey, todayKey } from "@/lib/format";
 import { greeting } from "@/lib/greeting";
+import { cn } from "@/lib/utils";
+import type { CalendarEvent, Task } from "@/lib/types";
 
 /**
- * Home screen. Replaces both the old dashboard and the old "daily tasks"
- * page, which showed the same day's work in two places by different rules.
+ * Home screen: the selected day's appointments and tasks in one place, with
+ * what was left over from earlier days and what has no date at all.
  */
 export default function TodayPage() {
   const tasks = useAppStore((s) => s.tasks);
+  const events = useAppStore((s) => s.events);
+  const updateTask = useAppStore((s) => s.updateTask);
+
   const [date, setDate] = useState(todayKey());
   const [taskDialog, setTaskDialog] = useState(false);
-  const [editing, setEditing] = useState<Task | null>(null);
-  const edit = (task: Task) => {
-    setEditing(task);
-    setTaskDialog(true);
-  };
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [eventDialog, setEventDialog] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
   const [txDialog, setTxDialog] = useState(false);
+  const [showUndated, setShowUndated] = useState(false);
 
   const today = todayKey();
   const isToday = date === today;
+  const google = useGoogleEvents(date, date);
 
-  const { dayTasks, carriedOver } = useMemo(() => {
-    const active = tasks.filter((t) => !t.archivedAt);
-    return {
-      dayTasks: active.filter((t) => t.dueDate === date),
-      // Only on today: unfinished work whose date has already passed.
-      carriedOver: isToday
-        ? active.filter((t) => t.dueDate && t.dueDate < today)
-        : [],
-    };
-  }, [tasks, date, today, isToday]);
+  const agenda = useMemo(
+    () =>
+      buildDayAgenda({
+        date,
+        today,
+        tasks,
+        events,
+        googleEvents: google.events,
+      }),
+    [date, today, tasks, events, google.events],
+  );
+  const progress = dayProgress(agenda);
 
-  const doneOnDay = tasks.filter(
-    (t) => t.archivedAt && (t.completedAt ?? "").slice(0, 10) === date,
-  ).length;
+  const editTask = (task: Task) => {
+    setEditingTask(task);
+    setTaskDialog(true);
+  };
+  const editEvent = (event: CalendarEvent) => {
+    setEditingEvent(event);
+    setEventDialog(true);
+  };
+  const shiftDay = (delta: number) =>
+    setDate((d) => toDateKey(addDays(parseISO(d), delta)));
+  const moveToToday = (task: Task) => updateTask(task.id, { dueDate: today });
+
+  const nothingPlanned =
+    agenda.allDay.length === 0 &&
+    agenda.timeline.length === 0 &&
+    agenda.untimedTasks.length === 0;
 
   return (
     <>
@@ -67,13 +98,19 @@ export default function TodayPage() {
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={() => {
-                setEditing(null);
+                setEditingTask(null);
                 setTaskDialog(true);
               }}
             >
               <Plus /> משימה
             </Button>
-            <Button variant="secondary" onClick={() => setEventDialog(true)}>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setEditingEvent(null);
+                setEventDialog(true);
+              }}
+            >
               <CalendarDays /> אירוע
             </Button>
             <Button variant="secondary" onClick={() => setTxDialog(true)}>
@@ -84,91 +121,195 @@ export default function TodayPage() {
       />
 
       <Hydrated>
-        {/* Rendered only on the client: a static page is built ahead of time,
-            so a greeting computed at build time would be wrong by morning. */}
+        {/* Client-only: a static page is built ahead of time, and a greeting
+            baked in at build time would be wrong by morning. */}
         <p className="-mt-4 mb-5 text-sm text-muted-foreground">
           {greeting()}, ליאור ·{" "}
           {format(new Date(), "EEEE, d בMMMM yyyy", { locale: he })}
         </p>
 
-        <div className="grid gap-4">
-          <DayPicker date={date} onChange={setDate} />
+        <DaySwipe onNext={() => shiftDay(1)} onPrevious={() => shiftDay(-1)}>
+          <div className="grid gap-4">
+            <DayPicker date={date} onChange={setDate} />
 
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">
-                    {isToday
-                      ? "המשימות של היום"
-                      : `משימות ל־${formatDate(date)}`}
-                  </CardTitle>
-                  <CardDescription>
-                    {dayTasks.length === 0
-                      ? "אין משימות פתוחות ליום זה"
-                      : `${dayTasks.length} פתוחות`}
-                    {doneOnDay > 0 && ` · ${doneOnDay} הושלמו`}
-                  </CardDescription>
-                </div>
-                {dayTasks.length === 0 && doneOnDay > 0 && (
-                  <span className="flex items-center gap-1.5 text-sm text-income">
-                    <CheckCircle2 className="size-4" /> הכול בוצע
-                  </span>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="grid gap-2">
-              {dayTasks.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">
-                  שום משימה לא מתוזמנת ליום הזה.
-                </p>
-              ) : (
-                dayTasks.map((task) => (
-                  <TaskRow key={task.id} task={task} onEdit={edit} hideDate />
-                ))
-              )}
-            </CardContent>
-          </Card>
-
-          {carriedOver.length > 0 && (
-            <Card className="border-destructive/30">
+            <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base text-destructive">
-                  נגררו מימים קודמים
+                <CardTitle className="text-base">
+                  {isToday ? "מה יש היום" : `מה יש ב־${formatDate(date)}`}
                 </CardTitle>
                 <CardDescription>
-                  {carriedOver.length} משימות שמועדן עבר ולא סומנו
+                  {progress.total === 0
+                    ? "אין משימות ליום הזה"
+                    : `${progress.done} מתוך ${progress.total} משימות בוצעו`}
                 </CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-2">
-                {carriedOver.map((task) => (
-                  <div key={task.id} className="grid gap-1">
-                    <TaskRow task={task} onEdit={edit} hideDate />
-                    <span className="-mt-0.5 px-3 text-xs text-muted-foreground">
-                      מועד מקורי: {formatDate(task.dueDate!)}
+                {progress.total > 0 && progress.done === progress.total && (
+                  <CardAction>
+                    <span className="flex items-center gap-1.5 text-sm text-income">
+                      <CheckCircle2 className="size-4" /> הכול בוצע
                     </span>
+                  </CardAction>
+                )}
+                {progress.total > 0 && (
+                  <div
+                    role="progressbar"
+                    aria-valuemin={0}
+                    aria-valuemax={progress.total}
+                    aria-valuenow={progress.done}
+                    aria-label="התקדמות היום"
+                    className="col-span-full mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
+                  >
+                    <div
+                      className="h-full rounded-full bg-income transition-all"
+                      style={{ width: `${progress.ratio * 100}%` }}
+                    />
                   </div>
-                ))}
+                )}
+              </CardHeader>
+
+              <CardContent className="grid gap-4">
+                <AllDayStrip items={agenda.allDay} onEditEvent={editEvent} />
+
+                <DayTimeline
+                  items={agenda.timeline}
+                  isToday={isToday}
+                  onEditEvent={editEvent}
+                  onEditTask={editTask}
+                />
+
+                {agenda.untimedTasks.length > 0 && (
+                  <div className="grid gap-2">
+                    {agenda.timeline.length > 0 && (
+                      <h3 className="text-sm font-medium text-muted-foreground">
+                        במהלך היום
+                      </h3>
+                    )}
+                    {agenda.untimedTasks.map((task) => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        onEdit={editTask}
+                        hideDate
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {nothingPlanned && (
+                  <p className="py-4 text-center text-sm text-muted-foreground">
+                    {agenda.doneCount > 0
+                      ? "כל מה שתוכנן ליום הזה בוצע."
+                      : "שום דבר לא מתוזמן ליום הזה."}
+                  </p>
+                )}
               </CardContent>
             </Card>
-          )}
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <WeekAheadCard />
-            <MonthBalanceCard />
+            {agenda.carriedOver.length > 0 && (
+              <Card className="border-destructive/30">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base text-destructive">
+                    נגררו מימים קודמים
+                  </CardTitle>
+                  <CardDescription>
+                    {agenda.carriedOver.length} משימות שמועדן עבר ולא סומנו
+                  </CardDescription>
+                  <CardAction>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => agenda.carriedOver.forEach(moveToToday)}
+                    >
+                      <CalendarPlus /> הכול להיום
+                    </Button>
+                  </CardAction>
+                </CardHeader>
+                <CardContent className="grid gap-2">
+                  {agenda.carriedOver.map((task) => (
+                    <div key={task.id} className="grid gap-1">
+                      <TaskRow
+                        task={task}
+                        onEdit={editTask}
+                        hideDate
+                        trailing={
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => moveToToday(task)}
+                          >
+                            להיום
+                          </Button>
+                        }
+                      />
+                      <span className="-mt-0.5 px-3 text-xs text-muted-foreground">
+                        מועד מקורי: {formatDate(task.dueDate!)}
+                      </span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {agenda.undated.length > 0 && (
+              <Card>
+                <button
+                  type="button"
+                  onClick={() => setShowUndated((v) => !v)}
+                  aria-expanded={showUndated}
+                  className="flex items-center gap-2 px-4 text-start"
+                >
+                  <Inbox className="size-4 text-muted-foreground" />
+                  <span className="font-medium">בלי תאריך</span>
+                  <span className="text-sm text-muted-foreground">
+                    ({agenda.undated.length})
+                  </span>
+                  <ChevronDown
+                    className={cn(
+                      "ms-auto size-4 text-muted-foreground transition-transform",
+                      showUndated && "rotate-180",
+                    )}
+                  />
+                </button>
+                {showUndated && (
+                  <CardContent className="grid gap-2">
+                    {agenda.undated.map((task) => (
+                      <TaskRow
+                        key={task.id}
+                        task={task}
+                        onEdit={editTask}
+                        trailing={
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => moveToToday(task)}
+                          >
+                            להיום
+                          </Button>
+                        }
+                      />
+                    ))}
+                  </CardContent>
+                )}
+              </Card>
+            )}
           </div>
+        </DaySwipe>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <WeekAheadCard />
+          <MonthBalanceCard />
         </div>
       </Hydrated>
 
       <TaskDialog
         open={taskDialog}
         onOpenChange={setTaskDialog}
-        task={editing}
+        task={editingTask}
         defaultDueDate={date}
       />
       <EventDialog
         open={eventDialog}
         onOpenChange={setEventDialog}
+        event={editingEvent}
         defaultDate={date}
       />
       <TransactionDialog open={txDialog} onOpenChange={setTxDialog} />

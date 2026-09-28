@@ -18,7 +18,7 @@ import { Field } from "@/components/fields";
 import { EmptyState } from "@/components/shared";
 import { RowActions } from "@/components/row-actions";
 import { useAppStore } from "@/lib/store";
-import { formatDate } from "@/lib/format";
+import { formatDate, localDayOf } from "@/lib/format";
 import type { Note } from "@/lib/types";
 
 export function NotesTab() {
@@ -110,7 +110,7 @@ export function NotesTab() {
                   {n.body}
                 </p>
                 <div className="text-xs text-muted-foreground/70">
-                  עודכן {formatDate(n.updatedAt.slice(0, 10))}
+                  עודכן {formatDate(localDayOf(n.updatedAt))}
                 </div>
               </CardContent>
             </Card>
