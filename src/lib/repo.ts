@@ -240,7 +240,22 @@ interface TransactionRow {
   notes: string | null;
   recurringStartMonth: string | null;
   recurringEndMonth: string | null;
+  exceptions: string | null;
   createdAt: string;
+}
+
+function parseExceptions(raw: string | null): Transaction["exceptions"] {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function serializeExceptions(value: Transaction["exceptions"] | null) {
+  return value && value.length > 0 ? JSON.stringify(value) : null;
 }
 
 function toTransaction(r: TransactionRow): Transaction {
@@ -258,6 +273,7 @@ function toTransaction(r: TransactionRow): Transaction {
           endMonth: r.recurringEndMonth ?? undefined,
         }
       : undefined,
+    exceptions: parseExceptions(r.exceptions),
     createdAt: r.createdAt,
   };
 }
@@ -273,8 +289,8 @@ export function createTransaction(input: Partial<Transaction>): Transaction {
   getDb()
     .prepare(
       `INSERT INTO transactions
-       (id,type,amount,description,date,categoryId,notes,recurringStartMonth,recurringEndMonth,createdAt)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+       (id,type,amount,description,date,categoryId,notes,recurringStartMonth,recurringEndMonth,exceptions,createdAt)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
     )
     .run(
       id,
@@ -286,6 +302,7 @@ export function createTransaction(input: Partial<Transaction>): Transaction {
       input.notes ?? null,
       input.recurring?.startMonth ?? null,
       input.recurring?.endMonth ?? null,
+      serializeExceptions(input.exceptions),
       input.createdAt ?? now(),
     );
   return getTransaction(id)!;
@@ -308,7 +325,8 @@ export function updateTransaction(
   getDb()
     .prepare(
       `UPDATE transactions SET type=?, amount=?, description=?, date=?,
-       categoryId=?, notes=?, recurringStartMonth=?, recurringEndMonth=?
+       categoryId=?, notes=?, recurringStartMonth=?, recurringEndMonth=?,
+       exceptions=?
        WHERE id = ?`,
     )
     .run(
@@ -320,6 +338,7 @@ export function updateTransaction(
       next.notes ?? null,
       next.recurring?.startMonth ?? null,
       next.recurring?.endMonth ?? null,
+      serializeExceptions(next.exceptions),
       id,
     );
   return getTransaction(id);
@@ -399,9 +418,14 @@ export function getChecklist(id: string): Checklist | null {
   return listChecklists().find((l) => l.id === id) ?? null;
 }
 
-export function createChecklist(title: string, items: string[] = []) {
+type NewItem = string | { id?: string; text: string };
+
+export function createChecklist(
+  title: string,
+  items: NewItem[] = [],
+  id: string = newId(),
+) {
   const db = getDb();
-  const id = newId();
   const stamp = now();
   db.prepare(
     "INSERT INTO checklists (id,title,createdAt,updatedAt) VALUES (?,?,?,?)",
@@ -410,7 +434,11 @@ export function createChecklist(title: string, items: string[] = []) {
   const insert = db.prepare(
     "INSERT INTO checklist_items (id,listId,text,done,position) VALUES (?,?,?,0,?)",
   );
-  items.forEach((text, index) => insert.run(newId(), id, text, index));
+  items.forEach((item, index) => {
+    const { id: itemId = newId(), text } =
+      typeof item === "string" ? { text: item } : item;
+    insert.run(itemId, id, text, index);
+  });
   return getChecklist(id)!;
 }
 
@@ -431,7 +459,11 @@ function touchChecklist(listId: string) {
     .run(now(), listId);
 }
 
-export function addChecklistItem(listId: string, text: string) {
+export function addChecklistItem(
+  listId: string,
+  text: string,
+  itemId: string = newId(),
+) {
   const db = getDb();
   const { next } = row<{ next: number }>(
     db
@@ -442,7 +474,7 @@ export function addChecklistItem(listId: string, text: string) {
   )!;
   db.prepare(
     "INSERT INTO checklist_items (id,listId,text,done,position) VALUES (?,?,?,0,?)",
-  ).run(newId(), listId, text, next);
+  ).run(itemId, listId, text, next);
   touchChecklist(listId);
   return getChecklist(listId);
 }
@@ -495,12 +527,14 @@ export function listCategories(): Category[] {
   );
 }
 
-export function createCategory(input: Omit<Category, "id">): Category {
-  const id = newId();
+export function createCategory(
+  input: Omit<Category, "id"> & { id?: string },
+): Category {
+  const id = input.id ?? newId();
   getDb()
     .prepare("INSERT INTO categories (id,name,color,kind) VALUES (?,?,?,?)")
     .run(id, input.name, input.color, input.kind);
-  return { ...input, id };
+  return { name: input.name, color: input.color, kind: input.kind, id };
 }
 
 export function updateCategory(id: string, patch: Partial<Category>) {

@@ -52,8 +52,21 @@ export interface Transaction {
     startMonth: string; // yyyy-MM
     endMonth?: string; // yyyy-MM (inclusive)
   };
+  /** Per-month changes to a recurring series: skip a month, or override it. */
+  exceptions?: TransactionException[];
   createdAt: string;
 }
+
+export interface TransactionException {
+  month: string; // yyyy-MM
+  skip?: boolean;
+  amount?: number;
+  description?: string;
+  categoryId?: string;
+}
+
+/** How far an edit or delete on one month of a recurring series reaches. */
+export type SeriesScope = "this" | "following" | "all";
 
 export interface Note {
   id: string;

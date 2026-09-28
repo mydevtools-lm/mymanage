@@ -57,4 +57,5 @@ npm run dev     # פיתוח
 npm run build   # בנייה
 npm run start   # הרצת הבנייה
 npm run lint    # ESLint
+npm test        # Vitest
 ```

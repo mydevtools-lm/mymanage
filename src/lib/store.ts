@@ -8,11 +8,14 @@ import type {
   Checklist,
   DataSnapshot,
   Note,
+  SeriesScope,
   Settings,
   Task,
   Transaction,
 } from "./types";
 import { toMonthKey } from "./format";
+import { toJsonBody } from "./json-body";
+import { planSeriesDelete, planSeriesEdit, type SeriesPlan } from "./finance";
 
 /**
  * Client-side mirror of the SQLite database.
@@ -21,6 +24,10 @@ import { toMonthKey } from "./format";
  * lived in localStorage. Writes apply to the mirror first so the UI never
  * waits on a round trip, then go to the API; if the server rejects one, the
  * mirror is refetched so the screen can't drift from the file on disk.
+ *
+ * Ids are generated here, not on the server. A row is therefore addressable
+ * the moment it appears on screen — ticking a task a split second after
+ * creating it no longer races the server's reply.
  */
 
 const LEGACY_KEY = "lior-management";
@@ -61,6 +68,19 @@ interface AppState {
   addTransaction: (input: TransactionInput) => void;
   updateTransaction: (id: string, input: Partial<TransactionInput>) => void;
   deleteTransaction: (id: string) => void;
+  /** Delete one month, this month onwards, or the whole recurring series. */
+  deleteTransactionInSeries: (
+    id: string,
+    month: string,
+    scope: SeriesScope,
+  ) => void;
+  /** Edit one month, this month onwards, or the whole recurring series. */
+  editTransactionInSeries: (
+    id: string,
+    month: string,
+    scope: SeriesScope,
+    fields: Partial<TransactionInput>,
+  ) => void;
 
   addNote: (input: NoteInput) => void;
   updateNote: (id: string, input: Partial<NoteInput>) => void;
@@ -93,7 +113,7 @@ async function api(
   const response = await fetch(url, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
+    body: body ? toJsonBody(body) : undefined,
   });
   if (!response.ok) {
     const detail = await response.json().catch(() => null);
@@ -196,23 +216,15 @@ export const useAppStore = create<AppState>()((set, get) => ({
   /* ---------------------------------------------------------- tasks */
 
   addTask: (input) => {
-    const optimistic: Task = {
+    const row: Task = {
       ...input,
-      id: `tmp-${crypto.randomUUID()}`,
+      id: crypto.randomUUID(),
       completed: false,
       createdAt: now(),
       updatedAt: now(),
     };
-    set((s) => ({ tasks: [...s.tasks, optimistic] }));
-    push(
-      api("/api/tasks", "POST", input).then((saved) =>
-        set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === optimistic.id ? (saved as Task) : t,
-          ),
-        })),
-      ),
-    );
+    set((s) => ({ tasks: [...s.tasks, row] }));
+    push(api("/api/tasks", "POST", row));
   },
   updateTask: (id, input) => {
     set((s) => ({
@@ -261,21 +273,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
   /* --------------------------------------------------------- events */
 
   addEvent: (input) => {
-    const optimistic: CalendarEvent = {
+    const row: CalendarEvent = {
       ...input,
-      id: `tmp-${crypto.randomUUID()}`,
+      id: crypto.randomUUID(),
       createdAt: now(),
     };
-    set((s) => ({ events: [...s.events, optimistic] }));
-    push(
-      api("/api/events", "POST", input).then((saved) =>
-        set((s) => ({
-          events: s.events.map((e) =>
-            e.id === optimistic.id ? (saved as CalendarEvent) : e,
-          ),
-        })),
-      ),
-    );
+    set((s) => ({ events: [...s.events, row] }));
+    push(api("/api/events", "POST", row));
   },
   updateEvent: (id, input) => {
     set((s) => ({
@@ -291,21 +295,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
   /* --------------------------------------------------- transactions */
 
   addTransaction: (input) => {
-    const optimistic: Transaction = {
+    const row: Transaction = {
       ...input,
-      id: `tmp-${crypto.randomUUID()}`,
+      id: crypto.randomUUID(),
       createdAt: now(),
     };
-    set((s) => ({ transactions: [...s.transactions, optimistic] }));
-    push(
-      api("/api/transactions", "POST", input).then((saved) =>
-        set((s) => ({
-          transactions: s.transactions.map((t) =>
-            t.id === optimistic.id ? (saved as Transaction) : t,
-          ),
-        })),
-      ),
-    );
+    set((s) => ({ transactions: [...s.transactions, row] }));
+    push(api("/api/transactions", "POST", row));
   },
   updateTransaction: (id, input) => {
     set((s) => ({
@@ -319,26 +315,26 @@ export const useAppStore = create<AppState>()((set, get) => ({
     set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }));
     push(api(`/api/transactions/${id}`, "DELETE"));
   },
+  deleteTransactionInSeries: (id, month, scope) => {
+    const t = get().transactions.find((x) => x.id === id);
+    if (t) applySeriesPlan(planSeriesDelete(t, month, scope));
+  },
+  editTransactionInSeries: (id, month, scope, fields) => {
+    const t = get().transactions.find((x) => x.id === id);
+    if (t) applySeriesPlan(planSeriesEdit(t, month, scope, fields));
+  },
 
   /* ---------------------------------------------------------- notes */
 
   addNote: (input) => {
-    const optimistic: Note = {
+    const row: Note = {
       ...input,
-      id: `tmp-${crypto.randomUUID()}`,
+      id: crypto.randomUUID(),
       createdAt: now(),
       updatedAt: now(),
     };
-    set((s) => ({ notes: [optimistic, ...s.notes] }));
-    push(
-      api("/api/notes", "POST", input).then((saved) =>
-        set((s) => ({
-          notes: s.notes.map((n) =>
-            n.id === optimistic.id ? (saved as Note) : n,
-          ),
-        })),
-      ),
-    );
+    set((s) => ({ notes: [row, ...s.notes] }));
+    push(api("/api/notes", "POST", row));
   },
   updateNote: (id, input) => {
     set((s) => ({
@@ -356,10 +352,24 @@ export const useAppStore = create<AppState>()((set, get) => ({
   /* ----------------------------------------------------- checklists */
 
   addChecklist: (title, items = []) => {
+    const list: Checklist = {
+      id: crypto.randomUUID(),
+      title,
+      items: items.map((text) => ({
+        id: crypto.randomUUID(),
+        text,
+        done: false,
+      })),
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    set((s) => ({ checklists: [list, ...s.checklists] }));
     push(
-      api("/api/checklists", "POST", { title, items }).then((saved) =>
-        set((s) => ({ checklists: [saved as Checklist, ...s.checklists] })),
-      ),
+      api("/api/checklists", "POST", {
+        id: list.id,
+        title,
+        items: list.items.map(({ id, text }) => ({ id, text })),
+      }),
     );
   },
   renameChecklist: (id, title) => {
@@ -373,15 +383,17 @@ export const useAppStore = create<AppState>()((set, get) => ({
     push(api(`/api/checklists/${id}`, "DELETE"));
   },
   addChecklistItem: (listId, text) => {
-    push(
-      api(`/api/checklists/${listId}`, "PATCH", { addItem: text }).then(
-        (saved) =>
-          set((s) => ({
-            checklists: s.checklists.map((l) =>
-              l.id === listId ? (saved as Checklist) : l,
-            ),
-          })),
+    const item = { id: crypto.randomUUID(), text, done: false };
+    set((s) => ({
+      checklists: s.checklists.map((l) =>
+        l.id === listId ? { ...l, items: [...l.items, item] } : l,
       ),
+    }));
+    push(
+      api(`/api/checklists/${listId}`, "PATCH", {
+        addItem: text,
+        addItemId: item.id,
+      }),
     );
   },
   toggleChecklistItem: (listId, itemId) => {
@@ -423,11 +435,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
   /* ----------------------------------------------------- categories */
 
   addCategory: (input) => {
-    push(
-      api("/api/categories", "POST", input).then((saved) =>
-        set((s) => ({ categories: [...s.categories, saved as Category] })),
-      ),
-    );
+    const category: Category = { ...input, id: crypto.randomUUID() };
+    set((s) => ({ categories: [...s.categories, category] }));
+    push(api("/api/categories", "POST", category));
   },
   updateCategory: (id, input) => {
     set((s) => ({
@@ -475,6 +485,36 @@ export const useAppStore = create<AppState>()((set, get) => ({
     applySnapshot(saved);
   },
 }));
+
+/** Carry out a plan from planSeriesDelete / planSeriesEdit. */
+function applySeriesPlan(plan: SeriesPlan) {
+  const set = useAppStore.setState;
+
+  if (plan.kind === "delete") {
+    set((s) => ({
+      transactions: s.transactions.filter((t) => t.id !== plan.id),
+    }));
+    push(api(`/api/transactions/${plan.id}`, "DELETE"));
+    return;
+  }
+
+  set((s) => ({
+    transactions: s.transactions.map((t) =>
+      t.id === plan.id ? { ...t, ...plan.patch } : t,
+    ),
+  }));
+  push(api(`/api/transactions/${plan.id}`, "PATCH", plan.patch));
+
+  if (plan.kind === "split") {
+    const created: Transaction = {
+      ...plan.create,
+      id: crypto.randomUUID(),
+      createdAt: now(),
+    };
+    set((s) => ({ transactions: [...s.transactions, created] }));
+    push(api("/api/transactions", "POST", created));
+  }
+}
 
 export function useCategories(kind: Category["kind"]) {
   return useAppStore((s) => s.categories).filter((c) => c.kind === kind);

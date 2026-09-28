@@ -7,7 +7,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const body = await readJson<Omit<Category, "id">>(request);
+  const body = await readJson<Omit<Category, "id"> & { id?: string }>(request);
   if (!body?.name || !body.kind) return badRequest("חסר שם או סוג");
   return handle(() => createCategory(body));
 }

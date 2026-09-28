@@ -6,7 +6,12 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const body = await readJson<{ title?: string; items?: string[] }>(request);
-  if (!body?.title?.trim()) return badRequest("צריך שם לרשימה");
-  return handle(() => createChecklist(body.title!.trim(), body.items ?? []));
+  const body = await readJson<{
+    id?: string;
+    title?: string;
+    items?: (string | { id?: string; text: string })[];
+  }>(request);
+  const title = body?.title?.trim();
+  if (!title) return badRequest("צריך שם לרשימה");
+  return handle(() => createChecklist(title, body?.items ?? [], body?.id));
 }
