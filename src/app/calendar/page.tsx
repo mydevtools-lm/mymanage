@@ -3,12 +3,12 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  addDays,
   addMonths,
   eachDayOfInterval,
   endOfMonth,
   endOfWeek,
   format,
-  isSameMonth,
   startOfMonth,
   startOfWeek,
 } from "date-fns";
@@ -17,116 +17,132 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Lock,
-  MapPin,
-  Pencil,
+  LayoutGrid,
+  List,
   Plus,
-  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Hydrated, PageHeader } from "@/components/shared";
-import { RowActions } from "@/components/row-actions";
 import { EventDialog } from "@/components/calendar/event-dialog";
 import { TaskDialog } from "@/components/tasks/task-dialog";
-import { TaskRow } from "@/components/tasks/task-row";
-import { useAppStore } from "@/lib/store";
-import { COLOR_STYLES } from "@/lib/colors";
-import { toDateKey, todayKey } from "@/lib/format";
-import { useGoogleEvents, type ExternalEvent } from "@/lib/use-google-events";
-import { cn } from "@/lib/utils";
-import type { CalendarEvent } from "@/lib/types";
+import { MonthView } from "@/components/calendar/month-view";
+import { WeekView } from "@/components/calendar/week-view";
+import { AgendaView } from "@/components/calendar/agenda-view";
+import { DayPanel } from "@/components/calendar/day-panel";
+import { useCalendarData } from "@/components/calendar/use-calendar-data";
+import { toDateKey } from "@/lib/format";
+import { useIsDesktop } from "@/lib/use-media";
+import type { CalendarEvent, Task } from "@/lib/types";
 
-const WEEKDAYS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
+type View = "month" | "week" | "list";
+const VIEW_KEY = "calendar-view";
+const LIST_DAYS = 30;
 
-// Events pulled from Google are read-only, so they get their own look —
-// a tinted chip with a leading bar rather than the local category colors.
-const GOOGLE_CHIP =
-  "border-s-2 border-s-sky-500 bg-sky-50 text-sky-900 dark:bg-sky-950/50 dark:text-sky-100";
-
-function eventTime(e: CalendarEvent) {
-  if (e.allDay || !e.startTime) return "";
-  return e.endTime ? `${e.startTime}–${e.endTime}` : e.startTime;
+function readStoredView(): View | null {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    return v === "month" || v === "week" || v === "list" ? v : null;
+  } catch {
+    return null;
+  }
 }
 
-export default function CalendarPage() {
-  const events = useAppStore((s) => s.events);
-  const tasks = useAppStore((s) => s.tasks);
-  const deleteEvent = useAppStore((s) => s.deleteEvent);
-
-  const [cursor, setCursor] = useState(() => startOfMonth(new Date()));
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
-  const [eventDialog, setEventDialog] = useState(false);
-  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
-  const [taskDialog, setTaskDialog] = useState(false);
-
-  const days = useMemo(() => {
+function rangeFor(view: View, cursor: Date) {
+  if (view === "month") {
     const start = startOfWeek(startOfMonth(cursor), { weekStartsOn: 0 });
     const end = endOfWeek(endOfMonth(cursor), { weekStartsOn: 0 });
     return eachDayOfInterval({ start, end });
-  }, [cursor]);
+  }
+  if (view === "week") {
+    const start = startOfWeek(cursor, { weekStartsOn: 0 });
+    return eachDayOfInterval({ start, end: addDays(start, 6) });
+  }
+  return eachDayOfInterval({
+    start: cursor,
+    end: addDays(cursor, LIST_DAYS - 1),
+  });
+}
 
-  const google = useGoogleEvents(
-    toDateKey(days[0]),
-    toDateKey(days[days.length - 1]),
+function labelFor(view: View, days: Date[], cursor: Date) {
+  if (view === "month") return format(cursor, "MMMM yyyy", { locale: he });
+  const first = days[0];
+  const last = days[days.length - 1];
+  const sameYear = first.getFullYear() === last.getFullYear();
+  return `${format(first, sameYear ? "d בMMM" : "d בMMM yyyy", {
+    locale: he,
+  })} – ${format(last, "d בMMM yyyy", { locale: he })}`;
+}
+
+function pad(n: number) {
+  return String(n).padStart(2, "0");
+}
+
+export default function CalendarPage() {
+  const isDesktop = useIsDesktop();
+  // The views render only after the store hydrates (<Hydrated>), so reading
+  // localStorage here cannot cause a server/client mismatch.
+  const [view, setView] = useState<View | null>(() =>
+    typeof window === "undefined" ? null : readStoredView(),
   );
+  const [cursor, setCursor] = useState(() => new Date());
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
-  const googleByDay = useMemo(() => {
-    const map = new Map<string, ExternalEvent[]>();
-    for (const e of google.events) {
-      const list = map.get(e.date) ?? [];
-      list.push(e);
-      map.set(e.date, list);
-    }
-    return map;
-  }, [google.events]);
+  const [eventDialog, setEventDialog] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [slot, setSlot] = useState<{ date: string; hour: number } | null>(null);
+  const [taskDialog, setTaskDialog] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
-  const eventsByDay = useMemo(() => {
-    const map = new Map<string, CalendarEvent[]>();
-    for (const e of events) {
-      const list = map.get(e.date) ?? [];
-      list.push(e);
-      map.set(e.date, list);
-    }
-    for (const list of map.values()) {
-      list.sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? ""));
-    }
-    return map;
-  }, [events]);
+  // First visit: a list on phones, a month grid on desktop. After that, the
+  // last choice sticks.
+  const current: View = view ?? (isDesktop ? "month" : "list");
+  const days = useMemo(() => rangeFor(current, cursor), [current, cursor]);
+  const from = toDateKey(days[0]);
+  const to = toDateKey(days[days.length - 1]);
+  const { day, google } = useCalendarData(from, to);
 
-  const tasksByDay = useMemo(() => {
-    const map = new Map<string, typeof tasks>();
-    for (const t of tasks) {
-      if (!t.dueDate) continue;
-      const list = map.get(t.dueDate) ?? [];
-      list.push(t);
-      map.set(t.dueDate, list);
+  const changeView = (next: View) => {
+    setView(next);
+    try {
+      localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // The choice still applies for this visit.
     }
-    return map;
-  }, [tasks]);
+  };
 
-  const today = todayKey();
-  const dayEvents = selectedDay ? (eventsByDay.get(selectedDay) ?? []) : [];
-  const dayTasks = selectedDay ? (tasksByDay.get(selectedDay) ?? []) : [];
-  const dayGoogle = selectedDay ? (googleByDay.get(selectedDay) ?? []) : [];
+  const shift = (direction: 1 | -1) =>
+    setCursor((c) =>
+      current === "month"
+        ? addMonths(startOfMonth(c), direction)
+        : addDays(c, direction * (current === "week" ? 7 : LIST_DAYS)),
+    );
+
+  const openNewEvent = (preset?: { date: string; hour: number }) => {
+    setEditingEvent(null);
+    setSlot(preset ?? null);
+    setEventDialog(true);
+  };
+  const openEditEvent = (event: CalendarEvent) => {
+    setEditingEvent(event);
+    setSlot(null);
+    setEventDialog(true);
+  };
+  const openNewTask = () => {
+    setEditingTask(null);
+    setTaskDialog(true);
+  };
+  const openEditTask = (task: Task) => {
+    setEditingTask(task);
+    setTaskDialog(true);
+  };
 
   return (
     <>
       <PageHeader
         title="יומן"
         actions={
-          <Button
-            onClick={() => {
-              setEditingEvent(null);
-              setEventDialog(true);
-            }}
-          >
+          <Button onClick={() => openNewEvent()}>
             <Plus />
             אירוע חדש
           </Button>
@@ -134,154 +150,98 @@ export default function CalendarPage() {
       />
 
       <Hydrated>
-        <div className="mb-4 flex items-center gap-2">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="icon"
-            aria-label="חודש קודם"
-            onClick={() => setCursor((c) => addMonths(c, -1))}
+            aria-label="הקודם"
+            onClick={() => shift(-1)}
           >
             <ChevronRight />
           </Button>
           <Button
             variant="outline"
             size="icon"
-            aria-label="חודש הבא"
-            onClick={() => setCursor((c) => addMonths(c, 1))}
+            aria-label="הבא"
+            onClick={() => shift(1)}
           >
             <ChevronLeft />
           </Button>
-          <Button
-            variant="ghost"
-            onClick={() => setCursor(startOfMonth(new Date()))}
-          >
+          <Button variant="ghost" onClick={() => setCursor(new Date())}>
             היום
           </Button>
-          <h2 className="ms-2 text-lg font-semibold">
-            {format(cursor, "MMMM yyyy", { locale: he })}
+          <h2 className="ms-1 text-lg font-semibold">
+            {labelFor(current, days, cursor)}
           </h2>
+
+          <Tabs
+            className="ms-auto"
+            value={current}
+            onValueChange={(v) => changeView(v as View)}
+          >
+            <TabsList>
+              <TabsTrigger value="month" aria-label="תצוגת חודש">
+                <LayoutGrid />
+                <span className="max-sm:sr-only">חודש</span>
+              </TabsTrigger>
+              <TabsTrigger value="week" aria-label="תצוגת שבוע">
+                <CalendarDays />
+                <span className="max-sm:sr-only">שבוע</span>
+              </TabsTrigger>
+              <TabsTrigger value="list" aria-label="תצוגת רשימה">
+                <List />
+                <span className="max-sm:sr-only">רשימה</span>
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
-        <div className="overflow-hidden rounded-xl border bg-card">
-          <div className="grid grid-cols-7 border-b bg-muted/50 text-center text-xs font-medium text-muted-foreground">
-            {WEEKDAYS.map((d) => (
-              <div key={d} className="py-2">
-                {d}
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7">
-            {days.map((day) => {
-              const key = toDateKey(day);
-              const inMonth = isSameMonth(day, cursor);
-              const dayEv = eventsByDay.get(key) ?? [];
-              const dayGo = googleByDay.get(key) ?? [];
-              const dayTk = tasksByDay.get(key) ?? [];
-              const items = dayEv.length + dayGo.length + dayTk.length;
-              // Three chips fit in a cell; local events first, then Google,
-              // then tasks, with the remainder collapsed into a counter.
-              const shownEv = dayEv.slice(0, 2);
-              const shownGo = dayGo.slice(0, Math.max(0, 3 - shownEv.length));
-              const shownTk = dayTk.slice(
-                0,
-                Math.max(0, 3 - shownEv.length - shownGo.length),
-              );
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setSelectedDay(key)}
-                  className={cn(
-                    "flex min-h-24 flex-col items-stretch gap-1 border-b border-e p-1.5 text-start transition-colors hover:bg-accent/40",
-                    !inMonth && "bg-muted/30 text-muted-foreground",
-                    "nth-[7n]:border-e-0",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "inline-flex size-6 items-center justify-center rounded-full text-xs",
-                      key === today &&
-                        "bg-primary font-bold text-primary-foreground",
-                    )}
-                  >
-                    {format(day, "d")}
-                  </span>
-                  <div className="flex flex-col gap-0.5">
-                    {shownEv.map((e) => (
-                      <span
-                        key={e.id}
-                        className={cn(
-                          "truncate rounded px-1 text-[11px] leading-5",
-                          COLOR_STYLES[e.color].badge,
-                        )}
-                      >
-                        {e.startTime && !e.allDay && (
-                          <span className="me-1 tabular-nums opacity-70">
-                            {e.startTime}
-                          </span>
-                        )}
-                        {e.title}
-                      </span>
-                    ))}
-                    {shownGo.map((e) => (
-                      <span
-                        key={e.id}
-                        className={cn(
-                          "truncate rounded px-1 text-[11px] leading-5",
-                          GOOGLE_CHIP,
-                        )}
-                      >
-                        {e.startTime && (
-                          <span className="me-1 tabular-nums opacity-70">
-                            {e.startTime}
-                          </span>
-                        )}
-                        {e.title}
-                      </span>
-                    ))}
-                    {shownTk.map((t) => (
-                      <span
-                        key={t.id}
-                        className={cn(
-                          "truncate rounded border border-dashed px-1 text-[11px] leading-5",
-                          t.completed
-                            ? "text-muted-foreground line-through"
-                            : "border-primary/40 text-foreground",
-                        )}
-                      >
-                        {t.title}
-                      </span>
-                    ))}
-                    {items > 3 && (
-                      <span className="px-1 text-[10px] text-muted-foreground">
-                        +{items - 3} נוספים
-                      </span>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        {current === "month" && (
+          <MonthView
+            days={days}
+            month={cursor}
+            day={day}
+            onSelectDay={setSelectedDay}
+          />
+        )}
+        {current === "week" && (
+          <WeekView
+            days={days}
+            day={day}
+            onSelectDay={setSelectedDay}
+            onEditEvent={openEditEvent}
+            onEditTask={openEditTask}
+            onCreateAt={(date, hour) => openNewEvent({ date, hour })}
+          />
+        )}
+        {current === "list" && (
+          <AgendaView
+            days={days}
+            day={day}
+            onSelectDay={setSelectedDay}
+            onEditEvent={openEditEvent}
+            onEditTask={openEditTask}
+          />
+        )}
 
-        <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <span className="size-3 rounded bg-teal-100 dark:bg-teal-900/50" />{" "}
+            <span className="size-3 rounded bg-teal-100 dark:bg-teal-900/50" />
             אירוע
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="size-3 rounded border-s-2 border-s-sky-500 bg-sky-50 dark:bg-sky-950/50" />{" "}
+            <span className="size-3 rounded border-s-2 border-s-sky-500 bg-sky-50 dark:bg-sky-950/50" />
             גוגל יומן
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="size-3 rounded border border-dashed border-primary/40" />{" "}
+            <span className="size-3 rounded border border-dashed border-primary/40" />
             משימה
           </span>
           <span className="flex items-center gap-1.5">
             <span className="line-through">משימה</span> הושלמה
           </span>
 
-          <span className="ms-auto flex items-center gap-1.5">
+          <span className="ms-auto">
             {google.error ? (
               <span className="text-destructive">{google.error}</span>
             ) : !google.configured ? (
@@ -292,186 +252,50 @@ export default function CalendarPage() {
                 גוגל יומן לא מחובר · לחיבור
               </Link>
             ) : google.loading ? (
-              <span>טוען מגוגל…</span>
+              "טוען מגוגל…"
             ) : (
-              <span>{google.events.length} אירועים מגוגל בחודש זה</span>
+              `${google.events.length} אירועים מגוגל בתקופה זו`
             )}
           </span>
         </div>
       </Hydrated>
 
-      <Sheet
-        open={!!selectedDay}
-        onOpenChange={(o) => !o && setSelectedDay(null)}
-      >
-        <SheetContent side="left" className="w-full sm:max-w-md">
-          {selectedDay && (
-            <>
-              <SheetHeader>
-                <SheetTitle>
-                  {format(
-                    new Date(selectedDay + "T00:00"),
-                    "EEEE, d בMMMM yyyy",
-                    {
-                      locale: he,
-                    },
-                  )}
-                </SheetTitle>
-                <SheetDescription>
-                  {dayEvents.length} אירועים · {dayGoogle.length} מגוגל ·{" "}
-                  {dayTasks.length} משימות
-                </SheetDescription>
-              </SheetHeader>
-
-              <div className="flex flex-col gap-5 overflow-y-auto px-4 pb-4">
-                <section className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold">אירועים</h3>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setEditingEvent(null);
-                        setEventDialog(true);
-                      }}
-                    >
-                      <Plus /> אירוע
-                    </Button>
-                  </div>
-                  {dayEvents.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      אין אירועים ביום זה.
-                    </p>
-                  )}
-                  {dayEvents.map((e) => (
-                    <div
-                      key={e.id}
-                      className={cn(
-                        "group flex items-start gap-3 rounded-lg border p-3",
-                        COLOR_STYLES[e.color].soft,
-                      )}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="font-medium">{e.title}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {e.allDay ? "כל היום" : eventTime(e) || "ללא שעה"}
-                        </div>
-                        {e.location && (
-                          <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                            <MapPin className="size-3" /> {e.location}
-                          </div>
-                        )}
-                        {e.notes && (
-                          <div className="mt-1 text-xs text-muted-foreground">
-                            {e.notes}
-                          </div>
-                        )}
-                      </div>
-                      <RowActions
-                        actions={[
-                          {
-                            label: "עריכה",
-                            icon: Pencil,
-                            onSelect: () => {
-                              setEditingEvent(e);
-                              setEventDialog(true);
-                            },
-                          },
-                          {
-                            label: "מחיקה",
-                            icon: Trash2,
-                            destructive: true,
-                            onSelect: () => deleteEvent(e.id),
-                          },
-                        ]}
-                      />
-                    </div>
-                  ))}
-                </section>
-
-                {dayGoogle.length > 0 && (
-                  <section className="grid gap-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-semibold">גוגל יומן</h3>
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Lock className="size-3" /> קריאה בלבד
-                      </span>
-                    </div>
-                    {dayGoogle.map((e) => (
-                      <div
-                        key={e.id}
-                        className={cn(
-                          "rounded-lg border p-3",
-                          "border-s-2 border-s-sky-500 bg-sky-50/60 dark:bg-sky-950/30",
-                        )}
-                      >
-                        <div className="font-medium">{e.title}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {e.allDay
-                            ? "כל היום"
-                            : e.endTime
-                              ? `${e.startTime}–${e.endTime}`
-                              : (e.startTime ?? "ללא שעה")}
-                        </div>
-                        {e.location && (
-                          <div className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                            <MapPin className="size-3" /> {e.location}
-                          </div>
-                        )}
-                        {e.notes && (
-                          <div className="mt-1 line-clamp-3 text-xs text-muted-foreground">
-                            {e.notes}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </section>
-                )}
-
-                <section className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold">משימות</h3>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setTaskDialog(true)}
-                    >
-                      <Plus /> משימה
-                    </Button>
-                  </div>
-                  {dayTasks.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      אין משימות ליום זה.
-                    </p>
-                  )}
-                  {dayTasks.map((t) => (
-                    <TaskRow key={t.id} task={t} compact />
-                  ))}
-                </section>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+      <DayPanel
+        dayKey={selectedDay}
+        data={
+          selectedDay ? day(selectedDay) : { events: [], google: [], tasks: [] }
+        }
+        onClose={() => setSelectedDay(null)}
+        onNewEvent={() =>
+          openNewEvent(
+            selectedDay ? { date: selectedDay, hour: -1 } : undefined,
+          )
+        }
+        onEditEvent={openEditEvent}
+        onNewTask={openNewTask}
+        onEditTask={openEditTask}
+      />
 
       <EventDialog
         open={eventDialog}
         onOpenChange={setEventDialog}
         event={editingEvent}
-        defaultDate={selectedDay ?? undefined}
+        defaultDate={slot?.date ?? selectedDay ?? undefined}
+        defaultStartTime={
+          slot && slot.hour >= 0 ? `${pad(slot.hour)}:00` : undefined
+        }
+        defaultEndTime={
+          slot && slot.hour >= 0 && slot.hour < 23
+            ? `${pad(slot.hour + 1)}:00`
+            : undefined
+        }
       />
       <TaskDialog
         open={taskDialog}
         onOpenChange={setTaskDialog}
+        task={editingTask}
         defaultDueDate={selectedDay ?? undefined}
       />
-
-      {events.length === 0 && tasks.length === 0 && (
-        <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-          <CalendarDays className="size-4" />
-          לחץ על יום כדי להוסיף אירוע או משימה.
-        </p>
-      )}
     </>
   );
 }

@@ -3,16 +3,13 @@
 import { Fragment } from "react";
 import { Lock, MapPin } from "lucide-react";
 import { TaskRow } from "@/components/tasks/task-row";
+import { TimeRange } from "@/components/time-range";
 import { COLOR_STYLES } from "@/lib/colors";
 import type { AllDayItem, TimelineItem } from "@/lib/agenda";
 import type { CalendarEvent, Task } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const GOOGLE_STYLE = "border-s-sky-500 bg-sky-50/70 dark:bg-sky-950/30";
-
-function range(time: string, endTime?: string) {
-  return endTime ? `${time}–${endTime}` : time;
-}
 
 function nowKey() {
   const d = new Date();
@@ -129,7 +126,7 @@ export function DayTimeline({
                   <div className="font-medium">{item.event.title}</div>
                   <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
                     <span className="tabular-nums">
-                      {range(item.time, item.endTime)}
+                      <TimeRange start={item.time} end={item.endTime} />
                     </span>
                     {item.event.location && (
                       <span className="flex items-center gap-1">
@@ -155,7 +152,7 @@ export function DayTimeline({
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
                     <span className="tabular-nums">
-                      {range(item.time, item.endTime)}
+                      <TimeRange start={item.time} end={item.endTime} />
                     </span>
                     {item.event.location && (
                       <span className="flex items-center gap-1">

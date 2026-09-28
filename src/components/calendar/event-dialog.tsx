@@ -24,6 +24,9 @@ interface EventDialogProps {
   onOpenChange: (open: boolean) => void;
   event?: CalendarEvent | null;
   defaultDate?: string;
+  /** Pre-filled when a free slot in the week view is clicked. */
+  defaultStartTime?: string;
+  defaultEndTime?: string;
 }
 
 // The form lives in its own component so its state resets every time the
@@ -38,15 +41,25 @@ export function EventDialog(props: EventDialogProps) {
   );
 }
 
-function EventForm({ onOpenChange, event, defaultDate }: EventDialogProps) {
+function EventForm({
+  onOpenChange,
+  event,
+  defaultDate,
+  defaultStartTime,
+  defaultEndTime,
+}: EventDialogProps) {
   const addEvent = useAppStore((s) => s.addEvent);
   const updateEvent = useAppStore((s) => s.updateEvent);
 
   const [title, setTitle] = useState(event?.title ?? "");
   const [date, setDate] = useState(event?.date ?? defaultDate ?? todayKey());
   const [allDay, setAllDay] = useState(event?.allDay ?? false);
-  const [startTime, setStartTime] = useState(event?.startTime ?? "");
-  const [endTime, setEndTime] = useState(event?.endTime ?? "");
+  const [startTime, setStartTime] = useState(
+    event?.startTime ?? defaultStartTime ?? "",
+  );
+  const [endTime, setEndTime] = useState(
+    event?.endTime ?? defaultEndTime ?? "",
+  );
   const [location, setLocation] = useState(event?.location ?? "");
   const [notes, setNotes] = useState(event?.notes ?? "");
   const [color, setColor] = useState<ColorKey>(event?.color ?? "teal");
