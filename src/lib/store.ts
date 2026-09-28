@@ -463,8 +463,37 @@ export const useAppStore = create<AppState>()((set, get) => ({
     );
   },
   deleteTransactionInSeries: (id, month, scope) => {
-    const t = get().transactions.find((x) => x.id === id);
-    if (t) applySeriesPlan(planSeriesDelete(t, month, scope));
+    const transactions = get().transactions;
+    const index = transactions.findIndex((x) => x.id === id);
+    if (index < 0) return;
+    const before = transactions[index];
+    const plan = planSeriesDelete(before, month, scope);
+
+    if (plan.kind === "delete") {
+      get().deleteTransaction(id);
+      return;
+    }
+
+    // Skipping a month or ending the series is an update; undo writes the
+    // series back exactly as it was.
+    set((s) => ({
+      transactions: s.transactions.map((t) =>
+        t.id === id ? { ...t, ...plan.patch } : t,
+      ),
+    }));
+    offerUndo(
+      scope === "this" ? "החודש הוסר מהסדרה" : "הסדרה הופסקה מהחודש הזה",
+      api(`/api/transactions/${id}`, "PATCH", plan.patch),
+      () =>
+        set((s) => ({
+          transactions: s.transactions.map((t) => (t.id === id ? before : t)),
+        })),
+      () =>
+        api(`/api/transactions/${id}`, "PATCH", {
+          recurring: before.recurring,
+          exceptions: before.exceptions,
+        }),
+    );
   },
   editTransactionInSeries: (id, month, scope, fields) => {
     const t = get().transactions.find((x) => x.id === id);

@@ -4,16 +4,16 @@ import { useMemo, useState } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
-  ChevronLeft,
-  ChevronRight,
   Pencil,
   Plus,
   Repeat,
   Scale,
+  Search,
   Trash2,
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
@@ -22,11 +22,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { CategorySelect, NONE } from "@/components/fields";
 import {
   CategoryBadge,
@@ -35,6 +30,8 @@ import {
   PageHeader,
 } from "@/components/shared";
 import { TransactionDialog } from "@/components/finance/transaction-dialog";
+import { SeriesScopeDialog } from "@/components/finance/series-scope-dialog";
+import { MonthPicker } from "@/components/finance/month-picker";
 import { RowActions } from "@/components/row-actions";
 import { TrendChart } from "@/components/finance/trend-chart";
 import { useAppStore } from "@/lib/store";
@@ -42,8 +39,8 @@ import {
   categoryBreakdown,
   getMonthTransactions,
   monthRange,
-  shiftMonth,
   summarize,
+  type MonthTransaction,
 } from "@/lib/finance";
 import {
   formatCurrency,
@@ -53,7 +50,7 @@ import {
 } from "@/lib/format";
 import { COLOR_STYLES } from "@/lib/colors";
 import { cn } from "@/lib/utils";
-import type { Transaction } from "@/lib/types";
+import type { SeriesScope, Transaction, TransactionType } from "@/lib/types";
 
 function SummaryCard({
   title,
@@ -81,7 +78,7 @@ function SummaryCard({
           <Icon className={cn("size-4", color)} />
           {title}
         </CardDescription>
-        <CardTitle className={cn("text-2xl tabular-nums", color)}>
+        <CardTitle className={cn("text-xl tabular-nums sm:text-2xl", color)}>
           {formatCurrency(value)}
         </CardTitle>
       </CardHeader>
@@ -89,32 +86,61 @@ function SummaryCard({
   );
 }
 
+type Pending = { action: "edit" | "delete"; row: MonthTransaction };
+
 export default function FinancePage() {
   const transactions = useAppStore((s) => s.transactions);
   const categories = useAppStore((s) => s.categories);
   const startMonth = useAppStore((s) => s.settings.startMonth);
   const deleteTransaction = useAppStore((s) => s.deleteTransaction);
+  const deleteInSeries = useAppStore((s) => s.deleteTransactionInSeries);
 
   const currentMonth = toMonthKey(new Date());
   const [month, setMonth] = useState(currentMonth);
   const [typeFilter, setTypeFilter] = useState("all");
   const [categoryId, setCategoryId] = useState(NONE);
+  const [query, setQuery] = useState("");
+  const [breakdownType, setBreakdownType] =
+    useState<TransactionType>("expense");
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Transaction | null>(null);
+  const [seriesEdit, setSeriesEdit] = useState<{
+    row: MonthTransaction;
+    month: string;
+    scope: SeriesScope;
+  } | null>(null);
+  // Open state is kept apart from the data, so the dialog keeps its text
+  // while it animates closed instead of flashing an empty title.
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [scopeOpen, setScopeOpen] = useState(false);
+  const askScope = (next: Pending) => {
+    setPending(next);
+    setScopeOpen(true);
+  };
 
   const rows = useMemo(
     () => getMonthTransactions(transactions, month),
     [transactions, month],
   );
   const summary = useMemo(() => summarize(rows), [rows]);
-  const filtered = rows.filter(
-    (r) =>
-      (typeFilter === "all" || r.type === typeFilter) &&
-      (categoryId === NONE || r.categoryId === categoryId),
-  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return rows.filter(
+      (r) =>
+        (typeFilter === "all" || r.type === typeFilter) &&
+        (categoryId === NONE || r.categoryId === categoryId) &&
+        // Matches the description, or digits of the amount ("450" finds 4,500).
+        (!q ||
+          r.description.toLowerCase().includes(q) ||
+          String(r.amount).includes(q.replace(/[,₪\s]/g, ""))),
+    );
+  }, [rows, typeFilter, categoryId, query]);
+
   const breakdown = useMemo(
-    () => categoryBreakdown(rows, categories, "expense"),
-    [rows, categories],
+    () => categoryBreakdown(rows, categories, breakdownType),
+    [rows, categories, breakdownType],
   );
 
   const trend = useMemo(() => {
@@ -125,7 +151,44 @@ export default function FinancePage() {
     });
   }, [transactions, startMonth, month]);
 
-  const canGoBack = month > startMonth;
+  const openNew = () => {
+    setEditing(null);
+    setSeriesEdit(null);
+    setDialogOpen(true);
+  };
+
+  // One-off rows act directly. Recurring rows first ask how far to reach.
+  const requestEdit = (row: MonthTransaction) => {
+    if (row.recurring) {
+      askScope({ action: "edit", row });
+      return;
+    }
+    setSeriesEdit(null);
+    setEditing(transactions.find((t) => t.id === row.id) ?? null);
+    setDialogOpen(true);
+  };
+  const requestDelete = (row: MonthTransaction) => {
+    if (row.recurring) askScope({ action: "delete", row });
+    else deleteTransaction(row.id);
+  };
+
+  const applyScope = (scope: SeriesScope) => {
+    if (!pending) return;
+    const { action, row } = pending;
+    if (action === "delete") {
+      deleteInSeries(row.id, month, scope);
+      return;
+    }
+    if (scope === "all") {
+      // The whole series is the stored row itself: the full form applies.
+      setSeriesEdit(null);
+      setEditing(transactions.find((t) => t.id === row.id) ?? null);
+    } else {
+      setEditing(null);
+      setSeriesEdit({ row, month, scope });
+    }
+    setDialogOpen(true);
+  };
 
   return (
     <>
@@ -133,12 +196,7 @@ export default function FinancePage() {
         title="כספים"
         description={`מעקב חודשי החל מ‑${formatMonth(startMonth)}`}
         actions={
-          <Button
-            onClick={() => {
-              setEditing(null);
-              setDialogOpen(true);
-            }}
-          >
+          <Button onClick={openNew}>
             <Plus />
             תנועה חדשה
           </Button>
@@ -146,33 +204,16 @@ export default function FinancePage() {
       />
 
       <Hydrated>
-        <div className="mb-5 flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="חודש קודם"
-            disabled={!canGoBack}
-            onClick={() => setMonth((m) => shiftMonth(m, -1))}
-          >
-            <ChevronRight />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            aria-label="חודש הבא"
-            onClick={() => setMonth((m) => shiftMonth(m, 1))}
-          >
-            <ChevronLeft />
-          </Button>
-          {month !== currentMonth && (
-            <Button variant="ghost" onClick={() => setMonth(currentMonth)}>
-              החודש
-            </Button>
-          )}
-          <h2 className="ms-2 text-lg font-semibold">{formatMonth(month)}</h2>
+        <div className="mb-5">
+          <MonthPicker
+            month={month}
+            onChange={setMonth}
+            minMonth={startMonth}
+            currentMonth={currentMonth}
+          />
         </div>
 
-        <div className="mb-6 grid gap-4 sm:grid-cols-3">
+        <div className="mb-6 grid grid-cols-3 gap-2 sm:gap-4">
           <SummaryCard
             title="הכנסות"
             value={summary.income}
@@ -195,26 +236,33 @@ export default function FinancePage() {
 
         <div className="grid gap-6 lg:grid-cols-3">
           <Card className="lg:col-span-2">
-            <CardHeader>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <CardTitle>תנועות החודש</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Tabs
-                    value={typeFilter}
-                    onValueChange={(v) => setTypeFilter(v as string)}
-                  >
-                    <TabsList>
-                      <TabsTrigger value="all">הכול</TabsTrigger>
-                      <TabsTrigger value="income">הכנסות</TabsTrigger>
-                      <TabsTrigger value="expense">הוצאות</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
-                  <CategorySelect
-                    kind="finance"
-                    includeAll
-                    className="w-40"
-                    value={categoryId}
-                    onChange={setCategoryId}
+            <CardHeader className="gap-3">
+              <CardTitle>תנועות החודש</CardTitle>
+              <div className="col-span-full flex flex-wrap items-center gap-2">
+                <Tabs
+                  value={typeFilter}
+                  onValueChange={(v) => setTypeFilter(v as string)}
+                >
+                  <TabsList>
+                    <TabsTrigger value="all">הכול</TabsTrigger>
+                    <TabsTrigger value="income">הכנסות</TabsTrigger>
+                    <TabsTrigger value="expense">הוצאות</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <CategorySelect
+                  kind="finance"
+                  includeAll
+                  className="w-40"
+                  value={categoryId}
+                  onChange={setCategoryId}
+                />
+                <div className="relative min-w-40 flex-1">
+                  <Search className="absolute top-1/2 start-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    className="ps-8"
+                    placeholder="חיפוש תיאור או סכום..."
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
                   />
                 </div>
               </div>
@@ -223,8 +271,16 @@ export default function FinancePage() {
               {filtered.length === 0 ? (
                 <EmptyState
                   icon={Wallet}
-                  title="אין תנועות בחודש זה"
-                  hint="הוסף הכנסה או הוצאה כדי להתחיל"
+                  title={
+                    rows.length === 0
+                      ? "אין תנועות בחודש זה"
+                      : "לא נמצאו תנועות"
+                  }
+                  hint={
+                    rows.length === 0
+                      ? "הוסף הכנסה או הוצאה כדי להתחיל"
+                      : "נסה לשנות את החיפוש או הסינון"
+                  }
                 />
               ) : (
                 <div className="divide-y">
@@ -258,21 +314,22 @@ export default function FinancePage() {
                               {r.description}
                             </span>
                             {r.recurring && (
-                              <Tooltip>
-                                <TooltipTrigger
-                                  render={
-                                    <Repeat className="size-3.5 text-muted-foreground" />
-                                  }
-                                />
-                                <TooltipContent>
-                                  {r.projected
-                                    ? "תנועה חוזרת (משוערת)"
-                                    : "תנועה חוזרת"}
-                                </TooltipContent>
-                              </Tooltip>
+                              <Repeat
+                                className="size-3.5 shrink-0 text-muted-foreground"
+                                aria-label={
+                                  r.overridden
+                                    ? "תנועה חוזרת, שונתה החודש"
+                                    : "תנועה חוזרת"
+                                }
+                              />
+                            )}
+                            {r.overridden && (
+                              <span className="shrink-0 rounded bg-muted px-1 text-[10px] text-muted-foreground">
+                                שונה החודש
+                              </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                             {formatDate(r.date)}
                             <CategoryBadge category={category} />
                           </div>
@@ -291,19 +348,13 @@ export default function FinancePage() {
                             {
                               label: "עריכה",
                               icon: Pencil,
-                              onSelect: () => {
-                                setEditing(
-                                  transactions.find((t) => t.id === r.id) ??
-                                    null,
-                                );
-                                setDialogOpen(true);
-                              },
+                              onSelect: () => requestEdit(r),
                             },
                             {
                               label: "מחיקה",
                               icon: Trash2,
                               destructive: true,
-                              onSelect: () => deleteTransaction(r.id),
+                              onSelect: () => requestDelete(r),
                             },
                           ]}
                         />
@@ -315,16 +366,38 @@ export default function FinancePage() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-6 content-start">
+          <div className="grid content-start gap-6">
             <Card>
-              <CardHeader>
-                <CardTitle>הוצאות לפי קטגוריה</CardTitle>
+              <CardHeader className="gap-2">
+                <CardTitle>פילוח לפי קטגוריה</CardTitle>
                 <CardDescription>{formatMonth(month)}</CardDescription>
+                <Tabs
+                  className="col-span-full"
+                  value={breakdownType}
+                  onValueChange={(v) => setBreakdownType(v as TransactionType)}
+                >
+                  <TabsList className="w-full">
+                    <TabsTrigger
+                      value="expense"
+                      className="data-active:text-expense"
+                    >
+                      הוצאות
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="income"
+                      className="data-active:text-income"
+                    >
+                      הכנסות
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
               </CardHeader>
               <CardContent className="grid gap-3">
                 {breakdown.length === 0 && (
                   <p className="text-sm text-muted-foreground">
-                    אין הוצאות החודש.
+                    {breakdownType === "expense"
+                      ? "אין הוצאות החודש."
+                      : "אין הכנסות החודש."}
                   </p>
                 )}
                 {breakdown.map(({ category, amount, share }) => (
@@ -385,10 +458,20 @@ export default function FinancePage() {
         </div>
       </Hydrated>
 
+      <SeriesScopeDialog
+        open={scopeOpen}
+        onOpenChange={setScopeOpen}
+        action={pending?.action ?? "edit"}
+        description={pending?.row.description ?? ""}
+        month={month}
+        onPick={applyScope}
+      />
+
       <TransactionDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         transaction={editing}
+        series={seriesEdit}
         defaultDate={month === currentMonth ? undefined : `${month}-01`}
       />
     </>

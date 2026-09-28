@@ -22,7 +22,25 @@ export interface TrendPoint {
   expense: number;
 }
 
+/**
+ * A trend needs at least two months with something in them. Before that the
+ * chart would be axes and zeros, so say what will appear instead.
+ */
 export function TrendChart({ data }: { data: TrendPoint[] }) {
+  const monthsWithData = data.filter((d) => d.income + d.expense > 0).length;
+  if (monthsWithData < 2) {
+    return (
+      <div className="flex h-40 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-center">
+        <p className="text-sm font-medium">עוד אין מגמה להציג</p>
+        <p className="max-w-56 text-xs text-muted-foreground">
+          {monthsWithData === 0
+            ? "אחרי שתירשמנה תנועות בשני חודשים, תופיע כאן השוואה ביניהם."
+            : "יש נתונים לחודש אחד. מהחודש הבא תופיע כאן השוואה."}
+        </p>
+      </div>
+    );
+  }
+
   return (
     <ChartContainer config={config} className="h-56 w-full aspect-auto">
       <BarChart

@@ -90,6 +90,47 @@ export function CategorySelect({
   );
 }
 
+/**
+ * Categories as tappable chips — one tap instead of open-scroll-pick, which
+ * matters when logging an expense standing at the till.
+ */
+export function CategoryChips({
+  kind,
+  value,
+  onChange,
+}: {
+  kind: CategoryKind;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const categories = useCategories(kind);
+  return (
+    <div role="radiogroup" className="flex flex-wrap gap-1.5">
+      {categories.map((c) => {
+        const selected = value === c.id;
+        return (
+          <button
+            key={c.id}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(selected ? NONE : c.id)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors",
+              selected
+                ? "border-primary bg-accent font-medium text-accent-foreground ring-1 ring-primary"
+                : "border-input can-hover:hover:bg-muted",
+            )}
+          >
+            <ColorDot color={c.color} />
+            {c.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ColorSelect({
   value,
   onChange,

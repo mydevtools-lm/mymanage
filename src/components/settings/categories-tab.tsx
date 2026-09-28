@@ -46,7 +46,9 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
   const [editing, setEditing] = useState<Category | null>(null);
   const [name, setName] = useState("");
   const [color, setColor] = useState<ColorKey>("teal");
+  // Kept apart from the open flag so the confirm keeps its text while closing.
   const [deleting, setDeleting] = useState<Category | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const usage = useAppStore((s) =>
     deleting
       ? s.tasks.filter((t) => t.categoryId === deleting.id).length +
@@ -103,7 +105,10 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
                   label: "מחיקה",
                   icon: Trash2,
                   destructive: true,
-                  onSelect: () => setDeleting(c),
+                  onSelect: () => {
+                    setDeleting(c);
+                    setConfirmOpen(true);
+                  },
                 },
               ]}
             />
@@ -112,8 +117,8 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
       </CardContent>
 
       <ConfirmDialog
-        open={!!deleting}
-        onOpenChange={(o) => !o && setDeleting(null)}
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
         title={`למחוק את הקטגוריה ״${deleting?.name ?? ""}״?`}
         description={
           usage > 0

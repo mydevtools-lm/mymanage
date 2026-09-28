@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -15,17 +16,26 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CategorySelect, Field, NONE } from "@/components/fields";
+import { CategoryChips, Field, NONE } from "@/components/fields";
 import { useAppStore } from "@/lib/store";
-import { todayKey } from "@/lib/format";
-import type { Transaction, TransactionType } from "@/lib/types";
+import { formatMonth, todayKey } from "@/lib/format";
+import type { MonthTransaction } from "@/lib/finance";
+import type { SeriesScope, Transaction, TransactionType } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+export const SCOPE_LABELS: Record<SeriesScope, string> = {
+  this: "רק החודש הזה",
+  following: "מהחודש הזה והלאה",
+  all: "כל הסדרה",
+};
 
 interface TransactionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transaction?: Transaction | null;
   defaultDate?: string;
+  /** Editing one month of a recurring series, with the reach already chosen. */
+  series?: { row: MonthTransaction; month: string; scope: SeriesScope } | null;
 }
 
 // The form lives in its own component so its state resets every time the
@@ -44,24 +54,30 @@ function TransactionForm({
   onOpenChange,
   transaction,
   defaultDate,
+  series,
 }: TransactionDialogProps) {
   const addTransaction = useAppStore((s) => s.addTransaction);
   const updateTransaction = useAppStore((s) => s.updateTransaction);
+  const editInSeries = useAppStore((s) => s.editTransactionInSeries);
+  const categories = useAppStore((s) => s.categories);
 
-  const [type, setType] = useState<TransactionType>(
-    transaction?.type ?? "expense",
-  );
+  // In a series edit the form starts from what that month actually shows,
+  // including any earlier one-month override.
+  const source: Partial<Transaction> | null | undefined = series
+    ? series.row
+    : transaction;
+  const onlyThisMonth = series?.scope === "this";
+
+  const [type, setType] = useState<TransactionType>(source?.type ?? "expense");
   const [amount, setAmount] = useState(
-    transaction ? String(transaction.amount) : "",
+    source?.amount !== undefined ? String(source.amount) : "",
   );
-  const [description, setDescription] = useState(
-    transaction?.description ?? "",
-  );
+  const [description, setDescription] = useState(source?.description ?? "");
   const [date, setDate] = useState(
     transaction?.date ?? defaultDate ?? todayKey(),
   );
-  const [categoryId, setCategoryId] = useState(transaction?.categoryId ?? NONE);
-  const [notes, setNotes] = useState(transaction?.notes ?? "");
+  const [categoryId, setCategoryId] = useState(source?.categoryId ?? NONE);
+  const [notes, setNotes] = useState(source?.notes ?? "");
   const [recurring, setRecurring] = useState(!!transaction?.recurring);
   const [endMonth, setEndMonth] = useState(
     transaction?.recurring?.endMonth ?? "",
@@ -74,10 +90,25 @@ function TransactionForm({
       toast.error("צריך סכום חיובי");
       return;
     }
-    if (!description.trim()) {
-      toast.error("צריך תיאור");
+    const category = categoryId === NONE ? undefined : categoryId;
+    // The description is optional: fall back to the category, then the type.
+    const label =
+      description.trim() ||
+      categories.find((c) => c.id === category)?.name ||
+      (type === "income" ? "הכנסה" : "הוצאה");
+
+    if (series) {
+      editInSeries(series.row.id, series.month, series.scope, {
+        amount: value,
+        description: label,
+        categoryId: category,
+        ...(onlyThisMonth ? {} : { type, notes: notes.trim() || undefined }),
+      });
+      toast.success(`עודכן — ${SCOPE_LABELS[series.scope]}`);
+      onOpenChange(false);
       return;
     }
+
     if (!date) {
       toast.error("צריך תאריך");
       return;
@@ -85,9 +116,9 @@ function TransactionForm({
     const input = {
       type,
       amount: value,
-      description: description.trim(),
+      description: label,
       date,
-      categoryId: categoryId === NONE ? undefined : categoryId,
+      categoryId: category,
       notes: notes.trim() || undefined,
       recurring: recurring
         ? { startMonth: date.slice(0, 7), endMonth: endMonth || undefined }
@@ -103,101 +134,123 @@ function TransactionForm({
     onOpenChange(false);
   }
 
+  const title = series
+    ? "עריכת תנועה חוזרת"
+    : transaction
+      ? "עריכת תנועה"
+      : "תנועה חדשה";
+
   return (
     <form onSubmit={submit} className="grid gap-4">
       <DialogHeader>
-        <DialogTitle>{transaction ? "עריכת תנועה" : "תנועה חדשה"}</DialogTitle>
+        <DialogTitle>{title}</DialogTitle>
+        {series && (
+          <DialogDescription>
+            {SCOPE_LABELS[series.scope]}
+            {series.scope !== "all" && ` · מ${formatMonth(series.month)}`}
+          </DialogDescription>
+        )}
       </DialogHeader>
 
-      <Tabs value={type} onValueChange={(v) => setType(v as TransactionType)}>
-        <TabsList className="w-full">
-          <TabsTrigger value="expense" className="data-active:text-expense">
-            הוצאה
-          </TabsTrigger>
-          <TabsTrigger value="income" className="data-active:text-income">
-            הכנסה
-          </TabsTrigger>
-        </TabsList>
-      </Tabs>
+      {!onlyThisMonth && (
+        <Tabs value={type} onValueChange={(v) => setType(v as TransactionType)}>
+          <TabsList className="w-full">
+            <TabsTrigger value="expense" className="data-active:text-expense">
+              הוצאה
+            </TabsTrigger>
+            <TabsTrigger value="income" className="data-active:text-income">
+              הכנסה
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="סכום (₪)" htmlFor="tx-amount">
-          <Input
-            id="tx-amount"
-            type="number"
-            min={0}
-            step="0.01"
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            className={cn(
-              "text-lg font-semibold tabular-nums",
-              type === "income" ? "text-income" : "text-expense",
-            )}
-            autoFocus
-          />
-        </Field>
-        <Field label="תאריך" htmlFor="tx-date">
-          <Input
-            id="tx-date"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-          />
-        </Field>
-      </div>
-
-      <Field label="תיאור" htmlFor="tx-desc">
+      {/* Amount first and large: it is the one thing every entry needs. */}
+      <Field label="סכום (₪)" htmlFor="tx-amount">
         <Input
-          id="tx-desc"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder={type === "income" ? "למשל: משכורת" : "למשל: סופר"}
+          id="tx-amount"
+          type="number"
+          min={0}
+          step="0.01"
+          inputMode="decimal"
+          enterKeyHint="next"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className={cn(
+            "h-12 text-2xl font-semibold tabular-nums md:text-2xl",
+            type === "income" ? "text-income" : "text-expense",
+          )}
+          autoFocus
         />
       </Field>
 
       <Field label="קטגוריה">
-        <CategorySelect
+        <CategoryChips
           kind="finance"
           value={categoryId}
           onChange={setCategoryId}
         />
       </Field>
 
-      <div className="rounded-lg border bg-muted/40 p-3">
-        <div className="flex items-center gap-2">
-          <Switch
-            id="tx-recurring"
-            checked={recurring}
-            onCheckedChange={setRecurring}
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="תיאור (רשות)" htmlFor="tx-desc">
+          <Input
+            id="tx-desc"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder={type === "income" ? "למשל: משכורת" : "למשל: סופר"}
           />
-          <Label htmlFor="tx-recurring">חוזרת כל חודש</Label>
-        </div>
-        {recurring && (
-          <div className="mt-3 grid gap-1.5">
-            <Label htmlFor="tx-end">עד חודש (לא חובה)</Label>
+        </Field>
+        {!series && (
+          <Field label="תאריך" htmlFor="tx-date">
             <Input
-              id="tx-end"
-              type="month"
-              value={endMonth}
-              min={date.slice(0, 7)}
-              onChange={(e) => setEndMonth(e.target.value)}
+              id="tx-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">
-              התנועה תופיע בכל חודש מ‑{date.slice(0, 7)} באותו יום בחודש.
-            </p>
-          </div>
+          </Field>
         )}
       </div>
 
-      <Field label="הערות" htmlFor="tx-notes">
-        <Textarea
-          id="tx-notes"
-          rows={2}
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
-      </Field>
+      {!series && (
+        <div className="rounded-lg border bg-muted/40 p-3">
+          <div className="flex items-center gap-2">
+            <Switch
+              id="tx-recurring"
+              checked={recurring}
+              onCheckedChange={setRecurring}
+            />
+            <Label htmlFor="tx-recurring">חוזרת כל חודש</Label>
+          </div>
+          {recurring && (
+            <div className="mt-3 grid gap-1.5">
+              <Label htmlFor="tx-end">עד חודש (לא חובה)</Label>
+              <Input
+                id="tx-end"
+                type="month"
+                value={endMonth}
+                min={date.slice(0, 7)}
+                onChange={(e) => setEndMonth(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                התנועה תופיע בכל חודש מ‑{date.slice(0, 7)} באותו יום בחודש.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!onlyThisMonth && (
+        <Field label="הערות" htmlFor="tx-notes">
+          <Textarea
+            id="tx-notes"
+            rows={2}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </Field>
+      )}
 
       <DialogFooter>
         <Button
@@ -207,7 +260,9 @@ function TransactionForm({
         >
           ביטול
         </Button>
-        <Button type="submit">{transaction ? "שמירה" : "הוספה"}</Button>
+        <Button type="submit">
+          {transaction || series ? "שמירה" : "הוספה"}
+        </Button>
       </DialogFooter>
     </form>
   );
