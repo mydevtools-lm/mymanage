@@ -46,11 +46,15 @@ export function MonthView({
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
       <div className="grid grid-cols-7 border-b bg-muted/50 text-center text-xs font-medium text-muted-foreground">
-        {WEEKDAYS.map((d) => (
-          <div key={d} className="py-2">
-            {d}
-          </div>
-        ))}
+        {/* Headers follow the grid: the first column is its first day. */}
+        {days
+          .slice(0, 7)
+          .map((date) => WEEKDAYS[date.getDay()])
+          .map((d) => (
+            <div key={d} className="py-2">
+              {d}
+            </div>
+          ))}
       </div>
       <div className="grid grid-cols-7">
         {days.map((date) => {

@@ -180,6 +180,17 @@ export interface Settings {
   calendars?: Record<string, CalendarPref>;
   /** Monthly budget per expense category id, in shekels. */
   budgets?: Record<string, number>;
+  prefs?: Preferences;
+}
+
+export type CurrencyCode = "ILS" | "USD" | "EUR";
+
+export interface Preferences {
+  /** 0 Sunday (default), 1 Monday, 6 Saturday. */
+  weekStart?: 0 | 1 | 6;
+  currency?: CurrencyCode;
+  /** Minutes before, for new timed tasks and events; unset is none. */
+  defaultReminder?: number;
 }
 
 export interface CalendarPref {

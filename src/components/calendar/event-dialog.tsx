@@ -21,6 +21,7 @@ import { LinksSection } from "@/components/links-section";
 import { ReminderField } from "@/components/reminder-field";
 import { useEventActions } from "@/components/calendar/event-actions";
 import { todayKey } from "@/lib/format";
+import { useAppStore } from "@/lib/store";
 import type { CalendarEvent, ColorKey, Repeat } from "@/lib/types";
 
 interface EventDialogProps {
@@ -68,7 +69,10 @@ function EventForm({
   const [color, setColor] = useState<ColorKey>(event?.color ?? "teal");
   const [repeat, setRepeat] = useState<Repeat | null>(event?.repeat ?? null);
   const [until, setUntil] = useState(event?.until ?? "");
-  const [reminder, setReminder] = useState(event?.reminder);
+  const defaultReminder = useAppStore((s) => s.settings.prefs?.defaultReminder);
+  const [reminder, setReminder] = useState(
+    event ? event.reminder : defaultReminder,
+  );
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {

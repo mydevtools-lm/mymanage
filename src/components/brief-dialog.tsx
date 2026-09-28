@@ -203,16 +203,17 @@ function WeekBrief() {
   const tasks = useAppStore((s) => s.tasks);
   const transactions = useAppStore((s) => s.transactions);
   const today = todayKey();
+  const weekStart = useAppStore((s) => s.settings.prefs?.weekStart ?? 0);
   const week = useMemo(
-    () => weekSummary({ tasks, transactions }, today),
-    [tasks, transactions, today],
+    () => weekSummary({ tasks, transactions }, today, weekStart),
+    [tasks, transactions, today, weekStart],
   );
   const change = week.expense - week.lastWeekExpense;
 
   return (
     <div className="grid gap-3">
       <p className="text-sm text-muted-foreground">
-        מיום ראשון, {formatDate(week.from, "d.M")}, עד היום.
+        מ{formatDate(week.from, "EEEE, d.M")} עד היום.
       </p>
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-lg border p-3">

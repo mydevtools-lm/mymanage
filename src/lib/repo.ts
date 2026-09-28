@@ -979,6 +979,25 @@ export function setCalendarPrefs(value: Settings["calendars"]) {
   return getCalendarPrefs();
 }
 
+export function getPrefs(): NonNullable<Settings["prefs"]> {
+  const found = row<{ value: string }>(
+    getDb().prepare("SELECT value FROM settings WHERE key='prefs'").get(),
+  );
+  return parseJson(found?.value ?? null) ?? {};
+}
+
+/** Merges into the stored preferences; a null clears one. */
+export function setPrefs(patch: Record<string, unknown>) {
+  const next: Record<string, unknown> = { ...getPrefs(), ...patch };
+  for (const [key, value] of Object.entries(next)) {
+    if (value === null || value === undefined) delete next[key];
+  }
+  getDb()
+    .prepare("INSERT OR REPLACE INTO settings (key,value) VALUES ('prefs', ?)")
+    .run(JSON.stringify(next));
+  return getPrefs();
+}
+
 export function getBudgets(): Settings["budgets"] {
   const found = row<{ value: string }>(
     getDb().prepare("SELECT value FROM settings WHERE key='budgets'").get(),
@@ -1053,6 +1072,7 @@ export function readAll(): DataSnapshot {
       startMonth: getStartMonth(),
       calendars: getCalendarPrefs(),
       budgets: getBudgets(),
+      prefs: getPrefs(),
     },
   };
 }
@@ -1110,6 +1130,9 @@ export function replaceAll(snapshot: Partial<DataSnapshot>) {
     }
     if (snapshot.settings?.budgets) {
       setBudgets(snapshot.settings.budgets);
+    }
+    if (snapshot.settings?.prefs) {
+      setPrefs({ ...snapshot.settings.prefs });
     }
     db.exec("COMMIT");
   } catch (error) {

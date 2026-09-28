@@ -52,14 +52,14 @@ function readStoredView(): View | null {
   }
 }
 
-function rangeFor(view: View, cursor: Date) {
+function rangeFor(view: View, cursor: Date, weekStartsOn: 0 | 1 | 6) {
   if (view === "month") {
-    const start = startOfWeek(startOfMonth(cursor), { weekStartsOn: 0 });
-    const end = endOfWeek(endOfMonth(cursor), { weekStartsOn: 0 });
+    const start = startOfWeek(startOfMonth(cursor), { weekStartsOn });
+    const end = endOfWeek(endOfMonth(cursor), { weekStartsOn });
     return eachDayOfInterval({ start, end });
   }
   if (view === "week") {
-    const start = startOfWeek(cursor, { weekStartsOn: 0 });
+    const start = startOfWeek(cursor, { weekStartsOn });
     return eachDayOfInterval({ start, end: addDays(start, 6) });
   }
   return eachDayOfInterval({
@@ -101,7 +101,11 @@ export default function CalendarPage() {
   // First visit: a list on phones, a month grid on desktop. After that, the
   // last choice sticks.
   const current: View = view ?? (isDesktop ? "month" : "list");
-  const days = useMemo(() => rangeFor(current, cursor), [current, cursor]);
+  const weekStart = useAppStore((s) => s.settings.prefs?.weekStart ?? 0);
+  const days = useMemo(
+    () => rangeFor(current, cursor, weekStart),
+    [current, cursor, weekStart],
+  );
   const from = toDateKey(days[0]);
   const to = toDateKey(days[days.length - 1]);
   const { day, google } = useCalendarData(from, to);

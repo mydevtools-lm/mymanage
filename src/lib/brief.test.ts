@@ -210,3 +210,14 @@ describe("dueReminders", () => {
     expect(due[0].body).toBe("09:00 · מחר");
   });
 });
+
+describe("weekSummary with another first day", () => {
+  it("starts on Monday when asked", () => {
+    expect(weekSummary({ tasks: [], transactions: [] }, TODAY, 1).from).toBe(
+      "2026-09-28",
+    );
+    expect(weekSummary({ tasks: [], transactions: [] }, TODAY, 6).from).toBe(
+      "2026-09-26",
+    );
+  });
+});

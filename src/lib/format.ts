@@ -1,11 +1,20 @@
 import { format, parseISO, isValid } from "date-fns";
 import { he } from "date-fns/locale";
 
-const currency = new Intl.NumberFormat("he-IL", {
-  style: "currency",
-  currency: "ILS",
-  maximumFractionDigits: 0,
-});
+function currencyFormat(code: string) {
+  return new Intl.NumberFormat("he-IL", {
+    style: "currency",
+    currency: code,
+    maximumFractionDigits: 0,
+  });
+}
+
+let currency = currencyFormat("ILS");
+
+/** Set from the preferences when they load or change. */
+export function setCurrency(code: string) {
+  currency = currencyFormat(code);
+}
 
 export function formatCurrency(amount: number) {
   return currency.format(amount);

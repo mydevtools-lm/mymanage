@@ -90,13 +90,17 @@ export interface WeekSummary {
   lastWeekExpense: number;
 }
 
-/** The week so far, Sunday to today, against the same days a week before. */
+/**
+ * The week so far — from its first day (Sunday unless the preferences say
+ * otherwise) to today — against the same days a week before.
+ */
 export function weekSummary(
   data: { tasks: Task[]; transactions: Transaction[] },
   today: string,
+  weekStart = 0,
 ): WeekSummary {
   const day = parseISO(today);
-  const from = toDateKey(subDays(day, day.getDay()));
+  const from = toDateKey(subDays(day, (day.getDay() - weekStart + 7) % 7));
   const lastFrom = toDateKey(subDays(parseISO(from), 7));
   const lastTo = toDateKey(subDays(day, 7));
 

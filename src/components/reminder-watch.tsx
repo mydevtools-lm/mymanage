@@ -22,11 +22,25 @@ function notify(title: string, body: string, tag: string) {
   ) {
     return;
   }
-  try {
-    new Notification(title, { body, tag, lang: "he", dir: "rtl" });
-  } catch {
-    // Some browsers only allow notifications from a service worker.
-  }
+  const options = {
+    body,
+    tag,
+    lang: "he",
+    dir: "rtl" as const,
+    icon: "/icons/icon-192.png",
+  };
+  // Phones allow notifications only through the service worker.
+  navigator.serviceWorker?.getRegistration().then((registration) => {
+    if (registration) {
+      void registration.showNotification(title, options);
+      return;
+    }
+    try {
+      new Notification(title, options);
+    } catch {
+      // No worker and no page notifications here: the toast has to do.
+    }
+  });
 }
 
 /**

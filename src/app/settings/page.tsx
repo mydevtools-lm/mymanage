@@ -6,6 +6,7 @@ import { CategoriesTab } from "@/components/settings/categories-tab";
 import { ConnectionsTab } from "@/components/settings/connections-tab";
 import { BackupTab } from "@/components/settings/backup-tab";
 import { NotificationsTab } from "@/components/settings/notifications-tab";
+import { PreferencesTab } from "@/components/settings/preferences-tab";
 
 export default function SettingsPage() {
   return (
@@ -23,6 +24,11 @@ export default function SettingsPage() {
               value: "connections",
               label: "חיבורים",
               content: <ConnectionsTab />,
+            },
+            {
+              value: "preferences",
+              label: "העדפות",
+              content: <PreferencesTab />,
             },
             {
               value: "notifications",

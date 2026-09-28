@@ -15,6 +15,7 @@ import { CommandPalette } from "@/components/command-palette";
 import { SmartAdd } from "@/components/smart-add";
 import { BriefDialog } from "@/components/brief-dialog";
 import { ReminderWatch } from "@/components/reminder-watch";
+import { Pwa } from "@/components/pwa";
 
 const heebo = Heebo({
   variable: "--font-sans",
@@ -88,6 +89,7 @@ export default function RootLayout({
           <SmartAdd />
           <BriefDialog />
           <ReminderWatch />
+          <Pwa />
         </Providers>
       </body>
     </html>

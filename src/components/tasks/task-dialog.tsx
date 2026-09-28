@@ -168,7 +168,10 @@ function TaskForm({
     routine?.repeat ?? defaultRepeat ?? null,
   );
   const [subtasks, setSubtasks] = useState<Subtask[]>(task?.subtasks ?? []);
-  const [reminder, setReminder] = useState(task?.reminder);
+  const defaultReminder = useAppStore((s) => s.settings.prefs?.defaultReminder);
+  const [reminder, setReminder] = useState(
+    task ? task.reminder : defaultReminder,
+  );
 
   // Only a new task can become a routine; a routine is edited as one.
   const canRepeat = !task;

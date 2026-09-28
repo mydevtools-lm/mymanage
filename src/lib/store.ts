@@ -11,6 +11,7 @@ import type {
   Link,
   LinkKind,
   Note,
+  Preferences,
   Routine,
   SeriesScope,
   Settings,
@@ -18,7 +19,7 @@ import type {
   Transaction,
 } from "./types";
 import { instanceId, occursOn } from "./routines";
-import { todayKey, toDateKey, toMonthKey } from "./format";
+import { setCurrency, todayKey, toDateKey, toMonthKey } from "./format";
 import { toJsonBody } from "./json-body";
 import { planSeriesDelete, planSeriesEdit, type SeriesPlan } from "./finance";
 import {
@@ -118,6 +119,7 @@ interface AppState {
   setCalendarPref: (calendarId: string, pref: CalendarPref) => void;
   /** Monthly budget per category; 0 or missing means none. */
   setBudgets: (budgets: Record<string, number>) => void;
+  setPrefs: (patch: Partial<Preferences>) => void;
   /** Add many rows at once (a bank statement), with one "undo". */
   importTransactions: (rows: TransactionInput[]) => void;
 
@@ -228,6 +230,7 @@ function tomorrowKey() {
 }
 
 function applySnapshot(snapshot: DataSnapshot) {
+  setCurrency(snapshot.settings?.prefs?.currency ?? "ILS");
   useAppStore.setState({
     tasks: snapshot.tasks ?? [],
     events: snapshot.events ?? [],
@@ -654,6 +657,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
     push(api("/api/settings", "PATCH", { calendars }));
   },
 
+  setPrefs: (patch) => {
+    const prefs = { ...get().settings.prefs, ...patch };
+    if (patch.currency) setCurrency(patch.currency);
+    set((s) => ({ settings: { ...s.settings, prefs } }));
+    // undefined → null, so clearing a preference reaches the server.
+    push(api("/api/settings", "PATCH", { prefs: patch }));
+  },
   setBudgets: (budgets) => {
     const clean = Object.fromEntries(
       Object.entries(budgets).filter(([, amount]) => amount > 0),

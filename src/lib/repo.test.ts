@@ -52,6 +52,8 @@ import {
   createLink,
   deleteLink,
   listLinks,
+  getPrefs,
+  setPrefs,
 } from "./repo";
 
 beforeEach(() => {
@@ -541,5 +543,26 @@ describe("links", () => {
 
     deleteLink(first.id);
     expect(listLinks()).toEqual([]);
+  });
+});
+
+describe("preferences", () => {
+  it("merge in, clear with null, and travel with a backup", () => {
+    expect(getPrefs()).toEqual({});
+    setPrefs({ weekStart: 1, currency: "USD" });
+    setPrefs({ defaultReminder: 10 });
+    expect(getPrefs()).toEqual({
+      weekStart: 1,
+      currency: "USD",
+      defaultReminder: 10,
+    });
+    setPrefs({ defaultReminder: null });
+    expect(getPrefs()).toEqual({ weekStart: 1, currency: "USD" });
+
+    const snapshot = readAll();
+    clearAll();
+    expect(getPrefs()).toEqual({});
+    replaceAll(snapshot);
+    expect(getPrefs()).toEqual({ weekStart: 1, currency: "USD" });
   });
 });
