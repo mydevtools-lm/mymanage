@@ -38,7 +38,8 @@ type TaskInput = Omit<
 >;
 type EventInput = Omit<CalendarEvent, "id" | "createdAt">;
 type TransactionInput = Omit<Transaction, "id" | "createdAt">;
-type NoteInput = Pick<Note, "title" | "body">;
+type NoteInput = Pick<Note, "title" | "body"> &
+  Partial<Pick<Note, "pinned" | "color">>;
 type CategoryInput = Omit<Category, "id">;
 
 interface AppState {
@@ -101,6 +102,10 @@ interface AppState {
   toggleChecklistItem: (listId: string, itemId: string) => void;
   deleteChecklistItem: (listId: string, itemId: string) => void;
   clearDoneItems: (listId: string) => void;
+  /** Untick every item, keeping the list for next time. */
+  resetChecklist: (listId: string) => void;
+  toggleChecklistPin: (listId: string) => void;
+  reorderChecklistItems: (listId: string, order: string[]) => void;
 
   addCategory: (input: CategoryInput) => void;
   updateCategory: (id: string, input: Partial<CategoryInput>) => void;
@@ -513,9 +518,13 @@ export const useAppStore = create<AppState>()((set, get) => ({
     push(api("/api/notes", "POST", row));
   },
   updateNote: (id, input) => {
+    // Pinning or recolouring is not an edit, so the "updated" date stays.
+    const contentChanged = "title" in input || "body" in input;
     set((s) => ({
       notes: s.notes.map((n) =>
-        n.id === id ? { ...n, ...input, updatedAt: now() } : n,
+        n.id === id
+          ? { ...n, ...input, ...(contentChanged && { updatedAt: now() }) }
+          : n,
       ),
     }));
     push(api(`/api/notes/${id}`, "PATCH", input));
@@ -631,6 +640,42 @@ export const useAppStore = create<AppState>()((set, get) => ({
       ),
     }));
     push(api(`/api/checklists/${listId}`, "PATCH", { clearDone: true }));
+  },
+  resetChecklist: (listId) => {
+    const before = get().checklists.find((l) => l.id === listId);
+    if (!before) return;
+    set((s) => ({
+      checklists: s.checklists.map((l) =>
+        l.id === listId
+          ? { ...l, items: l.items.map((i) => ({ ...i, done: false })) }
+          : l,
+      ),
+    }));
+    push(api(`/api/checklists/${listId}`, "PATCH", { resetDone: true }));
+    toast.success(`״${before.title}״ מוכנה מחדש`);
+  },
+  toggleChecklistPin: (listId) => {
+    const list = get().checklists.find((l) => l.id === listId);
+    if (!list) return;
+    const pinned = !list.pinned;
+    set((s) => ({
+      checklists: s.checklists.map((l) =>
+        l.id === listId ? { ...l, pinned } : l,
+      ),
+    }));
+    push(api(`/api/checklists/${listId}`, "PATCH", { pinned }));
+  },
+  reorderChecklistItems: (listId, order) => {
+    set((s) => ({
+      checklists: s.checklists.map((l) => {
+        if (l.id !== listId) return l;
+        const byId = new Map(l.items.map((i) => [i.id, i]));
+        const moved = order.flatMap((id) => byId.get(id) ?? []);
+        const rest = l.items.filter((i) => !order.includes(i.id));
+        return { ...l, items: [...moved, ...rest] };
+      }),
+    }));
+    push(api(`/api/checklists/${listId}`, "PATCH", { order }));
   },
 
   /* ----------------------------------------------------- categories */

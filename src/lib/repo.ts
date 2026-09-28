@@ -354,10 +354,36 @@ export function deleteTransaction(id: string) {
 
 /* ---------------------------------------------------------------- notes */
 
+interface NoteRow {
+  id: string;
+  title: string;
+  body: string;
+  pinned: number;
+  color: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function toNote(r: NoteRow): Note {
+  return {
+    id: r.id,
+    title: r.title,
+    body: r.body,
+    pinned: !!r.pinned,
+    color: (r.color ?? undefined) as Note["color"],
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  };
+}
+
 export function listNotes(): Note[] {
-  return rows<Note>(
-    getDb().prepare("SELECT * FROM notes ORDER BY updatedAt DESC").all(),
-  );
+  return rows<NoteRow>(
+    getDb()
+      .prepare(
+        "SELECT * FROM notes ORDER BY pinned DESC, updatedAt DESC, rowid DESC",
+      )
+      .all(),
+  ).map(toNote);
 }
 
 export function createNote(input: Partial<Note>): Note {
@@ -365,28 +391,45 @@ export function createNote(input: Partial<Note>): Note {
   const stamp = now();
   getDb()
     .prepare(
-      "INSERT INTO notes (id,title,body,createdAt,updatedAt) VALUES (?,?,?,?,?)",
+      "INSERT INTO notes (id,title,body,pinned,color,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?)",
     )
     .run(
       id,
       input.title ?? "",
       input.body ?? "",
+      input.pinned ? 1 : 0,
+      input.color ?? null,
       input.createdAt ?? stamp,
-      stamp,
+      input.updatedAt ?? stamp,
     );
   return getNote(id)!;
 }
 
 export function getNote(id: string): Note | null {
-  return row<Note>(getDb().prepare("SELECT * FROM notes WHERE id = ?").get(id));
+  const found = row<NoteRow>(
+    getDb().prepare("SELECT * FROM notes WHERE id = ?").get(id),
+  );
+  return found ? toNote(found) : null;
 }
 
 export function updateNote(id: string, patch: Partial<Note>): Note | null {
   const current = getNote(id);
   if (!current) return null;
+  // Pinning or recolouring is not an edit of the note, so it keeps its date.
+  const contentChanged = "title" in patch || "body" in patch;
+  const next = { ...current, ...patch };
   getDb()
-    .prepare("UPDATE notes SET title=?, body=?, updatedAt=? WHERE id=?")
-    .run(patch.title ?? current.title, patch.body ?? current.body, now(), id);
+    .prepare(
+      "UPDATE notes SET title=?, body=?, pinned=?, color=?, updatedAt=? WHERE id=?",
+    )
+    .run(
+      next.title ?? current.title,
+      next.body ?? current.body,
+      next.pinned ? 1 : 0,
+      next.color ?? null,
+      contentChanged ? now() : current.updatedAt,
+      id,
+    );
   return getNote(id);
 }
 
@@ -398,8 +441,14 @@ export function deleteNote(id: string) {
 
 export function listChecklists(): Checklist[] {
   const db = getDb();
-  const lists = rows<Omit<Checklist, "items">>(
-    db.prepare("SELECT * FROM checklists ORDER BY updatedAt DESC").all(),
+  // Stable order: pinned first, then newest list. Sorting by updatedAt made
+  // a list jump to the top every time an item was ticked mid-shop.
+  const lists = rows<Omit<Checklist, "items" | "pinned"> & { pinned: number }>(
+    db
+      .prepare(
+        "SELECT * FROM checklists ORDER BY pinned DESC, createdAt DESC, rowid DESC",
+      )
+      .all(),
   );
   const items = rows<{
     id: string;
@@ -412,6 +461,7 @@ export function listChecklists(): Checklist[] {
 
   return lists.map((list) => ({
     ...list,
+    pinned: !!list.pinned,
     items: items
       .filter((i) => i.listId === list.id)
       .map((i) => ({ id: i.id, text: i.text, done: !!i.done })),
@@ -451,6 +501,43 @@ export function renameChecklist(id: string, title: string) {
     .prepare("UPDATE checklists SET title=?, updatedAt=? WHERE id=?")
     .run(title, now(), id);
   return getChecklist(id);
+}
+
+export function setChecklistPinned(id: string, pinned: boolean) {
+  getDb()
+    .prepare("UPDATE checklists SET pinned=? WHERE id=?")
+    .run(pinned ? 1 : 0, id);
+  return getChecklist(id);
+}
+
+/** Untick everything — the same shopping list, ready for next week. */
+export function resetChecklist(listId: string) {
+  getDb()
+    .prepare("UPDATE checklist_items SET done=0 WHERE listId=?")
+    .run(listId);
+  touchChecklist(listId);
+  return getChecklist(listId);
+}
+
+/** Store a new item order. Ids not in `order` keep their place after it. */
+export function reorderChecklistItems(listId: string, order: string[]) {
+  const db = getDb();
+  const current = rows<{ id: string }>(
+    db
+      .prepare(
+        "SELECT id FROM checklist_items WHERE listId=? ORDER BY position, rowid",
+      )
+      .all(listId),
+  ).map((r) => r.id);
+  const known = new Set(current);
+  const wanted = order.filter((id) => known.has(id));
+  const rest = current.filter((id) => !wanted.includes(id));
+  const setPosition = db.prepare(
+    "UPDATE checklist_items SET position=? WHERE id=? AND listId=?",
+  );
+  [...wanted, ...rest].forEach((id, i) => setPosition.run(i, id, listId));
+  touchChecklist(listId);
+  return getChecklist(listId);
 }
 
 export function deleteChecklist(id: string) {
@@ -637,8 +724,8 @@ export function replaceAll(snapshot: Partial<DataSnapshot>) {
     for (const n of snapshot.notes ?? []) createNote(n);
     for (const l of snapshot.checklists ?? []) {
       db.prepare(
-        "INSERT INTO checklists (id,title,createdAt,updatedAt) VALUES (?,?,?,?)",
-      ).run(l.id, l.title, l.createdAt, l.updatedAt);
+        "INSERT INTO checklists (id,title,pinned,createdAt,updatedAt) VALUES (?,?,?,?,?)",
+      ).run(l.id, l.title, l.pinned ? 1 : 0, l.createdAt, l.updatedAt);
       l.items.forEach((item, index) =>
         db
           .prepare(

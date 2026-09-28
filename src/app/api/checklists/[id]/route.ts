@@ -3,6 +3,9 @@ import {
   deleteChecklist,
   clearDoneChecklistItems,
   addChecklistItem,
+  setChecklistPinned,
+  resetChecklist,
+  reorderChecklistItems,
 } from "@/lib/repo";
 import { badRequest, handle, notFound, ok, readJson } from "@/lib/api-helpers";
 
@@ -17,6 +20,9 @@ export async function PATCH(request: Request, { params }: Params) {
     addItemIndex?: number | null;
     addItemDone?: boolean | null;
     clearDone?: boolean;
+    resetDone?: boolean;
+    pinned?: boolean;
+    order?: string[];
   }>(request);
   if (!body) return badRequest("גוף הבקשה אינו JSON תקין");
 
@@ -29,6 +35,11 @@ export async function PATCH(request: Request, { params }: Params) {
     });
   }
   if (body.clearDone) list = clearDoneChecklistItems(id);
+  if (body.resetDone) list = resetChecklist(id);
+  if (typeof body.pinned === "boolean") {
+    list = setChecklistPinned(id, body.pinned);
+  }
+  if (Array.isArray(body.order)) list = reorderChecklistItems(id, body.order);
 
   return list ? ok(list) : notFound();
 }

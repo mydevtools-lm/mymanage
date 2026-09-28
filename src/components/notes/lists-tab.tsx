@@ -2,7 +2,19 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { Eraser, ListChecks, Pencil, Plus, Trash2, X } from "lucide-react";
+import {
+  ClipboardCopy,
+  Eraser,
+  ListChecks,
+  Pencil,
+  Pin,
+  PinOff,
+  Plus,
+  RotateCcw,
+  Share2,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -18,28 +30,127 @@ import { Field } from "@/components/fields";
 import { EmptyState } from "@/components/shared";
 import { RowActions, type RowAction } from "@/components/row-actions";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { SortableList } from "@/components/sortable-list";
 import { useAppStore } from "@/lib/store";
+import { listMatches, listToText, sortLists } from "@/lib/list-text";
 import { cn } from "@/lib/utils";
-import type { Checklist } from "@/lib/types";
+import type { Checklist, ChecklistItem } from "@/lib/types";
+
+async function copyText(text: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Older browsers, or a page without clipboard permission.
+    const area = document.createElement("textarea");
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    const ok = document.execCommand("copy");
+    area.remove();
+    return ok;
+  }
+}
+
+const canShare = () =>
+  typeof navigator !== "undefined" && typeof navigator.share === "function";
+
+function ItemRow({
+  listId,
+  item,
+  handle,
+}: {
+  listId: string;
+  item: ChecklistItem;
+  handle?: React.ReactNode;
+}) {
+  const toggleItem = useAppStore((s) => s.toggleChecklistItem);
+  const deleteItem = useAppStore((s) => s.deleteChecklistItem);
+
+  return (
+    <div className="group/item flex items-center gap-2 rounded-md px-1 py-1.5 sm:py-1 can-hover:hover:bg-accent/40">
+      {handle ?? <span className="size-7 shrink-0" aria-hidden />}
+      <Checkbox
+        checked={item.done}
+        onCheckedChange={() => toggleItem(listId, item.id)}
+        aria-label={item.text}
+        className="size-5 sm:size-4"
+      />
+      <span
+        onClick={() => toggleItem(listId, item.id)}
+        className={cn(
+          "flex-1 cursor-pointer text-sm select-none",
+          item.done && "text-muted-foreground line-through",
+        )}
+      >
+        {item.text}
+      </span>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        aria-label={`הסרת ${item.text}`}
+        className="text-muted-foreground transition-opacity can-hover:opacity-0 can-hover:group-hover/item:opacity-100 can-hover:group-focus-within/item:opacity-100"
+        onClick={() => deleteItem(listId, item.id)}
+      >
+        <X />
+      </Button>
+    </div>
+  );
+}
 
 function ListCard({ list }: { list: Checklist }) {
   const addItem = useAppStore((s) => s.addChecklistItem);
-  const toggleItem = useAppStore((s) => s.toggleChecklistItem);
-  const deleteItem = useAppStore((s) => s.deleteChecklistItem);
   const deleteList = useAppStore((s) => s.deleteChecklist);
   const renameList = useAppStore((s) => s.renameChecklist);
   const clearDone = useAppStore((s) => s.clearDoneItems);
+  const resetList = useAppStore((s) => s.resetChecklist);
+  const togglePin = useAppStore((s) => s.toggleChecklistPin);
+  const reorder = useAppStore((s) => s.reorderChecklistItems);
 
   const [draft, setDraft] = useState("");
   const [renaming, setRenaming] = useState(false);
   const [title, setTitle] = useState(list.title);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // When the clipboard is blocked, show the text to copy by hand.
+  const [manualCopy, setManualCopy] = useState<string | null>(null);
 
-  const done = list.items.filter((i) => i.done).length;
+  const open = list.items.filter((i) => !i.done);
+  const done = list.items.filter((i) => i.done);
+
+  const share = async () => {
+    const text = listToText(list);
+    if (canShare()) {
+      try {
+        await navigator.share({ title: list.title, text });
+        return;
+      } catch {
+        // Cancelled, or sharing failed — fall through to copying.
+      }
+    }
+    if (await copyText(text)) toast.success("הרשימה הועתקה — אפשר להדביק");
+    else setManualCopy(text);
+  };
 
   const cardActions: RowAction[] = [
-    ...(done > 0
+    {
+      label: list.pinned ? "ביטול נעיצה" : "נעיצה למעלה",
+      icon: list.pinned ? PinOff : Pin,
+      onSelect: () => togglePin(list.id),
+    },
+    {
+      label: canShare() ? "שיתוף" : "העתקה כטקסט",
+      icon: canShare() ? Share2 : ClipboardCopy,
+      onSelect: share,
+    },
+    ...(done.length > 0
       ? [
+          {
+            label: "איפוס — ביטול כל הסימונים",
+            icon: RotateCcw,
+            onSelect: () => resetList(list.id),
+          },
           {
             label: "הסרת המסומנים",
             icon: Eraser,
@@ -82,15 +193,23 @@ function ListCard({ list }: { list: Checklist }) {
   }
 
   return (
-    <Card className="group/card">
+    <Card className={cn("group/card", list.pinned && "ring-1 ring-primary/40")}>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="truncate font-semibold">{list.title}</h3>
+            <h3 className="flex items-center gap-1.5 truncate font-semibold">
+              {list.pinned && (
+                <Pin
+                  className="size-3.5 shrink-0 text-primary"
+                  aria-label="נעוצה"
+                />
+              )}
+              {list.title}
+            </h3>
             <p className="text-xs text-muted-foreground">
               {list.items.length === 0
                 ? "רשימה ריקה"
-                : `${done} מתוך ${list.items.length} סומנו`}
+                : `${done.length} מתוך ${list.items.length} סומנו`}
             </p>
           </div>
           <RowActions actions={cardActions} group="card" />
@@ -100,55 +219,36 @@ function ListCard({ list }: { list: Checklist }) {
           <div className="mt-2 h-1 overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${(done / list.items.length) * 100}%` }}
+              style={{ width: `${(done.length / list.items.length) * 100}%` }}
             />
           </div>
         )}
       </CardHeader>
 
       <CardContent className="grid gap-1">
-        {list.items.map((item) => (
-          <div
-            key={item.id}
-            className="group/item flex items-center gap-2.5 rounded-md px-1 py-2 sm:py-1 can-hover:hover:bg-accent/40"
-          >
-            <Checkbox
-              checked={item.done}
-              onCheckedChange={() => toggleItem(list.id, item.id)}
-              aria-label={item.text}
-              className="size-5 sm:size-4"
-            />
-            <span
-              onClick={() => toggleItem(list.id, item.id)}
-              className={cn(
-                "flex-1 cursor-pointer text-sm select-none",
-                item.done && "text-muted-foreground line-through",
-              )}
-            >
-              {item.text}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label="הסרת פריט"
-              className="text-muted-foreground transition-opacity can-hover:opacity-0 can-hover:group-hover/item:opacity-100 can-hover:group-focus-within/item:opacity-100"
-              onClick={() => deleteItem(list.id, item.id)}
-            >
-              <X />
-            </Button>
-          </div>
-        ))}
+        {/* Open items can be dragged into shopping order. */}
+        <SortableList
+          items={open}
+          onReorder={(ids) =>
+            // Keep ticked items after the open ones in the stored order.
+            reorder(list.id, [...ids, ...done.map((i) => i.id)])
+          }
+          renderItem={(item, handle) => (
+            <ItemRow listId={list.id} item={item} handle={handle} />
+          )}
+        />
 
         <form onSubmit={submitItem} className="mt-1 flex gap-2">
           <Input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="הוסף פריט ואנטר"
-            className="h-8"
+            enterKeyHint="done"
+            className="h-9"
           />
           <Button
             type="submit"
-            size="icon-sm"
+            size="icon"
             variant="secondary"
             aria-label="הוספת פריט"
             disabled={!draft.trim()}
@@ -156,7 +256,41 @@ function ListCard({ list }: { list: Checklist }) {
             <Plus />
           </Button>
         </form>
+
+        {/* Ticked items sink below, out of the way while shopping. */}
+        {done.length > 0 && (
+          <div className="mt-3 grid gap-0.5 border-t pt-2">
+            <span className="px-1 text-xs text-muted-foreground">
+              סומנו ({done.length})
+            </span>
+            {done.map((item) => (
+              <ItemRow key={item.id} listId={list.id} item={item} />
+            ))}
+          </div>
+        )}
       </CardContent>
+
+      <Dialog
+        open={manualCopy !== null}
+        onOpenChange={(o) => !o && setManualCopy(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>העתקת הרשימה</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            הדפדפן חסם העתקה אוטומטית. הטקסט מסומן — העתק אותו ידנית.
+          </p>
+          <textarea
+            readOnly
+            autoFocus
+            value={manualCopy ?? ""}
+            onFocus={(e) => e.currentTarget.select()}
+            rows={Math.min(12, (manualCopy ?? "").split("\n").length + 1)}
+            className="w-full rounded-lg border bg-muted/40 px-3 py-2 text-base md:text-sm"
+          />
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={confirmDelete}
@@ -197,7 +331,7 @@ function ListCard({ list }: { list: Checklist }) {
   );
 }
 
-export function ListsTab() {
+export function ListsTab({ query = "" }: { query?: string }) {
   const checklists = useAppStore((s) => s.checklists);
   const addChecklist = useAppStore((s) => s.addChecklist);
 
@@ -205,16 +339,19 @@ export function ListsTab() {
   const [title, setTitle] = useState("");
   const [items, setItems] = useState("");
 
+  const shown = sortLists(checklists).filter((l) => listMatches(l, query));
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
       toast.error("צריך שם לרשימה");
       return;
     }
-    // One item per line, so a whole list can be pasted in at once.
+    // One item per line, so a whole list can be pasted in at once — boxes
+    // and bullets from a pasted WhatsApp list are stripped.
     const parsed = items
       .split("\n")
-      .map((line) => line.trim())
+      .map((line) => line.replace(/^[☐☑\-*•]\s*/, "").trim())
       .filter(Boolean);
     addChecklist(title.trim(), parsed);
     setTitle("");
@@ -229,7 +366,9 @@ export function ListsTab() {
         <p className="text-sm text-muted-foreground">
           {checklists.length === 0
             ? "רשימות לסימון — קניות, אריזה, כל דבר חוזר"
-            : `${checklists.length} רשימות`}
+            : query
+              ? `${shown.length} מתוך ${checklists.length} רשימות`
+              : `${checklists.length} רשימות`}
         </p>
         <Button onClick={() => setOpen(true)}>
           <Plus /> רשימה חדשה
@@ -242,9 +381,13 @@ export function ListsTab() {
           title="אין רשימות"
           hint="לחץ על ״רשימה חדשה״ כדי להתחיל"
         />
+      ) : shown.length === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          אין רשימה שמתאימה לחיפוש.
+        </p>
       ) : (
         <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {checklists.map((list) => (
+          {shown.map((list) => (
             <ListCard key={list.id} list={list} />
           ))}
         </div>
@@ -266,7 +409,7 @@ export function ListsTab() {
               />
             </Field>
             <Field
-              label="פריטים (שורה לכל פריט, אפשר גם אחר כך)"
+              label="פריטים (שורה לכל פריט — אפשר גם להדביק רשימה)"
               htmlFor="list-items"
             >
               <textarea
@@ -275,7 +418,7 @@ export function ListsTab() {
                 value={items}
                 onChange={(e) => setItems(e.target.value)}
                 placeholder={"שמן בישול\nאקונומיקה"}
-                className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
               />
             </Field>
             <DialogFooter>

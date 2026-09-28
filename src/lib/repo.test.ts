@@ -11,6 +11,13 @@ import path from "node:path";
 import { SCHEMA_VERSION, backupIfDue, getDb, resetDbForTests } from "./db";
 import {
   addChecklistItem,
+  createNote,
+  getNote,
+  listNotes,
+  reorderChecklistItems,
+  resetChecklist,
+  setChecklistPinned,
+  updateNote,
   clearAll,
   createCategory,
   createChecklist,
@@ -138,6 +145,66 @@ describe("checklist undo", () => {
     // A later append still lands at the end.
     addChecklistItem("l", "ביצים");
     expect(listChecklists()[0].items.at(-1)?.text).toBe("ביצים");
+  });
+});
+
+describe("lists and notes (מ7)", () => {
+  it("resets a list: every item unticked, nothing removed", () => {
+    createChecklist("קניות", ["שמן", "חלב"], "l");
+    const [first] = listChecklists()[0].items;
+    addChecklistItem("l", "לחם", "bread", { done: true });
+    resetChecklist("l");
+    const items = listChecklists()[0].items;
+    expect(items).toHaveLength(3);
+    expect(items.every((i) => !i.done)).toBe(true);
+    expect(items[0].id).toBe(first.id);
+  });
+
+  it("stores a new item order and keeps unknown ids out", () => {
+    createChecklist(
+      "x",
+      [
+        { id: "a", text: "a" },
+        { id: "b", text: "b" },
+        { id: "c", text: "c" },
+      ],
+      "l",
+    );
+    reorderChecklistItems("l", ["c", "a", "nope"]);
+    expect(listChecklists()[0].items.map((i) => i.id)).toEqual(["c", "a", "b"]);
+  });
+
+  it("lists pinned lists first, then newest — not by last tick", () => {
+    createChecklist("old", [], "old");
+    createChecklist("new", [{ id: "n1", text: "x" }], "new");
+    // Ticking an item in the old list must not move it above the new one.
+    addChecklistItem("old", "y");
+    expect(listChecklists().map((l) => l.id)).toEqual(["new", "old"]);
+    setChecklistPinned("old", true);
+    expect(listChecklists().map((l) => l.id)).toEqual(["old", "new"]);
+  });
+
+  it("pins and colours a note without touching its updated date", () => {
+    createNote({
+      id: "n",
+      title: "t",
+      body: "b",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    updateNote("n", { pinned: true, color: "amber" } as never);
+    const note = getNote("n")!;
+    expect(note.pinned).toBe(true);
+    expect(note.color).toBe("amber");
+    expect(note.updatedAt).toBe("2026-01-01T00:00:00.000Z");
+    updateNote("n", { body: "changed" });
+    expect(getNote("n")!.updatedAt).not.toBe("2026-01-01T00:00:00.000Z");
+  });
+
+  it("lists pinned notes first", () => {
+    createNote({ id: "a", title: "a", body: "" });
+    createNote({ id: "b", title: "b", body: "" });
+    updateNote("a", { pinned: true } as never);
+    expect(listNotes()[0].id).toBe("a");
   });
 });
 

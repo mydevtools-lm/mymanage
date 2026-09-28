@@ -120,6 +120,10 @@ const MIGRATIONS: string[] = [
   // v2 — optional time of day for a task (HH:mm), so it can sit on the
   // Today timeline between events.
   `ALTER TABLE tasks ADD COLUMN dueTime TEXT;`,
+  // v3 — pinning for lists and notes, and a colour for notes.
+  `ALTER TABLE checklists ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE notes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE notes ADD COLUMN color TEXT;`,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

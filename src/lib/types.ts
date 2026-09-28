@@ -73,6 +73,8 @@ export interface Note {
   id: string;
   title: string;
   body: string;
+  pinned?: boolean;
+  color?: ColorKey;
   createdAt: string;
   updatedAt: string;
 }
@@ -87,6 +89,7 @@ export interface ChecklistItem {
 export interface Checklist {
   id: string;
   title: string;
+  pinned?: boolean;
   items: ChecklistItem[];
   createdAt: string;
   updatedAt: string;
