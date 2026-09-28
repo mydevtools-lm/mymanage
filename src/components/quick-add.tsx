@@ -87,6 +87,7 @@ function ListItemForm({ onDone }: { onDone: () => void }) {
       <Field label="רשימה">
         <SimpleSelect
           value={listId}
+          label="רשימה"
           onChange={setListId}
           options={[
             ...checklists.map((l) => ({ value: l.id, label: l.title })),

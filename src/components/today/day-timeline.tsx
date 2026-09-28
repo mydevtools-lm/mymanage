@@ -85,7 +85,7 @@ export function DayTimeline({
   const nowLine = (
     <li
       aria-label={`עכשיו, ${now}`}
-      className="flex items-center gap-3 py-1 text-xs font-medium text-destructive"
+      className="flex items-center gap-3 py-1 text-xs font-medium text-rose-700 dark:text-rose-300"
     >
       <span className="w-12 shrink-0 text-end tabular-nums">{now}</span>
       <span className="h-px flex-1 bg-destructive/60" />

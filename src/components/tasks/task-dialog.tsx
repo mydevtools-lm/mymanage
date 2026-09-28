@@ -129,6 +129,7 @@ function TaskForm({ onOpenChange, task, defaultDueDate }: TaskDialogProps) {
             value={priority}
             onChange={(v) => setPriority(v as Priority)}
             options={PRIORITY_OPTIONS}
+            label="עדיפות"
           />
         </Field>
         <Field label="קטגוריה">

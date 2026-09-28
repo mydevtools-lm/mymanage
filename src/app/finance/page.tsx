@@ -260,6 +260,7 @@ export default function FinancePage() {
                   <Search className="absolute top-1/2 start-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     className="ps-8"
+                    data-search
                     placeholder="חיפוש תיאור או סכום..."
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
@@ -278,8 +279,13 @@ export default function FinancePage() {
                   }
                   hint={
                     rows.length === 0
-                      ? "הוסף הכנסה או הוצאה כדי להתחיל"
+                      ? "הכנסה או הוצאה ראשונה לחודש הזה"
                       : "נסה לשנות את החיפוש או הסינון"
+                  }
+                  action={
+                    rows.length === 0
+                      ? { label: "תנועה חדשה", onClick: openNew }
+                      : undefined
                   }
                 />
               ) : (

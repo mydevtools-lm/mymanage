@@ -25,12 +25,15 @@ export function SimpleSelect({
   options,
   placeholder,
   className,
+  label,
 }: {
   value: string;
   onChange: (value: string) => void;
   options: Option[];
   placeholder?: string;
   className?: string;
+  /** What this select chooses — its accessible name. */
+  label: string;
 }) {
   return (
     <Select
@@ -38,7 +41,7 @@ export function SimpleSelect({
       onValueChange={(v) => onChange((v as string) ?? "")}
       items={options}
     >
-      <SelectTrigger className={cn("w-full", className)}>
+      <SelectTrigger aria-label={label} className={cn("w-full", className)}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
@@ -60,12 +63,14 @@ export function CategorySelect({
   onChange,
   includeAll,
   className,
+  label = "קטגוריה",
 }: {
   kind: CategoryKind;
   value: string;
   onChange: (value: string) => void;
   includeAll?: boolean;
   className?: string;
+  label?: string;
 }) {
   const categories = useCategories(kind);
   const options: Option[] = [
@@ -86,6 +91,7 @@ export function CategorySelect({
       onChange={onChange}
       options={options}
       className={className}
+      label={label}
     />
   );
 }

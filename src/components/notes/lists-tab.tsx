@@ -379,7 +379,8 @@ export function ListsTab({ query = "" }: { query?: string }) {
         <EmptyState
           icon={ListChecks}
           title="אין רשימות"
-          hint="לחץ על ״רשימה חדשה״ כדי להתחיל"
+          hint="קניות, אריזה, כל דבר שחוזר על עצמו"
+          action={{ label: "רשימה חדשה", onClick: () => setOpen(true) }}
         />
       ) : shown.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">

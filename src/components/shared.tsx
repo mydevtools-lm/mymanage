@@ -5,6 +5,8 @@ import { COLOR_STYLES } from "@/lib/colors";
 import { useAppStore } from "@/lib/store";
 import type { Category, ColorKey, Priority } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 
 export function PageHeader({
   title,
@@ -34,30 +36,41 @@ export function Hydrated({ children }: { children: React.ReactNode }) {
   const hydrated = useAppStore((s) => s.hydrated);
   if (!hydrated) {
     return (
-      <div className="space-y-4">
-        <div className="h-8 w-48 animate-pulse rounded-md bg-muted" />
-        <div className="h-40 animate-pulse rounded-xl bg-muted" />
-        <div className="h-40 animate-pulse rounded-xl bg-muted" />
+      <div data-skeleton role="status" aria-label="טוען" className="space-y-4">
+        <div className="h-9 w-56 rounded-md bg-muted motion-safe:animate-pulse" />
+        <div className="h-44 rounded-xl border bg-card motion-safe:animate-pulse" />
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="h-32 rounded-xl border bg-card motion-safe:animate-pulse" />
+          <div className="h-32 rounded-xl border bg-card motion-safe:animate-pulse" />
+        </div>
       </div>
     );
   }
   return <>{children}</>;
 }
 
+/** One look for "nothing here", with the first thing to do about it. */
 export function EmptyState({
   icon: Icon,
   title,
   hint,
+  action,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   hint?: string;
+  action?: { label: string; onClick: () => void };
 }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-12 text-center">
       <Icon className="mb-3 size-8 text-muted-foreground/60" />
       <div className="font-medium">{title}</div>
       {hint && <div className="mt-1 text-sm text-muted-foreground">{hint}</div>}
+      {action && (
+        <Button className="mt-4" size="sm" onClick={action.onClick}>
+          <Plus /> {action.label}
+        </Button>
+      )}
     </div>
   );
 }

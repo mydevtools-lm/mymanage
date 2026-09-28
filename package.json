@@ -8,7 +8,8 @@
     "start": "cross-env NODE_OPTIONS=--experimental-sqlite next start",
     "lint": "eslint",
     "test": "cross-env NODE_OPTIONS=--experimental-sqlite vitest run",
-    "test:watch": "cross-env NODE_OPTIONS=--experimental-sqlite vitest"
+    "test:watch": "cross-env NODE_OPTIONS=--experimental-sqlite vitest",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
@@ -29,6 +30,8 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22.20.4",
     "@types/react": "^19",

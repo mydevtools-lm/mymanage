@@ -8,6 +8,7 @@ import { BottomTabs } from "@/components/layout/bottom-tabs";
 import { MobileHeader } from "@/components/layout/mobile-header";
 import { SIDEBAR_KEY } from "@/components/layout/nav";
 import { GlobalQuickAdd, QuickAddFab } from "@/components/quick-add";
+import { Shortcuts } from "@/components/layout/shortcuts";
 
 const heebo = Heebo({
   variable: "--font-sans",
@@ -52,11 +53,21 @@ export default function RootLayout({
           {sidebarScript}
         </Script>
         <Providers>
+          <a
+            href="#main"
+            className="sr-only z-50 rounded-md bg-primary px-4 py-2 text-primary-foreground focus:not-sr-only focus:fixed focus:top-3 focus:start-3"
+          >
+            דלג לתוכן
+          </a>
           <div className="flex min-h-screen">
             <Sidebar />
             <div className="flex min-w-0 flex-1 flex-col">
               <MobileHeader />
-              <main className="flex-1 overflow-x-hidden px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] md:px-8 md:py-6">
+              <main
+                id="main"
+                tabIndex={-1}
+                className="flex-1 outline-none overflow-x-hidden px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] md:px-8 md:py-6"
+              >
                 <div className="mx-auto max-w-6xl">{children}</div>
               </main>
             </div>
@@ -64,6 +75,7 @@ export default function RootLayout({
           <BottomTabs />
           <QuickAddFab />
           <GlobalQuickAdd />
+          <Shortcuts />
         </Providers>
       </body>
     </html>

@@ -197,6 +197,7 @@ export default function TasksPage() {
         value={priority}
         onChange={setPriority}
         options={PRIORITY_OPTIONS}
+        label="עדיפות"
       />
       <CategorySelect
         kind="task"
@@ -250,6 +251,7 @@ export default function TasksPage() {
                 <Search className="absolute top-1/2 start-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   className="ps-8"
+                  data-search
                   placeholder="חיפוש..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
@@ -294,8 +296,19 @@ export default function TasksPage() {
             title="אין משימות להצגה"
             hint={
               activeCount === 0
-                ? "לחץ על ״משימה חדשה״ כדי להתחיל"
+                ? "מה הדבר הראשון שצריך לעשות?"
                 : "נסה לשנות את הסינון"
+            }
+            action={
+              activeCount === 0
+                ? {
+                    label: "משימה חדשה",
+                    onClick: () => {
+                      setEditing(null);
+                      setDialogOpen(true);
+                    },
+                  }
+                : undefined
             }
           />
         ) : (
@@ -420,6 +433,7 @@ export default function TasksPage() {
                 value={priority}
                 onChange={setPriority}
                 options={PRIORITY_OPTIONS}
+                label="עדיפות"
               />
             </Field>
             <Field label="קטגוריה">

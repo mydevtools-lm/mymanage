@@ -282,6 +282,7 @@ export function NotesTab({ query = "" }: { query?: string }) {
           icon={NotebookPen}
           title="אין הערות"
           hint="רעיונות, רשימות, דברים לזכור"
+          action={{ label: "הערה חדשה", onClick: () => setDrafting(true) }}
         />
       ) : (
         <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">

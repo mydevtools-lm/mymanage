@@ -59,4 +59,5 @@ npm run build   # בנייה
 npm run start   # הרצת הבנייה
 npm run lint    # ESLint
 npm test        # Vitest
+npm run test:e2e  # Playwright: צילומי מסך, נגישות (axe) וזרימות, על בנייה ומסד נפרד
 ```

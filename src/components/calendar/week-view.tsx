@@ -266,7 +266,7 @@ export function WeekView({
                         <span className="truncate">{label}</span>
                         <Lock className="size-2.5 shrink-0 opacity-60" />
                       </div>
-                      <div className="opacity-70">
+                      <div className="opacity-85">
                         <TimeRange start={item.start} end={item.end} />
                       </div>
                     </div>
@@ -298,7 +298,7 @@ export function WeekView({
                   >
                     <div className="truncate font-medium">{label}</div>
                     {height >= 45 && (
-                      <div className="opacity-70">
+                      <div className="opacity-85">
                         <TimeRange start={item.start} end={item.end} />
                       </div>
                     )}

@@ -35,6 +35,7 @@ export default function NotesPage() {
           <Search className="absolute top-1/2 start-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="ps-8 pe-8"
+            data-search
             placeholder="חיפוש ברשימות ובהערות..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}

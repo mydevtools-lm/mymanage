@@ -110,7 +110,7 @@ export function MonthView({
                     )}
                   >
                     {c.time && (
-                      <span className="shrink-0 tabular-nums opacity-70">
+                      <span className="shrink-0 tabular-nums opacity-85">
                         {c.time}
                       </span>
                     )}
