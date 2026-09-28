@@ -6,6 +6,21 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "sandbox",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "cross-env",
+        "LIOR_DB_PATH=e2e/.data/sandbox.db",
+        "npm",
+        "run",
+        "dev",
+        "--",
+        "-p",
+        "3200"
+      ],
+      "port": 3200
     }
   ]
 }

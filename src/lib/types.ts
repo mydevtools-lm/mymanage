@@ -24,6 +24,44 @@ export interface Task {
   completedAt?: string;
   /** Set when a finished task is moved out of the active list. */
   archivedAt?: string;
+  /** The routine this task is one day's copy of. */
+  routineId?: string;
+  subtasks?: Subtask[];
+  /** Hand-picked order among the tasks of one day; lower comes first. */
+  position?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Subtask {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+/** How often a routine comes back. Days of the week are 0 (Sunday)–6. */
+export type Repeat =
+  | { kind: "daily" }
+  | { kind: "weekly"; days: number[] }
+  | { kind: "monthly"; day: number };
+
+/**
+ * A task that comes back by itself — pills, workout, mail. Each day it is
+ * due, a plain task is created from it, and ticking that one archives only
+ * that day's copy.
+ */
+export interface Routine {
+  id: string;
+  title: string;
+  description?: string;
+  priority: Priority;
+  categoryId?: string;
+  dueTime?: string;
+  repeat: Repeat;
+  startDate: string; // yyyy-MM-dd
+  /** The last day a copy was made for. */
+  lastDate?: string;
+  paused?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -107,6 +145,7 @@ export interface DataSnapshot {
   transactions: Transaction[];
   notes: Note[];
   checklists: Checklist[];
+  routines?: Routine[];
   categories: Category[];
   settings: Settings;
 }

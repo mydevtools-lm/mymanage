@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarClock, Check, Pencil, SunMedium, Trash2 } from "lucide-react";
+import {
+  CalendarClock,
+  Check,
+  ListTodo,
+  Pencil,
+  Repeat,
+  SunMedium,
+  Trash2,
+} from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CategoryBadge, PriorityBadge } from "@/components/shared";
 import { RowActions, type RowAction } from "@/components/row-actions";
@@ -70,6 +78,7 @@ export function TaskRow({
   trailing,
   inlineEdit,
   selection,
+  handle,
 }: {
   task: Task;
   onEdit?: (task: Task) => void;
@@ -84,10 +93,16 @@ export function TaskRow({
   /** Click the title to rename in place. */
   inlineEdit?: boolean;
   selection?: { selected: boolean; onToggle: () => void };
+  /** A drag handle, when the row sits in a reorderable list. */
+  handle?: React.ReactNode;
 }) {
   const toggleTask = useAppStore((s) => s.toggleTask);
   const snoozeTask = useAppStore((s) => s.snoozeTask);
   const deleteTask = useAppStore((s) => s.deleteTask);
+  const toggleSubtask = useAppStore((s) => s.toggleSubtask);
+  const [stepsOpen, setStepsOpen] = useState(false);
+  const steps = task.subtasks ?? [];
+  const stepsDone = steps.filter((st) => st.done).length;
   const category = useAppStore((s) =>
     s.categories.find((c) => c.id === task.categoryId),
   );
@@ -133,6 +148,36 @@ export function TaskRow({
           <CalendarClock className="size-3.5" />
           {task.dueTime}
         </span>
+      )}
+      {task.routineId && (
+        <span
+          className="flex items-center text-muted-foreground"
+          title="משימה קבועה"
+        >
+          <Repeat className="size-3.5" aria-label="משימה קבועה" />
+        </span>
+      )}
+      {steps.length > 0 && (
+        <button
+          type="button"
+          aria-expanded={stepsOpen}
+          aria-label={`תת־משימות: ${stepsDone} מתוך ${steps.length}`}
+          disabled={!!selection}
+          onClick={(e) => {
+            e.stopPropagation();
+            setStepsOpen((o) => !o);
+          }}
+          className={cn(
+            "flex items-center gap-1 rounded-md px-1 text-xs tabular-nums",
+            stepsDone === steps.length
+              ? "text-income"
+              : "text-muted-foreground",
+            !selection && "can-hover:hover:bg-accent",
+          )}
+        >
+          <ListTodo className="size-3.5" />
+          {stepsDone}/{steps.length}
+        </button>
       )}
       <CategoryBadge category={category} />
       <PriorityBadge priority={task.priority} />
@@ -222,19 +267,43 @@ export function TaskRow({
     >
       <div
         className={cn(
-          "group flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5 transition-colors can-hover:hover:bg-accent/40",
+          "group rounded-lg border bg-card transition-colors can-hover:hover:bg-accent/40",
           task.completed && "opacity-60",
         )}
       >
-        <Checkbox
-          checked={task.completed}
-          onCheckedChange={() => toggleTask(task.id)}
-          aria-label={`סימון ${task.title}`}
-          className="size-5"
-        />
-        {body}
-        {trailing}
-        <RowActions actions={actions} />
+        <div className="flex items-center gap-3 px-3 py-2.5">
+          {handle}
+          <Checkbox
+            checked={task.completed}
+            onCheckedChange={() => toggleTask(task.id)}
+            aria-label={`סימון ${task.title}`}
+            className="size-5"
+          />
+          {body}
+          {trailing}
+          <RowActions actions={actions} />
+        </div>
+        {stepsOpen && steps.length > 0 && (
+          <ul className="grid gap-1 border-t px-3 py-2 ps-11">
+            {steps.map((st) => (
+              <li key={st.id}>
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={st.done}
+                    onCheckedChange={() => toggleSubtask(task.id, st.id)}
+                  />
+                  <span
+                    className={cn(
+                      st.done && "text-muted-foreground line-through",
+                    )}
+                  >
+                    {st.text}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </SwipeRow>
   );

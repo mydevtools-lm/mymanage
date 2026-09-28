@@ -124,6 +124,26 @@ const MIGRATIONS: string[] = [
   `ALTER TABLE checklists ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
    ALTER TABLE notes ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;
    ALTER TABLE notes ADD COLUMN color TEXT;`,
+  // v4 — routines (tasks that come back by themselves), subtasks as a JSON
+  // array, and a hand-picked order among a day's tasks.
+  `CREATE TABLE routines (
+     id          TEXT PRIMARY KEY,
+     title       TEXT NOT NULL,
+     description TEXT,
+     priority    TEXT NOT NULL DEFAULT 'normal',
+     categoryId  TEXT REFERENCES categories(id) ON DELETE SET NULL,
+     dueTime     TEXT,
+     repeat      TEXT NOT NULL,
+     startDate   TEXT NOT NULL,
+     lastDate    TEXT,
+     paused      INTEGER NOT NULL DEFAULT 0,
+     createdAt   TEXT NOT NULL,
+     updatedAt   TEXT NOT NULL
+   );
+   ALTER TABLE tasks ADD COLUMN routineId TEXT;
+   ALTER TABLE tasks ADD COLUMN subtasks TEXT;
+   ALTER TABLE tasks ADD COLUMN position REAL;
+   CREATE INDEX tasks_routine ON tasks(routineId);`,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

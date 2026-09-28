@@ -32,6 +32,13 @@ import {
   replaceAll,
   updateTask,
   updateTransaction,
+  createRoutine,
+  deleteRoutine,
+  ensureRoutineCopies,
+  listRoutines,
+  listTasks,
+  reorderTasks,
+  updateRoutine,
 } from "./repo";
 
 beforeEach(() => {
@@ -300,3 +307,118 @@ describe("daily backup", () => {
     expect(backupIfDue(getDb(), "2026-09-30")).toBeNull();
   });
 });
+
+describe("routines", () => {
+  const pills = {
+    id: "r1",
+    title: "כדורים",
+    repeat: { kind: "daily" as const },
+    startDate: "2026-09-27",
+    dueTime: "08:00",
+  };
+
+  it("makes one copy for today, however often it is asked", () => {
+    createRoutine(pills);
+    expect(ensureRoutineCopies("2026-09-28")).toHaveLength(1);
+    expect(ensureRoutineCopies("2026-09-28")).toHaveLength(0);
+
+    const copies = listTasks().filter((t) => t.routineId === "r1");
+    expect(copies).toHaveLength(1);
+    expect(copies[0]).toMatchObject({
+      id: "r1_2026-09-28",
+      title: "כדורים",
+      dueDate: "2026-09-28",
+      dueTime: "08:00",
+    });
+    expect(listRoutines()[0].lastDate).toBe("2026-09-28");
+  });
+
+  it("does not bring back today's copy after it was deleted", () => {
+    createRoutine(pills);
+    ensureRoutineCopies("2026-09-28");
+    getDb().prepare("DELETE FROM tasks WHERE id = ?").run("r1_2026-09-28");
+    ensureRoutineCopies("2026-09-28");
+    expect(listTasks()).toHaveLength(0);
+  });
+
+  it("files away yesterday's open copy, and keeps a finished one as done", () => {
+    createRoutine(pills);
+    ensureRoutineCopies("2026-09-27");
+    ensureRoutineCopies("2026-09-28");
+    updateTask("r1_2026-09-28", {
+      completed: true,
+      completedAt: "2026-09-28T06:00:00.000Z",
+      archivedAt: "2026-09-28T06:00:00.000Z",
+    });
+    ensureRoutineCopies("2026-09-29");
+
+    const byId = new Map(listTasks().map((t) => [t.id, t]));
+    expect(byId.get("r1_2026-09-27")).toMatchObject({ completed: false });
+    expect(byId.get("r1_2026-09-27")?.archivedAt).toBeDefined();
+    expect(byId.get("r1_2026-09-28")).toMatchObject({ completed: true });
+    expect(byId.get("r1_2026-09-29")?.archivedAt).toBeUndefined();
+  });
+
+  it("skips days the routine does not fall on, and paused routines", () => {
+    createRoutine({ ...pills, repeat: { kind: "weekly", days: [5] } });
+    expect(ensureRoutineCopies("2026-09-28")).toHaveLength(0); // Monday
+    createRoutine({ ...pills, id: "r2", paused: true });
+    expect(ensureRoutineCopies("2026-09-28")).toHaveLength(0);
+  });
+
+  it("carries edits over to today's open copy", () => {
+    createRoutine({ ...pills, startDate: localToday() });
+    ensureRoutineCopies(localToday());
+    updateRoutine("r1", { title: "ויטמינים", dueTime: undefined });
+    const copy = getTask(`r1_${localToday()}`);
+    expect(copy?.title).toBe("ויטמינים");
+    expect(copy?.dueTime).toBeUndefined();
+  });
+
+  it("deleting a routine keeps its past copies", () => {
+    createRoutine(pills);
+    ensureRoutineCopies("2026-09-28");
+    deleteRoutine("r1");
+    expect(listRoutines()).toHaveLength(0);
+    expect(getTask("r1_2026-09-28")).not.toBeNull();
+  });
+
+  it("survives export and import", () => {
+    createRoutine({ ...pills, repeat: { kind: "monthly", day: 10 } });
+    const snapshot = readAll();
+    clearAll();
+    replaceAll(snapshot);
+    expect(listRoutines()[0]).toMatchObject({
+      id: "r1",
+      repeat: { kind: "monthly", day: 10 },
+    });
+  });
+});
+
+describe("subtasks and order", () => {
+  it("stores subtasks and clears them with an empty list", () => {
+    createTask({
+      id: "t1",
+      title: "מעבר דירה",
+      subtasks: [
+        { id: "s1", text: "קרטונים", done: true },
+        { id: "s2", text: "הובלה", done: false },
+      ],
+    });
+    expect(getTask("t1")?.subtasks).toHaveLength(2);
+    updateTask("t1", { subtasks: [] });
+    expect(getTask("t1")?.subtasks).toBeUndefined();
+  });
+
+  it("reorders by position", () => {
+    createTask({ id: "a", title: "א" });
+    createTask({ id: "b", title: "ב" });
+    reorderTasks(["b", "a"]);
+    expect(getTask("b")?.position).toBe(0);
+    expect(getTask("a")?.position).toBe(1);
+  });
+});
+
+function localToday() {
+  return new Date().toLocaleDateString("sv");
+}

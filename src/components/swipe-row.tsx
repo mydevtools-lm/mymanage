@@ -80,6 +80,8 @@ export function SwipeRow({
         onTransitionEnd={() => setSettling(false)}
         onPointerDown={(e) => {
           if (e.pointerType !== "touch") return;
+          // A drag handle inside the row reorders; it mustn't swipe too.
+          if ((e.target as HTMLElement).closest("[data-drag-handle]")) return;
           start.current = { x: e.clientX, y: e.clientY };
           axis.current = null;
           moved.current = false;

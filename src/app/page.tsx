@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/card";
 import { Hydrated, PageHeader } from "@/components/shared";
 import { TaskDialog } from "@/components/tasks/task-dialog";
+import { SortableList } from "@/components/sortable-list";
 import { TaskRow } from "@/components/tasks/task-row";
 import { EventDialog } from "@/components/calendar/event-dialog";
 import { TransactionDialog } from "@/components/finance/transaction-dialog";
@@ -47,6 +48,7 @@ export default function TodayPage() {
   const tasks = useAppStore((s) => s.tasks);
   const events = useAppStore((s) => s.events);
   const updateTask = useAppStore((s) => s.updateTask);
+  const reorderTasks = useAppStore((s) => s.reorderTasks);
 
   const [date, setDate] = useState(todayKey());
   const [taskDialog, setTaskDialog] = useState(false);
@@ -183,14 +185,30 @@ export default function TodayPage() {
                         במהלך היום
                       </h3>
                     )}
-                    {agenda.untimedTasks.map((task) => (
-                      <TaskRow
-                        key={task.id}
-                        task={task}
-                        onEdit={editTask}
-                        hideDate
+                    {agenda.untimedTasks.length > 1 ? (
+                      <SortableList
+                        items={agenda.untimedTasks}
+                        onReorder={reorderTasks}
+                        handleLabel="גרירה לשינוי סדר המשימות"
+                        renderItem={(task, handle) => (
+                          <TaskRow
+                            task={task}
+                            onEdit={editTask}
+                            hideDate
+                            handle={handle}
+                          />
+                        )}
                       />
-                    ))}
+                    ) : (
+                      agenda.untimedTasks.map((task) => (
+                        <TaskRow
+                          key={task.id}
+                          task={task}
+                          onEdit={editTask}
+                          hideDate
+                        />
+                      ))
+                    )}
                   </div>
                 )}
 

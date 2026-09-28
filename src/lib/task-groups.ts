@@ -43,6 +43,11 @@ export function whenOf(task: Task, today: string): WhenGroup {
   return "later";
 }
 
+/** Tasks placed by hand, in their order, before those that never were. */
+export function byPosition(a: Task, b: Task) {
+  return (a.position ?? Infinity) - (b.position ?? Infinity) || 0;
+}
+
 function compare(a: Task, b: Task) {
   if (a.dueDate !== b.dueDate) {
     if (!a.dueDate) return 1;
@@ -55,6 +60,9 @@ function compare(a: Task, b: Task) {
     if (!b.dueTime) return -1;
     return a.dueTime.localeCompare(b.dueTime);
   }
+  // A hand-picked order wins; tasks never placed by hand follow it.
+  const byHand = byPosition(a, b);
+  if (byHand) return byHand;
   return PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority];
 }
 

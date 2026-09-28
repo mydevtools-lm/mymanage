@@ -9,6 +9,7 @@ import {
   CheckSquare,
   ListChecks,
   Plus,
+  Repeat,
   Search,
   SlidersHorizontal,
   Trash2,
@@ -40,11 +41,12 @@ import {
 import { TaskDialog } from "@/components/tasks/task-dialog";
 import { TaskRow } from "@/components/tasks/task-row";
 import { ArchiveList } from "@/components/tasks/archive-list";
+import { RoutineList } from "@/components/tasks/routine-list";
 import { useAppStore } from "@/lib/store";
 import { groupTasksByWhen } from "@/lib/task-groups";
 import { toDateKey, todayKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { Priority, Task } from "@/lib/types";
+import type { Priority, Routine, Task } from "@/lib/types";
 
 const ALL = "__all";
 
@@ -146,6 +148,9 @@ export default function TasksPage() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
+  const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null);
+  const [newRoutine, setNewRoutine] = useState(false);
+  const routineCount = useAppStore((s) => s.routines.length);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dateDialog, setDateDialog] = useState(false);
@@ -218,11 +223,13 @@ export default function TasksPage() {
           <Button
             onClick={() => {
               setEditing(null);
+              setEditingRoutine(null);
+              setNewRoutine(view === "routines");
               setDialogOpen(true);
             }}
           >
             <Plus />
-            משימה חדשה
+            {view === "routines" ? "משימה קבועה" : "משימה חדשה"}
           </Button>
         }
       />
@@ -238,6 +245,10 @@ export default function TasksPage() {
           >
             <TabsList>
               <TabsTrigger value="active">פעילות</TabsTrigger>
+              <TabsTrigger value="routines">
+                <Repeat />
+                קבועות{routineCount > 0 && ` (${routineCount})`}
+              </TabsTrigger>
               <TabsTrigger value="archive">
                 <Archive />
                 ארכיון{archivedCount > 0 && ` (${archivedCount})`}
@@ -290,6 +301,20 @@ export default function TasksPage() {
 
         {view === "archive" ? (
           <ArchiveList />
+        ) : view === "routines" ? (
+          <RoutineList
+            onEdit={(routine) => {
+              setEditing(null);
+              setEditingRoutine(routine);
+              setDialogOpen(true);
+            }}
+            onNew={() => {
+              setEditing(null);
+              setEditingRoutine(null);
+              setNewRoutine(true);
+              setDialogOpen(true);
+            }}
+          />
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={CheckSquare}
@@ -349,6 +374,7 @@ export default function TasksPage() {
                     hideDate={group === "today"}
                     onEdit={(task) => {
                       setEditing(task);
+                      setEditingRoutine(null);
                       setDialogOpen(true);
                     }}
                     selection={
@@ -477,6 +503,12 @@ export default function TasksPage() {
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         task={editing}
+        routine={editingRoutine}
+        defaultRepeat={
+          newRoutine && !editing && !editingRoutine
+            ? { kind: "daily" }
+            : undefined
+        }
       />
     </>
   );

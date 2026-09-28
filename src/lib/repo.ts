@@ -1,14 +1,17 @@
 import "server-only";
-import { getDb, newId, seedDefaults } from "./db";
+import { getDb, localDateKey, newId, seedDefaults } from "./db";
 import type {
   CalendarEvent,
   Category,
   Checklist,
   DataSnapshot,
   Note,
+  Routine,
+  Subtask,
   Task,
   Transaction,
 } from "./types";
+import { instanceId, occursOn } from "./routines";
 
 const now = () => new Date().toISOString();
 
@@ -34,8 +37,25 @@ interface TaskRow {
   completed: number;
   completedAt: string | null;
   archivedAt: string | null;
+  routineId: string | null;
+  subtasks: string | null;
+  position: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+function parseSubtasks(raw: string | null): Subtask[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function serializeSubtasks(value: Subtask[] | null | undefined) {
+  return value && value.length > 0 ? JSON.stringify(value) : null;
 }
 
 function toTask(r: TaskRow): Task {
@@ -50,6 +70,9 @@ function toTask(r: TaskRow): Task {
     completed: !!r.completed,
     completedAt: r.completedAt ?? undefined,
     archivedAt: r.archivedAt ?? undefined,
+    routineId: r.routineId ?? undefined,
+    subtasks: parseSubtasks(r.subtasks),
+    position: r.position ?? undefined,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
@@ -67,8 +90,8 @@ export function createTask(input: Partial<Task>): Task {
   getDb()
     .prepare(
       `INSERT INTO tasks
-       (id,title,description,dueDate,dueTime,priority,categoryId,completed,completedAt,archivedAt,createdAt,updatedAt)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+       (id,title,description,dueDate,dueTime,priority,categoryId,completed,completedAt,archivedAt,routineId,subtasks,position,createdAt,updatedAt)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     )
     .run(
       id,
@@ -81,6 +104,9 @@ export function createTask(input: Partial<Task>): Task {
       input.completed ? 1 : 0,
       input.completedAt ?? null,
       input.archivedAt ?? null,
+      input.routineId ?? null,
+      serializeSubtasks(input.subtasks),
+      input.position ?? null,
       input.createdAt ?? stamp,
       stamp,
     );
@@ -104,6 +130,8 @@ const TASK_FIELDS = [
   "completed",
   "completedAt",
   "archivedAt",
+  "subtasks",
+  "position",
 ] as const;
 
 export function updateTask(id: string, patch: Partial<Task>): Task | null {
@@ -115,7 +143,9 @@ export function updateTask(id: string, patch: Partial<Task>): Task | null {
     const value = patch[field];
     sets.push(`${field} = ?`);
     if (field === "completed") values.push(value ? 1 : 0);
-    else values.push((value as string | undefined) ?? null);
+    else if (field === "subtasks")
+      values.push(serializeSubtasks(value as Subtask[] | undefined));
+    else values.push((value as string | number | undefined) ?? null);
   }
   if (sets.length === 0) return getTask(id);
 
@@ -129,6 +159,191 @@ export function updateTask(id: string, patch: Partial<Task>): Task | null {
 
 export function deleteTask(id: string) {
   getDb().prepare("DELETE FROM tasks WHERE id = ?").run(id);
+}
+
+/** Hand-picked order: each id gets its index as its position. */
+export function reorderTasks(ids: string[]) {
+  const db = getDb();
+  const stmt = db.prepare("UPDATE tasks SET position = ? WHERE id = ?");
+  db.exec("BEGIN");
+  try {
+    ids.forEach((id, index) => stmt.run(index, id));
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+/* ------------------------------------------------------------- routines */
+
+interface RoutineRow {
+  id: string;
+  title: string;
+  description: string | null;
+  priority: string;
+  categoryId: string | null;
+  dueTime: string | null;
+  repeat: string;
+  startDate: string;
+  lastDate: string | null;
+  paused: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function toRoutine(r: RoutineRow): Routine {
+  return {
+    id: r.id,
+    title: r.title,
+    description: r.description ?? undefined,
+    priority: r.priority as Routine["priority"],
+    categoryId: r.categoryId ?? undefined,
+    dueTime: r.dueTime ?? undefined,
+    repeat: JSON.parse(r.repeat),
+    startDate: r.startDate,
+    lastDate: r.lastDate ?? undefined,
+    paused: !!r.paused,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  };
+}
+
+export function listRoutines(): Routine[] {
+  return rows<RoutineRow>(
+    getDb().prepare("SELECT * FROM routines ORDER BY createdAt, rowid").all(),
+  ).map(toRoutine);
+}
+
+export function getRoutine(id: string): Routine | null {
+  const found = row<RoutineRow>(
+    getDb().prepare("SELECT * FROM routines WHERE id = ?").get(id),
+  );
+  return found ? toRoutine(found) : null;
+}
+
+export function createRoutine(input: Partial<Routine>): Routine {
+  const id = input.id ?? newId();
+  const stamp = now();
+  getDb()
+    .prepare(
+      `INSERT INTO routines
+       (id,title,description,priority,categoryId,dueTime,repeat,startDate,lastDate,paused,createdAt,updatedAt)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+    )
+    .run(
+      id,
+      input.title ?? "",
+      input.description ?? null,
+      input.priority ?? "normal",
+      input.categoryId ?? null,
+      input.dueTime ?? null,
+      JSON.stringify(input.repeat ?? { kind: "daily" }),
+      input.startDate ?? localDateKey(),
+      input.lastDate ?? null,
+      input.paused ? 1 : 0,
+      input.createdAt ?? stamp,
+      stamp,
+    );
+  return getRoutine(id)!;
+}
+
+const ROUTINE_FIELDS = [
+  "title",
+  "description",
+  "priority",
+  "categoryId",
+  "dueTime",
+  "repeat",
+  "startDate",
+  "paused",
+] as const;
+
+// What a change to the routine carries over to today's copy, if still open.
+const CARRIED_TO_COPY = [
+  "title",
+  "description",
+  "priority",
+  "categoryId",
+  "dueTime",
+] as const;
+
+export function updateRoutine(
+  id: string,
+  patch: Partial<Routine>,
+): Routine | null {
+  const sets: string[] = [];
+  const values: (string | number | null)[] = [];
+  for (const field of ROUTINE_FIELDS) {
+    if (!(field in patch)) continue;
+    const value = patch[field];
+    sets.push(`${field} = ?`);
+    if (field === "paused") values.push(value ? 1 : 0);
+    else if (field === "repeat") values.push(JSON.stringify(value));
+    else values.push((value as string | undefined) ?? null);
+  }
+  if (sets.length === 0) return getRoutine(id);
+  sets.push("updatedAt = ?");
+  values.push(now(), id);
+  getDb()
+    .prepare(`UPDATE routines SET ${sets.join(", ")} WHERE id = ?`)
+    .run(...values);
+
+  const copyPatch: Partial<Task> = {};
+  for (const field of CARRIED_TO_COPY) {
+    if (field in patch) Object.assign(copyPatch, { [field]: patch[field] });
+  }
+  const copy = getTask(instanceId(id, localDateKey()));
+  if (copy && !copy.archivedAt && Object.keys(copyPatch).length > 0) {
+    updateTask(copy.id, copyPatch);
+  }
+  return getRoutine(id);
+}
+
+/** Past copies stay in the archive as history; only the routine goes. */
+export function deleteRoutine(id: string) {
+  getDb().prepare("DELETE FROM routines WHERE id = ?").run(id);
+}
+
+/**
+ * Makes today's copy of every routine that falls today and doesn't have one
+ * yet. A copy left open from an earlier day is filed away first, so missed
+ * days don't pile up as overdue. Safe to call on every load: each routine is
+ * handled at most once a day, and a copy's id is fixed by routine and day.
+ */
+export function ensureRoutineCopies(today: string = localDateKey()): Task[] {
+  const db = getDb();
+  const made: Task[] = [];
+  for (const routine of listRoutines()) {
+    if ((routine.lastDate ?? "") >= today) continue;
+    if (!occursOn(routine, today)) continue;
+    const stamp = now();
+    db.prepare(
+      `UPDATE tasks SET archivedAt = ?, updatedAt = ?
+       WHERE routineId = ? AND completed = 0 AND archivedAt IS NULL
+         AND dueDate < ?`,
+    ).run(stamp, stamp, routine.id, today);
+    const id = instanceId(routine.id, today);
+    if (!getTask(id)) {
+      made.push(
+        createTask({
+          id,
+          title: routine.title,
+          description: routine.description,
+          dueDate: today,
+          dueTime: routine.dueTime,
+          priority: routine.priority,
+          categoryId: routine.categoryId,
+          routineId: routine.id,
+        }),
+      );
+    }
+    db.prepare("UPDATE routines SET lastDate = ? WHERE id = ?").run(
+      today,
+      routine.id,
+    );
+  }
+  return made;
 }
 
 /* --------------------------------------------------------------- events */
@@ -690,6 +905,7 @@ export function readAll(): DataSnapshot {
     transactions: listTransactions(),
     notes: listNotes(),
     checklists: listChecklists(),
+    routines: listRoutines(),
     categories: listCategories(),
     settings: { startMonth: getStartMonth() },
   };
@@ -708,6 +924,7 @@ export function replaceAll(snapshot: Partial<DataSnapshot>) {
       "transactions",
       "events",
       "tasks",
+      "routines",
       "categories",
     ]) {
       db.exec(`DELETE FROM ${table}`);
@@ -718,6 +935,7 @@ export function replaceAll(snapshot: Partial<DataSnapshot>) {
         "INSERT INTO categories (id,name,color,kind) VALUES (?,?,?,?)",
       ).run(c.id, c.name, c.color, c.kind);
     }
+    for (const r of snapshot.routines ?? []) createRoutine(r);
     for (const t of snapshot.tasks ?? []) createTask(t);
     for (const e of snapshot.events ?? []) createEvent(e);
     for (const t of snapshot.transactions ?? []) createTransaction(t);
@@ -756,6 +974,7 @@ export function clearAll() {
     "transactions",
     "events",
     "tasks",
+    "routines",
     "categories",
     "settings",
   ]) {

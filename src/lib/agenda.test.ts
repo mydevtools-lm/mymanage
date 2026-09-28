@@ -185,3 +185,28 @@ describe("dayProgress", () => {
     expect(dayProgress(build({})).ratio).toBe(0);
   });
 });
+
+describe("hand-picked order", () => {
+  it("puts untimed tasks in their saved order, unplaced ones last", () => {
+    const day = "2026-09-28";
+    const task = (id: string, position?: number) =>
+      ({
+        id,
+        title: id,
+        dueDate: day,
+        priority: "normal",
+        completed: false,
+        position,
+        createdAt: "",
+        updatedAt: "",
+      }) as Task;
+    const agenda = buildDayAgenda({
+      date: day,
+      today: day,
+      tasks: [task("c"), task("b", 1), task("a", 0)],
+      events: [],
+      googleEvents: [],
+    });
+    expect(agenda.untimedTasks.map((t) => t.id)).toEqual(["a", "b", "c"]);
+  });
+});

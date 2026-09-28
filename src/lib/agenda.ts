@@ -1,5 +1,6 @@
 import type { CalendarEvent, Task } from "./types";
 import { localDayOf } from "./format";
+import { byPosition } from "./task-groups";
 import type { ExternalEvent } from "./use-google-events";
 
 /**
@@ -101,6 +102,8 @@ export function buildDayAgenda({
       untimedTasks.push(task);
     }
   }
+
+  untimedTasks.sort(byPosition);
 
   timeline.sort(
     (a, b) =>

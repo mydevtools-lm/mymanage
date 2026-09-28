@@ -59,6 +59,7 @@ export function SortableList<T extends { id: string }>({
         const handle = (
           <button
             type="button"
+            data-drag-handle
             aria-label={`${handleLabel} — מקום ${index + 1} מתוך ${shown.length}`}
             className="flex size-7 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground/60 transition-colors active:cursor-grabbing can-hover:hover:text-foreground"
             onPointerDown={(e) => {

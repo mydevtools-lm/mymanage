@@ -8,12 +8,14 @@ import type {
   Checklist,
   DataSnapshot,
   Note,
+  Routine,
   SeriesScope,
   Settings,
   Task,
   Transaction,
 } from "./types";
-import { toDateKey, toMonthKey } from "./format";
+import { instanceId, occursOn } from "./routines";
+import { todayKey, toDateKey, toMonthKey } from "./format";
 import { toJsonBody } from "./json-body";
 import { planSeriesDelete, planSeriesEdit, type SeriesPlan } from "./finance";
 
@@ -41,6 +43,10 @@ type TransactionInput = Omit<Transaction, "id" | "createdAt">;
 type NoteInput = Pick<Note, "title" | "body"> &
   Partial<Pick<Note, "pinned" | "color">>;
 type CategoryInput = Omit<Category, "id">;
+type RoutineInput = Omit<
+  Routine,
+  "id" | "createdAt" | "updatedAt" | "lastDate" | "paused"
+>;
 
 interface AppState {
   hydrated: boolean;
@@ -50,6 +56,7 @@ interface AppState {
   transactions: Transaction[];
   notes: Note[];
   checklists: Checklist[];
+  routines: Routine[];
   categories: Category[];
   settings: Settings;
 
@@ -69,6 +76,15 @@ interface AppState {
   deleteTasks: (ids: string[]) => void;
   restoreTask: (id: string) => void;
   deleteTask: (id: string) => void;
+  /** Save a hand-picked order for the tasks of one day. */
+  reorderTasks: (ids: string[]) => void;
+  toggleSubtask: (taskId: string, subtaskId: string) => void;
+
+  /** A task that comes back by itself; today's copy appears at once. */
+  addRoutine: (input: RoutineInput) => void;
+  updateRoutine: (id: string, input: Partial<RoutineInput>) => void;
+  toggleRoutinePause: (id: string) => void;
+  deleteRoutine: (id: string) => void;
 
   addEvent: (input: EventInput) => void;
   updateEvent: (id: string, input: Partial<EventInput>) => void;
@@ -187,6 +203,7 @@ function applySnapshot(snapshot: DataSnapshot) {
     transactions: snapshot.transactions ?? [],
     notes: snapshot.notes ?? [],
     checklists: snapshot.checklists ?? [],
+    routines: snapshot.routines ?? [],
     categories: snapshot.categories ?? [],
     settings: snapshot.settings ?? { startMonth: toMonthKey(new Date()) },
     hydrated: true,
@@ -245,6 +262,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   transactions: [],
   notes: [],
   checklists: [],
+  routines: [],
   categories: [],
   settings: { startMonth: toMonthKey(new Date()) },
 
@@ -398,6 +416,110 @@ export const useAppStore = create<AppState>()((set, get) => ({
       api(`/api/tasks/${id}`, "DELETE"),
       () => set((s) => ({ tasks: insertAt(s.tasks, index, task) })),
       () => api("/api/tasks", "POST", task),
+    );
+  },
+
+  reorderTasks: (ids) => {
+    const position = new Map(ids.map((id, index) => [id, index]));
+    set((s) => ({
+      tasks: s.tasks.map((t) =>
+        position.has(t.id) ? { ...t, position: position.get(t.id) } : t,
+      ),
+    }));
+    push(api("/api/tasks/reorder", "POST", { ids }));
+  },
+  toggleSubtask: (taskId, subtaskId) => {
+    const task = get().tasks.find((t) => t.id === taskId);
+    if (!task?.subtasks) return;
+    const subtasks = task.subtasks.map((st) =>
+      st.id === subtaskId ? { ...st, done: !st.done } : st,
+    );
+    get().updateTask(taskId, { subtasks });
+  },
+
+  /* ------------------------------------------------------- routines */
+
+  addRoutine: (input) => {
+    const today = todayKey();
+    const routine: Routine = {
+      ...input,
+      id: crypto.randomUUID(),
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    // Mirror what the server does: today's copy, under the same fixed id.
+    const falls = occursOn(routine, today);
+    set((s) => ({
+      routines: [...s.routines, routine],
+      tasks: falls
+        ? [
+            ...s.tasks,
+            {
+              id: instanceId(routine.id, today),
+              title: routine.title,
+              description: routine.description,
+              dueDate: today,
+              dueTime: routine.dueTime,
+              priority: routine.priority,
+              categoryId: routine.categoryId,
+              routineId: routine.id,
+              completed: false,
+              createdAt: now(),
+              updatedAt: now(),
+            },
+          ]
+        : s.tasks,
+    }));
+    push(api("/api/routines", "POST", routine));
+  },
+  updateRoutine: (id, input) => {
+    const copyId = instanceId(id, todayKey());
+    const carried = {
+      title: input.title,
+      description: input.description,
+      priority: input.priority,
+      categoryId: input.categoryId,
+      dueTime: input.dueTime,
+    };
+    set((s) => ({
+      routines: s.routines.map((r) =>
+        r.id === id ? { ...r, ...input, updatedAt: now() } : r,
+      ),
+      // The server carries the same fields over to today's open copy.
+      tasks: s.tasks.map((t) =>
+        t.id === copyId && !t.archivedAt
+          ? {
+              ...t,
+              ...Object.fromEntries(
+                Object.entries(carried).filter(([k]) => k in input),
+              ),
+            }
+          : t,
+      ),
+    }));
+    push(api(`/api/routines/${id}`, "PATCH", input));
+  },
+  toggleRoutinePause: (id) => {
+    const routine = get().routines.find((r) => r.id === id);
+    if (!routine) return;
+    const paused = !routine.paused;
+    set((s) => ({
+      routines: s.routines.map((r) => (r.id === id ? { ...r, paused } : r)),
+    }));
+    push(api(`/api/routines/${id}`, "PATCH", { paused }));
+    toast(paused ? "הושהתה — לא תופיע עד שתחודש" : "חודשה");
+  },
+  deleteRoutine: (id) => {
+    const routines = get().routines;
+    const index = routines.findIndex((r) => r.id === id);
+    if (index < 0) return;
+    const routine = routines[index];
+    set((s) => ({ routines: s.routines.filter((r) => r.id !== id) }));
+    offerUndo(
+      "המשימה הקבועה נמחקה",
+      api(`/api/routines/${id}`, "DELETE"),
+      () => set((s) => ({ routines: insertAt(s.routines, index, routine) })),
+      () => api("/api/routines", "POST", routine),
     );
   },
 
@@ -702,6 +824,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
       transactions: s.transactions.map((t) =>
         t.categoryId === id ? { ...t, categoryId: undefined } : t,
       ),
+      routines: s.routines.map((r) =>
+        r.categoryId === id ? { ...r, categoryId: undefined } : r,
+      ),
     }));
     push(api(`/api/categories/${id}`, "DELETE"));
   },
@@ -718,6 +843,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       transactions: s.transactions,
       notes: s.notes,
       checklists: s.checklists,
+      routines: s.routines,
       categories: s.categories,
       settings: s.settings,
     };
