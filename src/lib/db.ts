@@ -160,6 +160,9 @@ const MIGRATIONS: string[] = [
    );
    CREATE INDEX links_a ON links(aId);
    CREATE INDEX links_b ON links(bId);`,
+  // v7 — reminders: minutes before a task's or an event's time.
+  `ALTER TABLE tasks ADD COLUMN reminder INTEGER;
+   ALTER TABLE events ADD COLUMN reminder INTEGER;`,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

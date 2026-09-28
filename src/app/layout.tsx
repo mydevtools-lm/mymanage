@@ -13,6 +13,8 @@ import { SeriesPrompt } from "@/components/series-prompt";
 import { BudgetWatch } from "@/components/finance/budget-watch";
 import { CommandPalette } from "@/components/command-palette";
 import { SmartAdd } from "@/components/smart-add";
+import { BriefDialog } from "@/components/brief-dialog";
+import { ReminderWatch } from "@/components/reminder-watch";
 
 const heebo = Heebo({
   variable: "--font-sans",
@@ -84,6 +86,8 @@ export default function RootLayout({
           <BudgetWatch />
           <CommandPalette />
           <SmartAdd />
+          <BriefDialog />
+          <ReminderWatch />
         </Providers>
       </body>
     </html>

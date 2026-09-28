@@ -29,6 +29,8 @@ export interface Task {
   subtasks?: Subtask[];
   /** Hand-picked order among the tasks of one day; lower comes first. */
   position?: number;
+  /** Minutes before dueTime to remind; unset means no reminder. */
+  reminder?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -78,6 +80,8 @@ export interface CalendarEvent {
   location?: string;
   notes?: string;
   color: ColorKey;
+  /** Minutes before startTime to remind; unset means no reminder. */
+  reminder?: number;
   /** Comes back from `date` on, until `until` (inclusive) if set. */
   repeat?: Repeat;
   until?: string;

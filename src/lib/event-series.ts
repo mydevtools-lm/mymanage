@@ -24,6 +24,7 @@ export type EventFields = Partial<
     | "color"
     | "repeat"
     | "until"
+    | "reminder"
   >
 >;
 

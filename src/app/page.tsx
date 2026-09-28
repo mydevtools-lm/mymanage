@@ -11,6 +11,7 @@ import {
   Inbox,
   Plus,
   Wallet,
+  Sunrise,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +25,7 @@ import {
 import { Hydrated, PageHeader } from "@/components/shared";
 import { TaskDialog } from "@/components/tasks/task-dialog";
 import { SortableList } from "@/components/sortable-list";
+import { useBrief } from "@/components/brief-dialog";
 import { TaskRow } from "@/components/tasks/task-row";
 import { EventDialog } from "@/components/calendar/event-dialog";
 import { TransactionDialog } from "@/components/finance/transaction-dialog";
@@ -118,6 +120,9 @@ export default function TodayPage() {
             </Button>
             <Button variant="secondary" onClick={() => setTxDialog(true)}>
               <Wallet /> תנועה
+            </Button>
+            <Button variant="ghost" onClick={() => useBrief.getState().open()}>
+              <Sunrise /> תדריך
             </Button>
           </div>
         }

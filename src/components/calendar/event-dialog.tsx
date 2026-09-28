@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { ColorSelect, Field } from "@/components/fields";
 import { RepeatField } from "@/components/tasks/repeat-field";
 import { LinksSection } from "@/components/links-section";
+import { ReminderField } from "@/components/reminder-field";
 import { useEventActions } from "@/components/calendar/event-actions";
 import { todayKey } from "@/lib/format";
 import type { CalendarEvent, ColorKey, Repeat } from "@/lib/types";
@@ -67,6 +68,7 @@ function EventForm({
   const [color, setColor] = useState<ColorKey>(event?.color ?? "teal");
   const [repeat, setRepeat] = useState<Repeat | null>(event?.repeat ?? null);
   const [until, setUntil] = useState(event?.until ?? "");
+  const [reminder, setReminder] = useState(event?.reminder);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -90,6 +92,7 @@ function EventForm({
       color,
       repeat: repeat ?? undefined,
       until: (repeat && until) || undefined,
+      reminder: !allDay && startTime ? reminder : undefined,
     };
     // A recurring event asks how far the change reaches; stay open until
     // that is answered, and keep the edits if the question is dismissed.
@@ -156,6 +159,12 @@ function EventForm({
             />
           </Field>
         </div>
+      )}
+
+      {!allDay && startTime && (
+        <Field label="תזכורת">
+          <ReminderField value={reminder} onChange={setReminder} />
+        </Field>
       )}
 
       <Field label="חזרה">

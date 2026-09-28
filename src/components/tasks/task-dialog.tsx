@@ -18,6 +18,7 @@ import { CategorySelect, Field, NONE, SimpleSelect } from "@/components/fields";
 import { PRIORITY_LABELS } from "@/components/shared";
 import { RepeatField } from "@/components/tasks/repeat-field";
 import { LinksSection } from "@/components/links-section";
+import { ReminderField } from "@/components/reminder-field";
 import { useAppStore } from "@/lib/store";
 import { describeRepeat } from "@/lib/routines";
 import { todayKey } from "@/lib/format";
@@ -167,6 +168,7 @@ function TaskForm({
     routine?.repeat ?? defaultRepeat ?? null,
   );
   const [subtasks, setSubtasks] = useState<Subtask[]>(task?.subtasks ?? []);
+  const [reminder, setReminder] = useState(task?.reminder);
 
   // Only a new task can become a routine; a routine is edited as one.
   const canRepeat = !task;
@@ -211,6 +213,8 @@ function TaskForm({
       subtasks: subtasks
         .map((s) => ({ ...s, text: s.text.trim() }))
         .filter((s) => s.text),
+      // A reminder needs a moment to count back from.
+      reminder: dueDate && dueTime ? reminder : undefined,
     };
     if (task) {
       updateTask(task.id, input);
@@ -279,6 +283,12 @@ function TaskForm({
           />
         </Field>
       </div>
+
+      {!repeating && dueDate && dueTime && (
+        <Field label="תזכורת">
+          <ReminderField value={reminder} onChange={setReminder} />
+        </Field>
+      )}
 
       {(canRepeat || routine) && (
         <Field label="חזרה">

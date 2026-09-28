@@ -20,6 +20,22 @@ export default defineConfig({
     locale: "he-IL",
     timezoneId: "Asia/Jerusalem",
     trace: "retain-on-failure",
+    // The morning brief opens by itself on a first visit; tests that aren't
+    // about it start with it already seen.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: `http://localhost:${PORT}`,
+          localStorage: [
+            {
+              name: "lior-device",
+              value: JSON.stringify({ autoBrief: false, fired: {} }),
+            },
+          ],
+        },
+      ],
+    },
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [

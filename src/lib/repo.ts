@@ -42,6 +42,7 @@ interface TaskRow {
   routineId: string | null;
   subtasks: string | null;
   position: number | null;
+  reminder: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -75,6 +76,7 @@ function toTask(r: TaskRow): Task {
     routineId: r.routineId ?? undefined,
     subtasks: parseSubtasks(r.subtasks),
     position: r.position ?? undefined,
+    reminder: r.reminder ?? undefined,
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
@@ -92,8 +94,8 @@ export function createTask(input: Partial<Task>): Task {
   getDb()
     .prepare(
       `INSERT INTO tasks
-       (id,title,description,dueDate,dueTime,priority,categoryId,completed,completedAt,archivedAt,routineId,subtasks,position,createdAt,updatedAt)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       (id,title,description,dueDate,dueTime,priority,categoryId,completed,completedAt,archivedAt,routineId,subtasks,position,reminder,createdAt,updatedAt)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     )
     .run(
       id,
@@ -109,6 +111,7 @@ export function createTask(input: Partial<Task>): Task {
       input.routineId ?? null,
       serializeSubtasks(input.subtasks),
       input.position ?? null,
+      input.reminder ?? null,
       input.createdAt ?? stamp,
       stamp,
     );
@@ -134,6 +137,7 @@ const TASK_FIELDS = [
   "archivedAt",
   "subtasks",
   "position",
+  "reminder",
 ] as const;
 
 export function updateTask(id: string, patch: Partial<Task>): Task | null {
@@ -363,6 +367,7 @@ interface EventRow {
   repeat: string | null;
   until: string | null;
   exceptions: string | null;
+  reminder: number | null;
   createdAt: string;
 }
 
@@ -390,6 +395,7 @@ function toEvent(r: EventRow): CalendarEvent {
     until: r.until ?? undefined,
     // Stored as NULL when empty, so a list here always has something in it.
     exceptions: parseJson(r.exceptions),
+    reminder: r.reminder ?? undefined,
     createdAt: r.createdAt,
   };
 }
@@ -404,8 +410,8 @@ export function createEvent(input: Partial<CalendarEvent>): CalendarEvent {
   const id = input.id ?? newId();
   getDb()
     .prepare(
-      `INSERT INTO events (id,title,date,startTime,endTime,allDay,location,notes,color,repeat,until,exceptions,createdAt)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO events (id,title,date,startTime,endTime,allDay,location,notes,color,repeat,until,exceptions,reminder,createdAt)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     )
     .run(
       id,
@@ -420,6 +426,7 @@ export function createEvent(input: Partial<CalendarEvent>): CalendarEvent {
       input.repeat ? JSON.stringify(input.repeat) : null,
       input.until ?? null,
       input.exceptions?.length ? JSON.stringify(input.exceptions) : null,
+      input.reminder ?? null,
       input.createdAt ?? now(),
     );
   return getEvent(id)!;
@@ -444,6 +451,7 @@ const EVENT_FIELDS = [
   "repeat",
   "until",
   "exceptions",
+  "reminder",
 ] as const;
 
 export function updateEvent(
