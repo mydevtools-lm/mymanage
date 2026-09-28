@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   addMonths,
   eachDayOfInterval,
@@ -283,10 +284,12 @@ export default function CalendarPage() {
             {google.error ? (
               <span className="text-destructive">{google.error}</span>
             ) : !google.configured ? (
-              <span>
-                גוגל יומן לא מחובר — ראה{" "}
-                <code className="rounded bg-muted px-1">.env.example</code>
-              </span>
+              <Link
+                href="/settings?tab=connections"
+                className="underline-offset-4 hover:text-foreground hover:underline"
+              >
+                גוגל יומן לא מחובר · לחיבור
+              </Link>
             ) : google.loading ? (
               <span>טוען מגוגל…</span>
             ) : (

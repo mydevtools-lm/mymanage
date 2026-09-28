@@ -1,0 +1,6 @@
+# Keep LF in the working tree on Windows too. Prettier writes LF, and
+# CRLF checkouts broke multi-line text edits and flooded git with warnings.
+* text=auto eol=lf
+*.ico binary
+*.png binary
+*.db binary

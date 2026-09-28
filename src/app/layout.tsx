@@ -11,7 +11,7 @@ const heebo = Heebo({
 
 export const metadata: Metadata = {
   title: "ניהול אישי — Lior Management",
-  description: "משימות, יומן, ניהול כללי וכספים במקום אחד",
+  description: "היום, משימות, יומן, כספים, הערות ורשימות — במקום אחד",
 };
 
 export default function RootLayout({

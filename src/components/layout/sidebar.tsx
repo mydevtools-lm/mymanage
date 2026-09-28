@@ -3,27 +3,30 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
-import {
-  CalendarDays,
-  CheckSquare,
-  ListTodo,
-  LayoutDashboard,
-  Moon,
-  Settings2,
-  Sun,
-  Wallet,
-} from "lucide-react";
+import { Moon, Sun } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { MAIN_NAV, SETTINGS_NAV, isActive, type NavItem } from "./nav";
 
-const NAV = [
-  { href: "/", label: "לוח בקרה", icon: LayoutDashboard },
-  { href: "/daily", label: "משימות יומיות", icon: ListTodo },
-  { href: "/tasks", label: "כל המשימות", icon: CheckSquare },
-  { href: "/calendar", label: "יומן", icon: CalendarDays },
-  { href: "/finance", label: "כספים", icon: Wallet },
-  { href: "/manage", label: "ניהול כללי", icon: Settings2 },
-];
+function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+  const Icon = item.icon;
+  const active = isActive(pathname, item.href);
+  return (
+    <Link
+      href={item.href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        active
+          ? "bg-sidebar-accent text-sidebar-accent-foreground"
+          : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
+      )}
+    >
+      <Icon className="size-4" />
+      {item.label}
+    </Link>
+  );
+}
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -36,29 +39,14 @@ export function Sidebar() {
         <div className="text-xs text-muted-foreground">Lior Management</div>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 px-3">
-        {NAV.map(({ href, label, icon: Icon }) => {
-          const active =
-            href === "/" ? pathname === "/" : pathname.startsWith(href);
-          return (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                active
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
-              )}
-            >
-              <Icon className="size-4" />
-              {label}
-            </Link>
-          );
-        })}
+      <nav aria-label="ניווט ראשי" className="flex flex-1 flex-col gap-1 px-3">
+        {MAIN_NAV.map((item) => (
+          <NavLink key={item.href} item={item} pathname={pathname} />
+        ))}
       </nav>
 
-      <div className="border-t border-sidebar-border p-3">
+      <div className="grid gap-1 border-t border-sidebar-border p-3">
+        <NavLink item={SETTINGS_NAV} pathname={pathname} />
         <Button
           variant="ghost"
           className="w-full justify-start gap-3"

@@ -149,11 +149,9 @@ describe("recurring series", () => {
         },
       ],
     });
-    store
-      .getState()
-      .editTransactionInSeries("rent", "2027-01", "following", {
-        amount: 4800,
-      });
+    store.getState().editTransactionInSeries("rent", "2027-01", "following", {
+      amount: 4800,
+    });
 
     const [oldSeries, newSeries] = store.getState().transactions;
     expect(oldSeries.recurring?.endMonth).toBe("2026-12");

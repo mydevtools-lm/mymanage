@@ -14,6 +14,7 @@ import {
 } from "@/components/shared";
 import { TaskDialog } from "@/components/tasks/task-dialog";
 import { TaskRow } from "@/components/tasks/task-row";
+import { ArchiveList } from "@/components/tasks/archive-list";
 import { useAppStore } from "@/lib/store";
 import type { Priority, Task } from "@/lib/types";
 
@@ -49,10 +50,8 @@ export default function TasksPage() {
     const q = query.trim().toLowerCase();
     return tasks
       .filter((t) => {
-        // Archived work lives on the daily screen's archive tab.
+        // Ticking a task archives it; archived work has its own tab.
         if (t.archivedAt) return false;
-        if (status === "open" && t.completed) return false;
-        if (status === "done" && !t.completed) return false;
         if (priority !== ALL && t.priority !== priority) return false;
         if (categoryId !== NONE && t.categoryId !== categoryId) return false;
         if (q && !`${t.title} ${t.description ?? ""}`.toLowerCase().includes(q))
@@ -60,9 +59,8 @@ export default function TasksPage() {
         return true;
       })
       .sort(sortTasks);
-  }, [tasks, status, priority, categoryId, query]);
+  }, [tasks, priority, categoryId, query]);
 
-  const openCount = tasks.filter((t) => !t.completed && !t.archivedAt).length;
   const activeCount = tasks.filter((t) => !t.archivedAt).length;
   const archivedCount = tasks.filter((t) => t.archivedAt).length;
 
@@ -70,7 +68,7 @@ export default function TasksPage() {
     <>
       <PageHeader
         title="משימות"
-        description={`${openCount} משימות פתוחות מתוך ${activeCount}${archivedCount ? ` · ${archivedCount} בארכיון` : ""}`}
+        description={`${activeCount} פעילות${archivedCount ? ` · ${archivedCount} בארכיון` : ""}`}
         actions={
           <Button
             onClick={() => {
@@ -88,42 +86,49 @@ export default function TasksPage() {
         <div className="mb-4 flex flex-wrap items-center gap-3">
           <Tabs value={status} onValueChange={(v) => setStatus(v as string)}>
             <TabsList>
-              <TabsTrigger value="open">פתוחות</TabsTrigger>
-              <TabsTrigger value="done">הושלמו</TabsTrigger>
-              <TabsTrigger value="all">הכול</TabsTrigger>
+              <TabsTrigger value="open">פעילות</TabsTrigger>
+              <TabsTrigger value="archive">
+                ארכיון{archivedCount > 0 && ` (${archivedCount})`}
+              </TabsTrigger>
             </TabsList>
           </Tabs>
-          <SimpleSelect
-            className="w-36"
-            value={priority}
-            onChange={setPriority}
-            options={[
-              { value: ALL, label: "כל העדיפויות" },
-              ...(Object.keys(PRIORITY_LABELS) as Priority[]).map((p) => ({
-                value: p,
-                label: PRIORITY_LABELS[p],
-              })),
-            ]}
-          />
-          <CategorySelect
-            kind="task"
-            includeAll
-            className="w-40"
-            value={categoryId}
-            onChange={setCategoryId}
-          />
-          <div className="relative ms-auto w-56">
-            <Search className="absolute top-1/2 start-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="ps-8"
-              placeholder="חיפוש..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-          </div>
+          {status === "open" && (
+            <>
+              <SimpleSelect
+                className="w-36"
+                value={priority}
+                onChange={setPriority}
+                options={[
+                  { value: ALL, label: "כל העדיפויות" },
+                  ...(Object.keys(PRIORITY_LABELS) as Priority[]).map((p) => ({
+                    value: p,
+                    label: PRIORITY_LABELS[p],
+                  })),
+                ]}
+              />
+              <CategorySelect
+                kind="task"
+                includeAll
+                className="w-40"
+                value={categoryId}
+                onChange={setCategoryId}
+              />
+              <div className="relative ms-auto w-56">
+                <Search className="absolute top-1/2 start-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  className="ps-8"
+                  placeholder="חיפוש..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                />
+              </div>
+            </>
+          )}
         </div>
 
-        {filtered.length === 0 ? (
+        {status === "archive" ? (
+          <ArchiveList />
+        ) : filtered.length === 0 ? (
           <EmptyState
             icon={CheckSquare}
             title="אין משימות להצגה"
