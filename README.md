@@ -1,7 +1,7 @@
 # Lior Management
 
 מערכת ניהול אישית מקומית: היום, משימות, יומן, כספים, הערות ורשימות.
-האפיון המלא נמצא ב־[docs/SPEC.md](docs/SPEC.md). תוכנית ההמשך: מסכים ב־[docs/SCREENS.md](docs/SCREENS.md) (רץ ראשון), והתוכנית הכללית ב־[docs/SPRINTS.md](docs/SPRINTS.md).
+האפיון המלא נמצא ב־[docs/SPEC.md](docs/SPEC.md). תוכנית ההמשך: מסכים ב־[docs/SCREENS.md](docs/SCREENS.md) (רץ ראשון), והתוכנית הכללית ב־[docs/SPRINTS.md](docs/SPRINTS.md). הכיוון הבא — אפליקציית דסקטופ בקוד פתוח: [docs/DESKTOP.md](docs/DESKTOP.md). הכיוון הבא — אפליקציית דסקטופ בקוד פתוח: [docs/DESKTOP.md](docs/DESKTOP.md).
 
 ## הרצה
 
