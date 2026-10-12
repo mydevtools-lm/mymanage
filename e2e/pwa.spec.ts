@@ -40,11 +40,11 @@ test("the service worker keeps the app opening without the server", async ({
   expect(active).toBe(true);
   // Let the worker take over this page, then cache it by visiting.
   await page.reload();
-  await expect(page.getByRole("heading", { name: "היום" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "היום", exact: true })).toBeVisible();
 
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "היום" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "היום", exact: true })).toBeVisible();
   await context.setOffline(false);
 });
 
