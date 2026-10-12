@@ -84,15 +84,44 @@ if (phase === "write") {
     await page.getByRole("menuitem", { name: "מחיקה" }).click();
   }
   await page.waitForTimeout(7000); // past the undo window
+
+  await goto(page, "/calendar/");
+  if (!(await page.getByText("עשן אירוע").count())) {
+    await page.getByRole("button", { name: "אירוע חדש" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "אירוע חדש" });
+    await dialog.getByLabel("כותרת").fill("עשן אירוע");
+    await dialog.getByLabel("שעת התחלה").fill("23:30");
+    await dialog.getByRole("button", { name: "הוספה" }).click();
+    await dialog.waitFor({ state: "hidden" });
+  }
+
+  await goto(page, "/finance/");
+  if (!(await page.getByText("עשן תנועה").count())) {
+    await page.getByRole("button", { name: "תנועה חדשה" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "תנועה חדשה" });
+    await dialog.getByLabel("סכום (₪)").fill("150");
+    await dialog.getByLabel("תיאור (רשות)").fill("עשן תנועה");
+    await dialog.getByRole("button", { name: "הוספה" }).click();
+    await dialog.waitFor({ state: "hidden" });
+  }
   if (process.argv[3]) await page.screenshot({ path: process.argv[3] });
   console.log("write done");
 } else {
+  // After a restart: what was written is still there, on every screen.
+  const seen = {};
+  for (const path of ["/", "/tasks/", "/calendar/", "/finance/", "/notes/", "/settings/"]) {
+    await goto(page, path);
+    seen[path] = "ok";
+  }
   await goto(page, "/tasks/");
+  seen.taskKept = await page.getByText("ד0 נשארת").count();
+  seen.taskDeleted = await page.getByText("ד0 נמחקת").count();
+  await goto(page, "/");
+  seen.event = await page.getByText("עשן אירוע").count();
+  await goto(page, "/finance/");
+  seen.transaction = await page.getByText("עשן תנועה").count();
   if (process.argv[3]) await page.screenshot({ path: process.argv[3] });
-  console.log("visible:", {
-    kept: await page.getByText("ד0 נשארת").count(),
-    deleted: await page.getByText("ד0 נמחקת").count(),
-  });
+  console.log("seen:", seen);
 }
 console.log("console warnings/errors:", warnings.length ? warnings : "none");
 await browser.close().catch(() => {});
