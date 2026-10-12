@@ -21,6 +21,7 @@ import type {
 import { instanceId, occursOn } from "./routines";
 import { setCurrency, todayKey, toDateKey, toMonthKey } from "./format";
 import { toJsonBody } from "./json-body";
+import { isTauri } from "./platform";
 import { planSeriesDelete, planSeriesEdit, type SeriesPlan } from "./finance";
 import {
   planEventDelete,
@@ -172,6 +173,13 @@ async function api(
   method: "GET" | "POST" | "PATCH" | "PUT" | "DELETE",
   body?: unknown,
 ) {
+  if (isTauri()) {
+    // The desktop app has no server: the same calls go to SQLite through
+    // Rust. Round-trip the body as JSON so cleared fields arrive as null,
+    // exactly as the server receives them.
+    const { localApi } = await import("./local-api");
+    return localApi(url, method, body ? JSON.parse(toJsonBody(body)) : undefined);
+  }
   const response = await fetch(url, {
     method,
     headers: body ? { "Content-Type": "application/json" } : undefined,

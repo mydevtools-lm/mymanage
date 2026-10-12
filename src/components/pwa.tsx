@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { create } from "zustand";
 import { useQuickAdd } from "@/components/quick-add";
 import { useSmartAdd } from "@/components/smart-add";
+import { isTauri } from "@/lib/platform";
 
 interface InstallPrompt extends Event {
   prompt: () => Promise<void>;
@@ -54,7 +55,13 @@ export function Pwa() {
     window.addEventListener("beforeinstallprompt", onOffer);
     window.addEventListener("appinstalled", onInstalled);
 
-    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
+    // The desktop app ships its files with it; a service worker would only
+    // serve a stale copy after an update.
+    if (
+      process.env.NODE_ENV === "production" &&
+      "serviceWorker" in navigator &&
+      !isTauri()
+    ) {
       navigator.serviceWorker
         .register("/sw.js", { scope: "/", updateViaCache: "none" })
         .catch((error) => console.error("service worker:", error));
