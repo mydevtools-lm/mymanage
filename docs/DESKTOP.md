@@ -348,7 +348,7 @@ store.ts ─ api() ─┬─ דפדפן: fetch → route.ts (שורה אחת) �
 - ☐ סודות ב‑`keyring`; `calendar_fetch` ו‑`assist_parse`
 - ☐ גיבוי יומי ולפני מיגרציה ב‑Rust (14 אחרונים, כמו היום)
 - ☐ שם המשתמש ושם המוצר מההגדרות; מסך פתיחה ראשונה (6.1)
-- ☐ Service worker כבוי ב‑Tauri
+- ☑ Service worker כבוי ב‑Tauri — כבר מד0 (`src/components/pwa.tsx:63`)
 
 **מוכן כאשר:** גוגל יומן ו‑Claude עובדים באפליקציה, ואין בקוד שם פרטי.
 
