@@ -35,9 +35,16 @@ fn checked_value(name: &str, value: &str) -> Result<String, String> {
     Ok(value.to_string())
 }
 
-/// Entries are filed under the app's identifier, so a renamed app starts clean.
+/// Entries are filed under the last part of the app's identifier
+/// ("management"), so a renamed app starts clean. Not the whole identifier:
+/// Windows stores the entry as "<name>.<service>", and on Windows 10 every
+/// write failed with error 8 once that passed about 43 characters.
+fn service(identifier: &str) -> &str {
+    identifier.rsplit('.').next().unwrap_or(identifier)
+}
+
 fn entry<R: Runtime>(app: &AppHandle<R>, name: &str) -> Result<Entry, String> {
-    Entry::new(&app.config().identifier, name).map_err(|e| e.to_string())
+    Entry::new(service(&app.config().identifier), name).map_err(|e| e.to_string())
 }
 
 fn read<R: Runtime>(app: &AppHandle<R>, name: &str) -> Result<Option<String>, String> {
@@ -144,6 +151,24 @@ mod tests {
         assert!(!valid_name("calendar-01"));
         assert!(!valid_name("calendar-"));
         assert!(!valid_name("github"));
+    }
+
+    #[test]
+    fn files_secrets_under_a_short_service_name() {
+        assert_eq!(service("io.github.mydevtools-lm.management"), "management");
+        // The longest entry name stays well inside what Windows accepted.
+        assert!(format!("calendar-9.{}", service("io.github.mydevtools-lm.management")).len() < 40);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn writes_reads_and_removes_a_secret_in_the_credential_manager() {
+        let entry = Entry::new("management-test", "calendar-9").unwrap();
+        let _ = entry.delete_credential();
+        entry.set_password("https://example.com/שלום.ics").unwrap();
+        assert_eq!(entry.get_password().unwrap(), "https://example.com/שלום.ics");
+        entry.delete_credential().unwrap();
+        assert!(matches!(entry.get_password(), Err(keyring::Error::NoEntry)));
     }
 
     #[test]

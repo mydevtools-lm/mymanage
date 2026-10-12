@@ -46,7 +46,16 @@ async function launch() {
     catch { await new Promise((r) => setTimeout(r, 200)); }
   }
   if (!browser) throw new Error("no debug port");
-  const page = browser.contexts()[0].pages()[0];
+  // The debug port can answer before the window has loaded the app.
+  let page;
+  for (let i = 0; i < 100 && !page; i++) {
+    page = browser
+      .contexts()[0]
+      ?.pages()
+      .find((p) => p.url().startsWith("http://tauri.localhost"));
+    if (!page) await new Promise((r) => setTimeout(r, 200));
+  }
+  if (!page) throw new Error("the app's page never loaded");
   await page.waitForLoadState("load");
   await page.locator("[data-skeleton]").first().waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
   await page.waitForFunction(() => !document.querySelector("[data-skeleton]"), null, { timeout: 15000 });
@@ -56,6 +65,10 @@ async function launch() {
 
 async function goto(page, path) {
   const origin = new URL(page.url()).origin;
+  // A full reload cuts off calls to Rust still in flight, and Tauri logs
+  // that ("Couldn't find callback id"). The app itself never reloads; let
+  // the calls finish first.
+  await page.waitForLoadState("networkidle").catch(() => {});
   await page.goto(origin + path);
   await page.waitForFunction(() => !document.querySelector("[data-skeleton]"), null, { timeout: 15000 });
 }
@@ -113,6 +126,14 @@ if (phase === "write") {
   console.log("write done");
 } else if (phase === "first-run") {
   const seen = {};
+  // This device may have answered on an earlier run; forget that here (the
+  // data folder still has to be fresh).
+  await page.evaluate(() => {
+    const device = JSON.parse(localStorage.getItem("lior-device") ?? "{}");
+    delete device.onboarded;
+    localStorage.setItem("lior-device", JSON.stringify(device));
+  });
+  await goto(page, "/");
   const dialog = page.getByRole("dialog", { name: /ברוכים הבאים/ });
   await dialog.waitFor({ timeout: 10000 });
   await dialog.getByLabel("איך לקרוא לך?").fill("בודקת");
