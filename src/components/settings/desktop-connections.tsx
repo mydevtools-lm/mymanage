@@ -24,7 +24,7 @@ import { useAppStore } from "@/lib/store";
 
 /**
  * Settings › connections in the desktop app. The iCal addresses and the
- * Claude key go straight to the Windows Credential Manager (through Rust);
+ * Claude key go straight to Rust, which keeps them encrypted (vault.rs);
  * after saving, the screen only knows that one is set — it can't show it.
  */
 
@@ -213,7 +213,7 @@ export function ClaudeCard() {
         )}
         <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <Lock className="mt-0.5 size-3 shrink-0" />
-          נשמר במנהל האישורים של Windows ולא מוצג שוב. מפתח יוצרים ב‑
+          נשמר מוצפן במחשב הזה, למשתמש הזה ב‑Windows, ולא מוצג שוב. מפתח יוצרים ב‑
           console.anthropic.com.
         </p>
       </CardContent>

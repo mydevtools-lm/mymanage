@@ -1,14 +1,14 @@
 //! Secrets and the network, kept in Rust (DESKTOP.md 5.4). The Google iCal
-//! addresses and the Claude key live in the Windows Credential Manager; the
+//! addresses and the Claude key are kept encrypted by vault.rs; the
 //! screens write each one once and only ever learn whether it is set. Rust
 //! reads the secret, makes the request and hands back the answer, so the
 //! secret never reaches the page.
 
-use keyring::Entry;
+use crate::vault::Vault;
 use serde::Serialize;
 use serde_json::Value as Json;
 use std::time::Duration;
-use tauri::{AppHandle, Runtime};
+use tauri::State;
 
 const CALENDARS: u8 = 9;
 const CLAUDE: &str = "anthropic";
@@ -35,26 +35,6 @@ fn checked_value(name: &str, value: &str) -> Result<String, String> {
     Ok(value.to_string())
 }
 
-/// Entries are filed under the last part of the app's identifier
-/// ("management"), so a renamed app starts clean. Not the whole identifier:
-/// Windows stores the entry as "<name>.<service>", and on Windows 10 every
-/// write failed with error 8 once that passed about 43 characters.
-fn service(identifier: &str) -> &str {
-    identifier.rsplit('.').next().unwrap_or(identifier)
-}
-
-fn entry<R: Runtime>(app: &AppHandle<R>, name: &str) -> Result<Entry, String> {
-    Entry::new(service(&app.config().identifier), name).map_err(|e| e.to_string())
-}
-
-fn read<R: Runtime>(app: &AppHandle<R>, name: &str) -> Result<Option<String>, String> {
-    match entry(app, name)?.get_password() {
-        Ok(secret) => Ok(Some(secret)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(e.to_string()),
-    }
-}
-
 #[derive(Serialize)]
 pub struct SecretStatus {
     /// Numbers of the calendars that have an address, e.g. ["1", "3"].
@@ -63,30 +43,26 @@ pub struct SecretStatus {
 }
 
 #[tauri::command]
-pub fn secret_status<R: Runtime>(app: AppHandle<R>) -> Result<SecretStatus, String> {
+pub fn secret_status(vault: State<'_, Vault>) -> Result<SecretStatus, String> {
     let mut calendars = Vec::new();
     for n in 1..=CALENDARS {
-        if read(&app, &format!("calendar-{n}"))?.is_some() {
+        if vault.has(&format!("calendar-{n}"))? {
             calendars.push(n.to_string());
         }
     }
-    Ok(SecretStatus { calendars, claude: read(&app, CLAUDE)?.is_some() })
+    Ok(SecretStatus { calendars, claude: vault.has(CLAUDE)? })
 }
 
 /// Stores a secret; an empty value removes it.
 #[tauri::command]
-pub fn secret_set<R: Runtime>(app: AppHandle<R>, name: String, value: String) -> Result<(), String> {
+pub fn secret_set(vault: State<'_, Vault>, name: String, value: String) -> Result<(), String> {
     if !valid_name(&name) {
         return Err(format!("אין סוד בשם {name}"));
     }
-    let entry = entry(&app, &name)?;
     if value.trim().is_empty() {
-        return match entry.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(e.to_string()),
-        };
+        return vault.remove(&name);
     }
-    entry.set_password(&checked_value(&name, &value)?).map_err(|e| e.to_string())
+    vault.set(&name, &checked_value(&name, &value)?)
 }
 
 fn client() -> Result<reqwest::Client, String> {
@@ -100,12 +76,12 @@ fn client() -> Result<reqwest::Client, String> {
 /// fetch it itself; parsing stays in TypeScript (ical-parse.ts). Errors carry
 /// the status only — the address is the secret.
 #[tauri::command]
-pub async fn calendar_fetch<R: Runtime>(app: AppHandle<R>, id: String) -> Result<String, String> {
+pub async fn calendar_fetch(vault: State<'_, Vault>, id: String) -> Result<String, String> {
     let name = format!("calendar-{id}");
     if !valid_name(&name) {
         return Err(format!("אין יומן מספר {id}"));
     }
-    let url = read(&app, &name)?.ok_or("היומן לא מחובר")?;
+    let url = vault.get(&name)?.ok_or("היומן לא מחובר")?;
     let response = client()?
         .get(url)
         .send()
@@ -121,8 +97,8 @@ pub async fn calendar_fetch<R: Runtime>(app: AppHandle<R>, id: String) -> Result
 /// (assist-request.ts) and reads the answer; Rust adds the key and the fixed
 /// address, and nothing else.
 #[tauri::command]
-pub async fn assist_parse<R: Runtime>(app: AppHandle<R>, body: Json) -> Result<Json, String> {
-    let key = read(&app, CLAUDE)?.ok_or("אין מפתח Claude")?;
+pub async fn assist_parse(vault: State<'_, Vault>, body: Json) -> Result<Json, String> {
+    let key = vault.get(CLAUDE)?.ok_or("אין מפתח Claude")?;
     let response = client()?
         .post(CLAUDE_URL)
         .header("x-api-key", key)
@@ -151,24 +127,6 @@ mod tests {
         assert!(!valid_name("calendar-01"));
         assert!(!valid_name("calendar-"));
         assert!(!valid_name("github"));
-    }
-
-    #[test]
-    fn files_secrets_under_a_short_service_name() {
-        assert_eq!(service("io.github.mydevtools-lm.management"), "management");
-        // The longest entry name stays well inside what Windows accepted.
-        assert!(format!("calendar-9.{}", service("io.github.mydevtools-lm.management")).len() < 40);
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn writes_reads_and_removes_a_secret_in_the_credential_manager() {
-        let entry = Entry::new("management-test", "calendar-9").unwrap();
-        let _ = entry.delete_credential();
-        entry.set_password("https://example.com/שלום.ics").unwrap();
-        assert_eq!(entry.get_password().unwrap(), "https://example.com/שלום.ics");
-        entry.delete_credential().unwrap();
-        assert!(matches!(entry.get_password(), Err(keyring::Error::NoEntry)));
     }
 
     #[test]

@@ -1,6 +1,7 @@
 mod backup;
 mod db;
 mod services;
+mod vault;
 
 use tauri::Manager;
 
@@ -19,6 +20,7 @@ pub fn run() {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
             app.manage(db::Db::open(&dir.join("data.db"))?);
+            app.manage(vault::Vault::new(dir.join("secrets.json")));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

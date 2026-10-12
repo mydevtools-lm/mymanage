@@ -6,8 +6,8 @@ import { parseEvents, type ExternalEvent } from "./ical-parse";
 import { parseHebrew, type Proposal } from "./nl-parse";
 
 /**
- * Google Calendar and Claude in the desktop app. The secrets sit in the
- * Windows Credential Manager behind src-tauri/src/services.rs: the page
+ * Google Calendar and Claude in the desktop app. The secrets sit encrypted
+ * behind src-tauri/src/services.rs (vault.rs): the page
  * writes them once and only ever learns whether they are set. These
  * functions answer like /api/calendar/google and /api/assist/parse do in
  * the browser, so the screens don't care which one they talk to.
