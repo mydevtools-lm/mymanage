@@ -1,6 +1,18 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
+/**
+ * The desktop app (Tauri) loads the screens as static files and has no
+ * server: build them with `output: "export"`, and leave out every `.ts`
+ * special file — the /api route handlers and the PWA manifest — by accepting
+ * only `.tsx` pages and layouts. Redirects and headers need a server too.
+ */
+const desktopConfig: NextConfig = {
+  output: "export",
+  trailingSlash: true,
+  pageExtensions: ["tsx"],
+};
+
+const nextConfig: NextConfig = process.env.NEXT_TARGET === "desktop" ? desktopConfig : {
   // Addresses from before the navigation was restructured (screens sprint 1).
   redirects() {
     return Promise.resolve([

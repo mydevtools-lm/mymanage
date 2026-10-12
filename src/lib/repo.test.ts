@@ -309,10 +309,12 @@ describe("daily backup", () => {
         "",
       );
     }
-    backupIfDue(db, "2026-09-30");
+    // Later than any real day, so the snapshot getDb() just took of today sorts
+    // before it no matter when the test runs.
+    backupIfDue(db, "2099-01-01");
     const kept = readdirSync(backups).sort();
     expect(kept).toHaveLength(14);
-    expect(kept.at(-1)).toBe("lior-2026-09-30.db");
+    expect(kept.at(-1)).toBe("lior-2099-01-01.db");
     expect(existsSync(path.join(backups, "lior-2026-08-01.db"))).toBe(false);
   });
 
