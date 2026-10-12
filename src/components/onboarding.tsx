@@ -37,7 +37,12 @@ export function Onboarding() {
     if (!useDevicePrefs.getState().loaded) useDevicePrefs.getState().load();
   }, []);
 
-  const open = hydrated && loaded && !onboarded && !named;
+  // Decided once, when both are known: the first answer saves the name, and
+  // that mustn't close the questions that follow it.
+  const [asking, setAsking] = useState<boolean | null>(null);
+  if (asking === null && hydrated && loaded) setAsking(!onboarded && !named);
+
+  const open = !!asking && !onboarded;
   return (
     <Dialog
       open={open}

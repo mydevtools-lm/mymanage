@@ -77,7 +77,7 @@ const ROUTES: Record<string, Handler> = {
   /* First run: { today } adds the sample set; DELETE takes it away again. */
   "POST /api/sample": (_, body) => {
     const today = (body as { today?: unknown } | null)?.today;
-    if (typeof today !== "string" || !/^d{4}-d{2}-d{2}$/.test(today)) {
+    if (typeof today !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(today)) {
       return Promise.resolve(badRequest("תאריך לא תקין"));
     }
     return handle(() => repo.addSampleData(today));
