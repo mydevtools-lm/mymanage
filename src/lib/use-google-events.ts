@@ -5,6 +5,7 @@ import { useAppStore } from "./store";
 import { defaultCalendarColor } from "@/components/calendar/chips";
 import type { ColorKey } from "./types";
 import { isTauri } from "./platform";
+import { desktopCalendars, SECRETS_CHANGED } from "./desktop-services";
 
 export interface ExternalEvent {
   id: string;
@@ -16,7 +17,8 @@ export interface ExternalEvent {
   location?: string;
   notes?: string;
   source: "google";
-  /** Which Google calendar, by its number in .env.local. */
+  /** Which Google calendar, by its number (.env.local, or the desktop app's
+   *  settings). */
   calendarId: string;
   /** The calendar's tint, from settings › connections. */
   color?: ColorKey;
@@ -51,9 +53,9 @@ const EMPTY: ExternalEvent[] = [];
 
 /**
  * Read-only Google Calendar events for a date window. The secret iCal
- * addresses stay on the server; this only ever talks to our own route
- * handler. Hidden calendars are left out, and each event carries its
- * calendar's colour.
+ * addresses never reach the page: the browser asks our own route handler,
+ * the desktop app asks Rust. Hidden calendars are left out, and each event
+ * carries its calendar's colour and the name given in settings.
  */
 export function useGoogleEvents(from: string, to: string): State {
   const [fetched, setFetched] = useState<Fetched>({
@@ -64,29 +66,26 @@ export function useGoogleEvents(from: string, to: string): State {
     error: null,
   });
   const prefs = useAppStore((s) => s.settings.calendars);
+  // Bumped when a calendar is connected or removed in the desktop app.
+  const [secrets, setSecrets] = useState(0);
+
+  useEffect(() => {
+    const bump = () => setSecrets((n) => n + 1);
+    window.addEventListener(SECRETS_CHANGED, bump);
+    return () => window.removeEventListener(SECRETS_CHANGED, bump);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
 
     async function load() {
-      // The calendar addresses are secrets the desktop app can't hold until
-      // sprint ד2; until then it shows "not connected", as a fresh server does.
-      if (isTauri()) {
-        setFetched({
-          events: EMPTY,
-          calendars: [],
-          configured: false,
-          loading: false,
-          error: null,
-        });
-        return;
-      }
       try {
-        const response = await fetch(
-          `/api/calendar/google?from=${from}&to=${to}`,
-          { signal: controller.signal },
-        );
-        const data = await response.json();
+        const data = isTauri()
+          ? await desktopCalendars(from, to)
+          : await fetch(`/api/calendar/google?from=${from}&to=${to}`, {
+              signal: controller.signal,
+            }).then((response) => response.json());
+        if (controller.signal.aborted) return;
         setFetched({
           events: data.events ?? EMPTY,
           calendars: data.calendars ?? [],
@@ -108,11 +107,12 @@ export function useGoogleEvents(from: string, to: string): State {
 
     load();
     return () => controller.abort();
-  }, [from, to]);
+  }, [from, to, secrets]);
 
   return useMemo(() => {
     const calendars = fetched.calendars.map((c) => ({
       ...c,
+      name: prefs?.[c.id]?.name?.trim() || c.name,
       color: prefs?.[c.id]?.color ?? defaultCalendarColor(c.id),
       hidden: !!prefs?.[c.id]?.hidden,
     }));

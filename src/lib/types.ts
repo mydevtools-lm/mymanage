@@ -194,6 +194,8 @@ export interface Preferences {
 }
 
 export interface CalendarPref {
+  /** Shown instead of the default "גוגל יומן" / "יומן 2". */
+  name?: string;
   color?: ColorKey;
   hidden?: boolean;
 }

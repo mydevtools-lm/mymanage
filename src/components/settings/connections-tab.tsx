@@ -18,6 +18,12 @@ import { addDays, format } from "date-fns";
 import { he } from "date-fns/locale";
 import { toDateKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useIsTauri } from "@/lib/platform";
+import {
+  ClaudeCard,
+  DesktopCalendarControls,
+  DesktopCalendarForm,
+} from "./desktop-connections";
 
 export function ConnectionsTab() {
   // A 30-day window is enough to show that each feed is alive.
@@ -25,6 +31,8 @@ export function ConnectionsTab() {
   const to = toDateKey(addDays(new Date(), 30));
   const google = useGoogleEvents(from, to);
   const setPref = useAppStore((s) => s.setCalendarPref);
+  // The desktop app keeps the addresses itself; the browser reads .env.local.
+  const desktop = useIsTauri();
 
   const allFailed =
     google.calendars.length > 0 && google.calendars.every((c) => c.failed);
@@ -108,6 +116,13 @@ export function ConnectionsTab() {
                   value={calendar.color}
                   onChange={(color) => setPref(calendar.id, { color })}
                 />
+                {desktop && (
+                  <DesktopCalendarControls
+                    key={calendar.name}
+                    id={calendar.id}
+                    name={calendar.name}
+                  />
+                )}
               </section>
             );
           })}
@@ -145,7 +160,13 @@ export function ConnectionsTab() {
             </p>
           )}
 
-          {!google.loading && (
+          {!google.loading && desktop && (
+            <DesktopCalendarForm
+              connected={google.calendars.map((c) => c.id)}
+            />
+          )}
+
+          {!google.loading && !desktop && (
             <div className="grid gap-2 text-muted-foreground">
               <p className="flex items-start gap-2">
                 <PlugZap className="mt-0.5 size-4 shrink-0" />
@@ -178,6 +199,8 @@ export function ConnectionsTab() {
           )}
         </CardContent>
       </Card>
+
+      {desktop && <ClaudeCard />}
     </div>
   );
 }

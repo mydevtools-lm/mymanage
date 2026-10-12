@@ -1,5 +1,6 @@
 mod backup;
 mod db;
+mod services;
 
 use tauri::Manager;
 
@@ -25,7 +26,11 @@ pub fn run() {
             db::db_run,
             db::db_exec,
             db::db_batch,
-            db::db_backup
+            db::db_backup,
+            services::secret_status,
+            services::secret_set,
+            services::calendar_fetch,
+            services::assist_parse
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

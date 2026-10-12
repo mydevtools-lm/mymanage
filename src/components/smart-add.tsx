@@ -18,8 +18,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useAppStore } from "@/lib/store";
 import { formatDate, todayKey } from "@/lib/format";
-import { parseHebrew, type Proposal, type ProposalKind } from "@/lib/nl-parse";
+import type { Proposal, ProposalKind } from "@/lib/nl-parse";
 import { isTauri } from "@/lib/platform";
+import { desktopParse } from "@/lib/desktop-services";
 
 interface SmartAddState {
   text: string | null;
@@ -43,11 +44,8 @@ const KIND_LABELS: Record<ProposalKind, string> = {
 type Row = Proposal & { include: boolean };
 
 async function fetchProposals(text: string) {
-  // The desktop app has no server to hold a Claude key yet (sprint ד2), so
-  // the local rules read the sentence — what the server does without a key.
-  if (isTauri()) {
-    return { source: "local" as const, proposals: parseHebrew(text, todayKey()) };
-  }
+  // The desktop app keeps the Claude key in Rust; same answer, no server.
+  if (isTauri()) return desktopParse(text, todayKey());
   const response = await fetch("/api/assist/parse", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
