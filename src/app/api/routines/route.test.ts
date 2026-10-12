@@ -27,6 +27,6 @@ describe("POST /api/routines", () => {
       }),
     );
     expect(response.status).toBe(200);
-    expect(getTask(instanceId("r1", today()))).not.toBeNull();
+    expect(await getTask(instanceId("r1", today()))).not.toBeNull();
   });
 });

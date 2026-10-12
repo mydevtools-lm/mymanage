@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { toJsonBody } from "./json-body";
 
 // Capture toasts so a test can press "בטל" the way a user would.
@@ -18,6 +18,13 @@ interface Call {
 }
 
 let calls: Call[];
+
+// The first import of store.ts transforms its whole module graph — over a
+// second alone, and past the 5s test limit when the full suite runs in
+// parallel. Pay for it once here; resetModules keeps the transform cache.
+beforeAll(async () => {
+  await import("./store");
+}, 30_000);
 
 beforeEach(() => {
   calls = [];

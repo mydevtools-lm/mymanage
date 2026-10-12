@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAppStore } from "./store";
 import { defaultCalendarColor } from "@/components/calendar/chips";
 import type { ColorKey } from "./types";
+import { isTauri } from "./platform";
 
 export interface ExternalEvent {
   id: string;
@@ -68,6 +69,18 @@ export function useGoogleEvents(from: string, to: string): State {
     const controller = new AbortController();
 
     async function load() {
+      // The calendar addresses are secrets the desktop app can't hold until
+      // sprint ד2; until then it shows "not connected", as a fresh server does.
+      if (isTauri()) {
+        setFetched({
+          events: EMPTY,
+          calendars: [],
+          configured: false,
+          loading: false,
+          error: null,
+        });
+        return;
+      }
       try {
         const response = await fetch(
           `/api/calendar/google?from=${from}&to=${to}`,

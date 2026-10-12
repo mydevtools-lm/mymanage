@@ -103,12 +103,14 @@ export function DayTimeline({
             <time
               className={cn(
                 "w-12 shrink-0 pt-2.5 text-end text-sm tabular-nums text-muted-foreground",
-                past(item) && "opacity-50",
+                past(item) && "line-through",
               )}
             >
               {item.time}
             </time>
-            <div className={cn("min-w-0 flex-1", past(item) && "opacity-60")}>
+            {/* Past items lose their colour, not their contrast: fading them
+                with opacity dropped the text below WCAG AA (2.06:1). */}
+            <div className={cn("min-w-0 flex-1", past(item) && "grayscale")}>
               {item.kind === "task" ? (
                 <TaskRow
                   task={item.task}

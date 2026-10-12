@@ -1,5 +1,6 @@
-import "server-only";
-import { getDb, localDateKey, newId, seedDefaults } from "./db";
+import { db, type SqlValue, type Statement } from "./db-adapter";
+import { localDateKey, localMonthKey, newId } from "./keys";
+import { DEFAULT_CATEGORIES } from "./schema";
 import type {
   CalendarEvent,
   Category,
@@ -15,16 +16,14 @@ import type {
 } from "./types";
 import { instanceId, occursOn } from "./routines";
 
-const now = () => new Date().toISOString();
+/**
+ * Every read and write of the app's data. Runs wherever the database is: on
+ * the server over node:sqlite, and in the desktop app over the Rust bridge
+ * (see db-adapter.ts). Each insert is built by an `…Insert` function, so a
+ * single create and a whole-snapshot import write rows the same way.
+ */
 
-// node:sqlite types rows as Record<string, SQLOutputValue>; the schema above
-// guarantees the shapes, so narrow them in one place instead of at each call.
-function rows<T>(value: unknown): T[] {
-  return value as T[];
-}
-function row<T>(value: unknown): T | null {
-  return (value ?? null) as T | null;
-}
+const now = () => new Date().toISOString();
 
 /* ---------------------------------------------------------------- tasks */
 
@@ -82,22 +81,18 @@ function toTask(r: TaskRow): Task {
   };
 }
 
-export function listTasks(): Task[] {
-  return rows<TaskRow>(
-    getDb().prepare("SELECT * FROM tasks ORDER BY createdAt").all(),
-  ).map(toTask);
+export async function listTasks(): Promise<Task[]> {
+  const rows = await db().all<TaskRow>("SELECT * FROM tasks ORDER BY createdAt");
+  return rows.map(toTask);
 }
 
-export function createTask(input: Partial<Task>): Task {
-  const id = input.id ?? newId();
+function taskInsert(id: string, input: Partial<Task>): Statement {
   const stamp = now();
-  getDb()
-    .prepare(
-      `INSERT INTO tasks
-       (id,title,description,dueDate,dueTime,priority,categoryId,completed,completedAt,archivedAt,routineId,subtasks,position,reminder,createdAt,updatedAt)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    )
-    .run(
+  return {
+    sql: `INSERT INTO tasks
+     (id,title,description,dueDate,dueTime,priority,categoryId,completed,completedAt,archivedAt,routineId,subtasks,position,reminder,createdAt,updatedAt)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    params: [
       id,
       input.title ?? "",
       input.description ?? null,
@@ -114,14 +109,19 @@ export function createTask(input: Partial<Task>): Task {
       input.reminder ?? null,
       input.createdAt ?? stamp,
       stamp,
-    );
-  return getTask(id)!;
+    ],
+  };
 }
 
-export function getTask(id: string): Task | null {
-  const found = row<TaskRow>(
-    getDb().prepare("SELECT * FROM tasks WHERE id = ?").get(id),
-  );
+export async function createTask(input: Partial<Task>): Promise<Task> {
+  const id = input.id ?? newId();
+  const { sql, params } = taskInsert(id, input);
+  await db().run(sql, params);
+  return (await getTask(id))!;
+}
+
+export async function getTask(id: string): Promise<Task | null> {
+  const found = await db().get<TaskRow>("SELECT * FROM tasks WHERE id = ?", [id]);
   return found ? toTask(found) : null;
 }
 
@@ -140,9 +140,12 @@ const TASK_FIELDS = [
   "reminder",
 ] as const;
 
-export function updateTask(id: string, patch: Partial<Task>): Task | null {
+export async function updateTask(
+  id: string,
+  patch: Partial<Task>,
+): Promise<Task | null> {
   const sets: string[] = [];
-  const values: (string | number | null)[] = [];
+  const values: SqlValue[] = [];
 
   for (const field of TASK_FIELDS) {
     if (!(field in patch)) continue;
@@ -157,28 +160,22 @@ export function updateTask(id: string, patch: Partial<Task>): Task | null {
 
   sets.push("updatedAt = ?");
   values.push(now(), id);
-  getDb()
-    .prepare(`UPDATE tasks SET ${sets.join(", ")} WHERE id = ?`)
-    .run(...values);
+  await db().run(`UPDATE tasks SET ${sets.join(", ")} WHERE id = ?`, values);
   return getTask(id);
 }
 
-export function deleteTask(id: string) {
-  getDb().prepare("DELETE FROM tasks WHERE id = ?").run(id);
+export async function deleteTask(id: string) {
+  await db().run("DELETE FROM tasks WHERE id = ?", [id]);
 }
 
 /** Hand-picked order: each id gets its index as its position. */
-export function reorderTasks(ids: string[]) {
-  const db = getDb();
-  const stmt = db.prepare("UPDATE tasks SET position = ? WHERE id = ?");
-  db.exec("BEGIN");
-  try {
-    ids.forEach((id, index) => stmt.run(index, id));
-    db.exec("COMMIT");
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
+export async function reorderTasks(ids: string[]) {
+  await db().batch(
+    ids.map((id, index) => ({
+      sql: "UPDATE tasks SET position = ? WHERE id = ?",
+      params: [index, id],
+    })),
+  );
 }
 
 /* ------------------------------------------------------------- routines */
@@ -215,29 +212,28 @@ function toRoutine(r: RoutineRow): Routine {
   };
 }
 
-export function listRoutines(): Routine[] {
-  return rows<RoutineRow>(
-    getDb().prepare("SELECT * FROM routines ORDER BY createdAt, rowid").all(),
-  ).map(toRoutine);
+export async function listRoutines(): Promise<Routine[]> {
+  const rows = await db().all<RoutineRow>(
+    "SELECT * FROM routines ORDER BY createdAt, rowid",
+  );
+  return rows.map(toRoutine);
 }
 
-export function getRoutine(id: string): Routine | null {
-  const found = row<RoutineRow>(
-    getDb().prepare("SELECT * FROM routines WHERE id = ?").get(id),
+export async function getRoutine(id: string): Promise<Routine | null> {
+  const found = await db().get<RoutineRow>(
+    "SELECT * FROM routines WHERE id = ?",
+    [id],
   );
   return found ? toRoutine(found) : null;
 }
 
-export function createRoutine(input: Partial<Routine>): Routine {
-  const id = input.id ?? newId();
+function routineInsert(id: string, input: Partial<Routine>): Statement {
   const stamp = now();
-  getDb()
-    .prepare(
-      `INSERT INTO routines
-       (id,title,description,priority,categoryId,dueTime,repeat,startDate,lastDate,paused,createdAt,updatedAt)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-    )
-    .run(
+  return {
+    sql: `INSERT INTO routines
+     (id,title,description,priority,categoryId,dueTime,repeat,startDate,lastDate,paused,createdAt,updatedAt)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+    params: [
       id,
       input.title ?? "",
       input.description ?? null,
@@ -250,8 +246,15 @@ export function createRoutine(input: Partial<Routine>): Routine {
       input.paused ? 1 : 0,
       input.createdAt ?? stamp,
       stamp,
-    );
-  return getRoutine(id)!;
+    ],
+  };
+}
+
+export async function createRoutine(input: Partial<Routine>): Promise<Routine> {
+  const id = input.id ?? newId();
+  const { sql, params } = routineInsert(id, input);
+  await db().run(sql, params);
+  return (await getRoutine(id))!;
 }
 
 const ROUTINE_FIELDS = [
@@ -274,12 +277,12 @@ const CARRIED_TO_COPY = [
   "dueTime",
 ] as const;
 
-export function updateRoutine(
+export async function updateRoutine(
   id: string,
   patch: Partial<Routine>,
-): Routine | null {
+): Promise<Routine | null> {
   const sets: string[] = [];
-  const values: (string | number | null)[] = [];
+  const values: SqlValue[] = [];
   for (const field of ROUTINE_FIELDS) {
     if (!(field in patch)) continue;
     const value = patch[field];
@@ -291,24 +294,22 @@ export function updateRoutine(
   if (sets.length === 0) return getRoutine(id);
   sets.push("updatedAt = ?");
   values.push(now(), id);
-  getDb()
-    .prepare(`UPDATE routines SET ${sets.join(", ")} WHERE id = ?`)
-    .run(...values);
+  await db().run(`UPDATE routines SET ${sets.join(", ")} WHERE id = ?`, values);
 
   const copyPatch: Partial<Task> = {};
   for (const field of CARRIED_TO_COPY) {
     if (field in patch) Object.assign(copyPatch, { [field]: patch[field] });
   }
-  const copy = getTask(instanceId(id, localDateKey()));
+  const copy = await getTask(instanceId(id, localDateKey()));
   if (copy && !copy.archivedAt && Object.keys(copyPatch).length > 0) {
-    updateTask(copy.id, copyPatch);
+    await updateTask(copy.id, copyPatch);
   }
   return getRoutine(id);
 }
 
 /** Past copies stay in the archive as history; only the routine goes. */
-export function deleteRoutine(id: string) {
-  getDb().prepare("DELETE FROM routines WHERE id = ?").run(id);
+export async function deleteRoutine(id: string) {
+  await db().run("DELETE FROM routines WHERE id = ?", [id]);
 }
 
 /**
@@ -317,22 +318,24 @@ export function deleteRoutine(id: string) {
  * days don't pile up as overdue. Safe to call on every load: each routine is
  * handled at most once a day, and a copy's id is fixed by routine and day.
  */
-export function ensureRoutineCopies(today: string = localDateKey()): Task[] {
-  const db = getDb();
+export async function ensureRoutineCopies(
+  today: string = localDateKey(),
+): Promise<Task[]> {
   const made: Task[] = [];
-  for (const routine of listRoutines()) {
+  for (const routine of await listRoutines()) {
     if ((routine.lastDate ?? "") >= today) continue;
     if (!occursOn(routine, today)) continue;
     const stamp = now();
-    db.prepare(
+    await db().run(
       `UPDATE tasks SET archivedAt = ?, updatedAt = ?
        WHERE routineId = ? AND completed = 0 AND archivedAt IS NULL
          AND dueDate < ?`,
-    ).run(stamp, stamp, routine.id, today);
+      [stamp, stamp, routine.id, today],
+    );
     const id = instanceId(routine.id, today);
-    if (!getTask(id)) {
+    if (!(await getTask(id))) {
       made.push(
-        createTask({
+        await createTask({
           id,
           title: routine.title,
           description: routine.description,
@@ -344,10 +347,10 @@ export function ensureRoutineCopies(today: string = localDateKey()): Task[] {
         }),
       );
     }
-    db.prepare("UPDATE routines SET lastDate = ? WHERE id = ?").run(
+    await db().run("UPDATE routines SET lastDate = ? WHERE id = ?", [
       today,
       routine.id,
-    );
+    ]);
   }
   return made;
 }
@@ -400,20 +403,18 @@ function toEvent(r: EventRow): CalendarEvent {
   };
 }
 
-export function listEvents(): CalendarEvent[] {
-  return rows<EventRow>(
-    getDb().prepare("SELECT * FROM events ORDER BY date, startTime").all(),
-  ).map(toEvent);
+export async function listEvents(): Promise<CalendarEvent[]> {
+  const rows = await db().all<EventRow>(
+    "SELECT * FROM events ORDER BY date, startTime",
+  );
+  return rows.map(toEvent);
 }
 
-export function createEvent(input: Partial<CalendarEvent>): CalendarEvent {
-  const id = input.id ?? newId();
-  getDb()
-    .prepare(
-      `INSERT INTO events (id,title,date,startTime,endTime,allDay,location,notes,color,repeat,until,exceptions,reminder,createdAt)
+function eventInsert(id: string, input: Partial<CalendarEvent>): Statement {
+  return {
+    sql: `INSERT INTO events (id,title,date,startTime,endTime,allDay,location,notes,color,repeat,until,exceptions,reminder,createdAt)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    )
-    .run(
+    params: [
       id,
       input.title ?? "",
       input.date ?? "",
@@ -428,14 +429,23 @@ export function createEvent(input: Partial<CalendarEvent>): CalendarEvent {
       input.exceptions?.length ? JSON.stringify(input.exceptions) : null,
       input.reminder ?? null,
       input.createdAt ?? now(),
-    );
-  return getEvent(id)!;
+    ],
+  };
 }
 
-export function getEvent(id: string): CalendarEvent | null {
-  const found = row<EventRow>(
-    getDb().prepare("SELECT * FROM events WHERE id = ?").get(id),
-  );
+export async function createEvent(
+  input: Partial<CalendarEvent>,
+): Promise<CalendarEvent> {
+  const id = input.id ?? newId();
+  const { sql, params } = eventInsert(id, input);
+  await db().run(sql, params);
+  return (await getEvent(id))!;
+}
+
+export async function getEvent(id: string): Promise<CalendarEvent | null> {
+  const found = await db().get<EventRow>("SELECT * FROM events WHERE id = ?", [
+    id,
+  ]);
   return found ? toEvent(found) : null;
 }
 
@@ -454,12 +464,12 @@ const EVENT_FIELDS = [
   "reminder",
 ] as const;
 
-export function updateEvent(
+export async function updateEvent(
   id: string,
   patch: Partial<CalendarEvent>,
-): CalendarEvent | null {
+): Promise<CalendarEvent | null> {
   const sets: string[] = [];
-  const values: (string | number | null)[] = [];
+  const values: SqlValue[] = [];
   for (const field of EVENT_FIELDS) {
     if (!(field in patch)) continue;
     const value = patch[field];
@@ -475,14 +485,12 @@ export function updateEvent(
   }
   if (sets.length === 0) return getEvent(id);
   values.push(id);
-  getDb()
-    .prepare(`UPDATE events SET ${sets.join(", ")} WHERE id = ?`)
-    .run(...values);
+  await db().run(`UPDATE events SET ${sets.join(", ")} WHERE id = ?`, values);
   return getEvent(id);
 }
 
-export function deleteEvent(id: string) {
-  getDb().prepare("DELETE FROM events WHERE id = ?").run(id);
+export async function deleteEvent(id: string) {
+  await db().run("DELETE FROM events WHERE id = ?", [id]);
 }
 
 /* --------------------------------------------------------- transactions */
@@ -535,21 +543,22 @@ function toTransaction(r: TransactionRow): Transaction {
   };
 }
 
-export function listTransactions(): Transaction[] {
-  return rows<TransactionRow>(
-    getDb().prepare("SELECT * FROM transactions ORDER BY date DESC").all(),
-  ).map(toTransaction);
+export async function listTransactions(): Promise<Transaction[]> {
+  const rows = await db().all<TransactionRow>(
+    "SELECT * FROM transactions ORDER BY date DESC",
+  );
+  return rows.map(toTransaction);
 }
 
-export function createTransaction(input: Partial<Transaction>): Transaction {
-  const id = input.id ?? newId();
-  getDb()
-    .prepare(
-      `INSERT INTO transactions
+function transactionInsert(
+  id: string,
+  input: Partial<Transaction>,
+): Statement {
+  return {
+    sql: `INSERT INTO transactions
        (id,type,amount,description,date,categoryId,notes,recurringStartMonth,recurringEndMonth,exceptions,createdAt)
        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-    )
-    .run(
+    params: [
       id,
       input.type ?? "expense",
       input.amount ?? 0,
@@ -561,32 +570,40 @@ export function createTransaction(input: Partial<Transaction>): Transaction {
       input.recurring?.endMonth ?? null,
       serializeExceptions(input.exceptions),
       input.createdAt ?? now(),
-    );
-  return getTransaction(id)!;
+    ],
+  };
 }
 
-export function getTransaction(id: string): Transaction | null {
-  const found = row<TransactionRow>(
-    getDb().prepare("SELECT * FROM transactions WHERE id = ?").get(id),
+export async function createTransaction(
+  input: Partial<Transaction>,
+): Promise<Transaction> {
+  const id = input.id ?? newId();
+  const { sql, params } = transactionInsert(id, input);
+  await db().run(sql, params);
+  return (await getTransaction(id))!;
+}
+
+export async function getTransaction(id: string): Promise<Transaction | null> {
+  const found = await db().get<TransactionRow>(
+    "SELECT * FROM transactions WHERE id = ?",
+    [id],
   );
   return found ? toTransaction(found) : null;
 }
 
-export function updateTransaction(
+export async function updateTransaction(
   id: string,
   patch: Partial<Transaction>,
-): Transaction | null {
-  const current = getTransaction(id);
+): Promise<Transaction | null> {
+  const current = await getTransaction(id);
   if (!current) return null;
   const next = { ...current, ...patch };
-  getDb()
-    .prepare(
-      `UPDATE transactions SET type=?, amount=?, description=?, date=?,
+  await db().run(
+    `UPDATE transactions SET type=?, amount=?, description=?, date=?,
        categoryId=?, notes=?, recurringStartMonth=?, recurringEndMonth=?,
        exceptions=?
        WHERE id = ?`,
-    )
-    .run(
+    [
       next.type,
       next.amount,
       next.description,
@@ -597,12 +614,31 @@ export function updateTransaction(
       next.recurring?.endMonth ?? null,
       serializeExceptions(next.exceptions),
       id,
-    );
+    ],
+  );
   return getTransaction(id);
 }
 
-export function deleteTransaction(id: string) {
-  getDb().prepare("DELETE FROM transactions WHERE id = ?").run(id);
+export async function deleteTransaction(id: string) {
+  await db().run("DELETE FROM transactions WHERE id = ?", [id]);
+}
+
+/** Many rows in one database transaction — a bank statement import. */
+export async function createTransactions(inputs: Partial<Transaction>[]) {
+  const ids = inputs.map((input) => input.id ?? newId());
+  await db().batch(inputs.map((input, i) => transactionInsert(ids[i], input)));
+  const created: Transaction[] = [];
+  for (const id of ids) created.push((await getTransaction(id))!);
+  return created;
+}
+
+export async function deleteTransactions(ids: string[]) {
+  await db().batch(
+    ids.map((id) => ({
+      sql: "DELETE FROM transactions WHERE id = ?",
+      params: [id],
+    })),
+  );
 }
 
 /* ---------------------------------------------------------------- notes */
@@ -629,24 +665,18 @@ function toNote(r: NoteRow): Note {
   };
 }
 
-export function listNotes(): Note[] {
-  return rows<NoteRow>(
-    getDb()
-      .prepare(
-        "SELECT * FROM notes ORDER BY pinned DESC, updatedAt DESC, rowid DESC",
-      )
-      .all(),
-  ).map(toNote);
+export async function listNotes(): Promise<Note[]> {
+  const rows = await db().all<NoteRow>(
+    "SELECT * FROM notes ORDER BY pinned DESC, updatedAt DESC, rowid DESC",
+  );
+  return rows.map(toNote);
 }
 
-export function createNote(input: Partial<Note>): Note {
-  const id = input.id ?? newId();
+function noteInsert(id: string, input: Partial<Note>): Statement {
   const stamp = now();
-  getDb()
-    .prepare(
-      "INSERT INTO notes (id,title,body,pinned,color,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?)",
-    )
-    .run(
+  return {
+    sql: "INSERT INTO notes (id,title,body,pinned,color,createdAt,updatedAt) VALUES (?,?,?,?,?,?,?)",
+    params: [
       id,
       input.title ?? "",
       input.body ?? "",
@@ -654,63 +684,65 @@ export function createNote(input: Partial<Note>): Note {
       input.color ?? null,
       input.createdAt ?? stamp,
       input.updatedAt ?? stamp,
-    );
-  return getNote(id)!;
+    ],
+  };
 }
 
-export function getNote(id: string): Note | null {
-  const found = row<NoteRow>(
-    getDb().prepare("SELECT * FROM notes WHERE id = ?").get(id),
-  );
+export async function createNote(input: Partial<Note>): Promise<Note> {
+  const id = input.id ?? newId();
+  const { sql, params } = noteInsert(id, input);
+  await db().run(sql, params);
+  return (await getNote(id))!;
+}
+
+export async function getNote(id: string): Promise<Note | null> {
+  const found = await db().get<NoteRow>("SELECT * FROM notes WHERE id = ?", [
+    id,
+  ]);
   return found ? toNote(found) : null;
 }
 
-export function updateNote(id: string, patch: Partial<Note>): Note | null {
-  const current = getNote(id);
+export async function updateNote(
+  id: string,
+  patch: Partial<Note>,
+): Promise<Note | null> {
+  const current = await getNote(id);
   if (!current) return null;
   // Pinning or recolouring is not an edit of the note, so it keeps its date.
   const contentChanged = "title" in patch || "body" in patch;
   const next = { ...current, ...patch };
-  getDb()
-    .prepare(
-      "UPDATE notes SET title=?, body=?, pinned=?, color=?, updatedAt=? WHERE id=?",
-    )
-    .run(
+  await db().run(
+    "UPDATE notes SET title=?, body=?, pinned=?, color=?, updatedAt=? WHERE id=?",
+    [
       next.title ?? current.title,
       next.body ?? current.body,
       next.pinned ? 1 : 0,
       next.color ?? null,
       contentChanged ? now() : current.updatedAt,
       id,
-    );
+    ],
+  );
   return getNote(id);
 }
 
-export function deleteNote(id: string) {
-  getDb().prepare("DELETE FROM notes WHERE id = ?").run(id);
+export async function deleteNote(id: string) {
+  await db().run("DELETE FROM notes WHERE id = ?", [id]);
 }
 
 /* ----------------------------------------------------------- checklists */
 
-export function listChecklists(): Checklist[] {
-  const db = getDb();
+export async function listChecklists(): Promise<Checklist[]> {
   // Stable order: pinned first, then newest list. Sorting by updatedAt made
   // a list jump to the top every time an item was ticked mid-shop.
-  const lists = rows<Omit<Checklist, "items" | "pinned"> & { pinned: number }>(
-    db
-      .prepare(
-        "SELECT * FROM checklists ORDER BY pinned DESC, createdAt DESC, rowid DESC",
-      )
-      .all(),
-  );
-  const items = rows<{
+  const lists = await db().all<
+    Omit<Checklist, "items" | "pinned"> & { pinned: number }
+  >("SELECT * FROM checklists ORDER BY pinned DESC, createdAt DESC, rowid DESC");
+  const items = await db().all<{
     id: string;
     listId: string;
     text: string;
     done: number;
-  }>(
-    db.prepare("SELECT * FROM checklist_items ORDER BY position, rowid").all(),
-  );
+  }>("SELECT * FROM checklist_items ORDER BY position, rowid");
 
   return lists.map((list) => ({
     ...list,
@@ -721,445 +753,464 @@ export function listChecklists(): Checklist[] {
   }));
 }
 
-export function getChecklist(id: string): Checklist | null {
-  return listChecklists().find((l) => l.id === id) ?? null;
+export async function getChecklist(id: string): Promise<Checklist | null> {
+  return (await listChecklists()).find((l) => l.id === id) ?? null;
 }
 
 type NewItem = string | { id?: string; text: string };
 
-export function createChecklist(
+function itemInsert(
+  listId: string,
+  item: { id: string; text: string; done?: boolean },
+  position: number,
+): Statement {
+  return {
+    sql: "INSERT INTO checklist_items (id,listId,text,done,position) VALUES (?,?,?,?,?)",
+    params: [item.id, listId, item.text, item.done ? 1 : 0, position],
+  };
+}
+
+export async function createChecklist(
   title: string,
   items: NewItem[] = [],
   id: string = newId(),
 ) {
-  const db = getDb();
   const stamp = now();
-  db.prepare(
-    "INSERT INTO checklists (id,title,createdAt,updatedAt) VALUES (?,?,?,?)",
-  ).run(id, title, stamp, stamp);
-
-  const insert = db.prepare(
-    "INSERT INTO checklist_items (id,listId,text,done,position) VALUES (?,?,?,0,?)",
-  );
-  items.forEach((item, index) => {
-    const { id: itemId = newId(), text } =
-      typeof item === "string" ? { text: item } : item;
-    insert.run(itemId, id, text, index);
-  });
-  return getChecklist(id)!;
+  await db().batch([
+    {
+      sql: "INSERT INTO checklists (id,title,createdAt,updatedAt) VALUES (?,?,?,?)",
+      params: [id, title, stamp, stamp],
+    },
+    ...items.map((item, index) => {
+      const { id: itemId = newId(), text } =
+        typeof item === "string" ? { text: item } : item;
+      return itemInsert(id, { id: itemId, text }, index);
+    }),
+  ]);
+  return (await getChecklist(id))!;
 }
 
-export function renameChecklist(id: string, title: string) {
-  getDb()
-    .prepare("UPDATE checklists SET title=?, updatedAt=? WHERE id=?")
-    .run(title, now(), id);
+export async function renameChecklist(id: string, title: string) {
+  await db().run("UPDATE checklists SET title=?, updatedAt=? WHERE id=?", [
+    title,
+    now(),
+    id,
+  ]);
   return getChecklist(id);
 }
 
-export function setChecklistPinned(id: string, pinned: boolean) {
-  getDb()
-    .prepare("UPDATE checklists SET pinned=? WHERE id=?")
-    .run(pinned ? 1 : 0, id);
+export async function setChecklistPinned(id: string, pinned: boolean) {
+  await db().run("UPDATE checklists SET pinned=? WHERE id=?", [
+    pinned ? 1 : 0,
+    id,
+  ]);
   return getChecklist(id);
 }
 
 /** Untick everything — the same shopping list, ready for next week. */
-export function resetChecklist(listId: string) {
-  getDb()
-    .prepare("UPDATE checklist_items SET done=0 WHERE listId=?")
-    .run(listId);
-  touchChecklist(listId);
+export async function resetChecklist(listId: string) {
+  await db().run("UPDATE checklist_items SET done=0 WHERE listId=?", [listId]);
+  await touchChecklist(listId);
   return getChecklist(listId);
+}
+
+async function itemIds(listId: string) {
+  const rows = await db().all<{ id: string }>(
+    "SELECT id FROM checklist_items WHERE listId = ? ORDER BY position, rowid",
+    [listId],
+  );
+  return rows.map((r) => r.id);
 }
 
 /** Store a new item order. Ids not in `order` keep their place after it. */
-export function reorderChecklistItems(listId: string, order: string[]) {
-  const db = getDb();
-  const current = rows<{ id: string }>(
-    db
-      .prepare(
-        "SELECT id FROM checklist_items WHERE listId=? ORDER BY position, rowid",
-      )
-      .all(listId),
-  ).map((r) => r.id);
+export async function reorderChecklistItems(listId: string, order: string[]) {
+  const current = await itemIds(listId);
   const known = new Set(current);
   const wanted = order.filter((id) => known.has(id));
   const rest = current.filter((id) => !wanted.includes(id));
-  const setPosition = db.prepare(
-    "UPDATE checklist_items SET position=? WHERE id=? AND listId=?",
-  );
-  [...wanted, ...rest].forEach((id, i) => setPosition.run(i, id, listId));
-  touchChecklist(listId);
+  await db().batch([
+    ...[...wanted, ...rest].map((id, i) => ({
+      sql: "UPDATE checklist_items SET position=? WHERE id=? AND listId=?",
+      params: [i, id, listId],
+    })),
+    touchStatement(listId),
+  ]);
   return getChecklist(listId);
 }
 
-export function deleteChecklist(id: string) {
-  getDb().prepare("DELETE FROM checklists WHERE id = ?").run(id);
+export async function deleteChecklist(id: string) {
+  await db().run("DELETE FROM checklists WHERE id = ?", [id]);
 }
 
-function touchChecklist(listId: string) {
-  getDb()
-    .prepare("UPDATE checklists SET updatedAt=? WHERE id=?")
-    .run(now(), listId);
+function touchStatement(listId: string): Statement {
+  return {
+    sql: "UPDATE checklists SET updatedAt=? WHERE id=?",
+    params: [now(), listId],
+  };
+}
+
+async function touchChecklist(listId: string) {
+  const { sql, params } = touchStatement(listId);
+  await db().run(sql, params);
 }
 
 /**
  * Appends an item, or — when `index` is given — puts it back at that spot.
  * The index form is how "undo" restores a deleted item to where it was.
  */
-export function addChecklistItem(
+export async function addChecklistItem(
   listId: string,
   text: string,
   itemId: string = newId(),
   options: { index?: number; done?: boolean } = {},
 ) {
-  const db = getDb();
-  const done = options.done ? 1 : 0;
+  const item = { id: itemId, text, done: options.done };
 
   if (options.index === undefined) {
-    const { next } = row<{ next: number }>(
-      db
-        .prepare(
-          "SELECT COALESCE(MAX(position), -1) + 1 AS next FROM checklist_items WHERE listId = ?",
-        )
-        .get(listId),
-    )!;
-    db.prepare(
-      "INSERT INTO checklist_items (id,listId,text,done,position) VALUES (?,?,?,?,?)",
-    ).run(itemId, listId, text, done, next);
+    const { next } = (await db().get<{ next: number }>(
+      "SELECT COALESCE(MAX(position), -1) + 1 AS next FROM checklist_items WHERE listId = ?",
+      [listId],
+    ))!;
+    await db().batch([itemInsert(listId, item, next), touchStatement(listId)]);
   } else {
     // Renumber densely in the current order, leaving a gap at `index`.
-    const ids = rows<{ id: string }>(
-      db
-        .prepare(
-          "SELECT id FROM checklist_items WHERE listId = ? ORDER BY position, rowid",
-        )
-        .all(listId),
-    ).map((r) => r.id);
+    const ids = await itemIds(listId);
     const at = Math.max(0, Math.min(options.index, ids.length));
-    const setPosition = db.prepare(
-      "UPDATE checklist_items SET position = ? WHERE id = ?",
-    );
-    ids.forEach((id, i) => setPosition.run(i < at ? i : i + 1, id));
-    db.prepare(
-      "INSERT INTO checklist_items (id,listId,text,done,position) VALUES (?,?,?,?,?)",
-    ).run(itemId, listId, text, done, at);
+    await db().batch([
+      ...ids.map((id, i) => ({
+        sql: "UPDATE checklist_items SET position = ? WHERE id = ?",
+        params: [i < at ? i : i + 1, id],
+      })),
+      itemInsert(listId, item, at),
+      touchStatement(listId),
+    ]);
   }
-
-  touchChecklist(listId);
   return getChecklist(listId);
 }
 
-export function setChecklistItem(
+export async function setChecklistItem(
   listId: string,
   itemId: string,
   patch: { text?: string; done?: boolean },
 ) {
-  const db = getDb();
+  const writes: Statement[] = [];
   if (patch.text !== undefined) {
-    db.prepare("UPDATE checklist_items SET text=? WHERE id=? AND listId=?").run(
-      patch.text,
-      itemId,
-      listId,
-    );
+    writes.push({
+      sql: "UPDATE checklist_items SET text=? WHERE id=? AND listId=?",
+      params: [patch.text, itemId, listId],
+    });
   }
   if (patch.done !== undefined) {
-    db.prepare("UPDATE checklist_items SET done=? WHERE id=? AND listId=?").run(
-      patch.done ? 1 : 0,
-      itemId,
-      listId,
-    );
+    writes.push({
+      sql: "UPDATE checklist_items SET done=? WHERE id=? AND listId=?",
+      params: [patch.done ? 1 : 0, itemId, listId],
+    });
   }
-  touchChecklist(listId);
+  await db().batch([...writes, touchStatement(listId)]);
   return getChecklist(listId);
 }
 
-export function deleteChecklistItem(listId: string, itemId: string) {
-  getDb()
-    .prepare("DELETE FROM checklist_items WHERE id=? AND listId=?")
-    .run(itemId, listId);
-  touchChecklist(listId);
+export async function deleteChecklistItem(listId: string, itemId: string) {
+  await db().batch([
+    {
+      sql: "DELETE FROM checklist_items WHERE id=? AND listId=?",
+      params: [itemId, listId],
+    },
+    touchStatement(listId),
+  ]);
   return getChecklist(listId);
 }
 
-export function clearDoneChecklistItems(listId: string) {
-  getDb()
-    .prepare("DELETE FROM checklist_items WHERE listId=? AND done=1")
-    .run(listId);
-  touchChecklist(listId);
+export async function clearDoneChecklistItems(listId: string) {
+  await db().batch([
+    {
+      sql: "DELETE FROM checklist_items WHERE listId=? AND done=1",
+      params: [listId],
+    },
+    touchStatement(listId),
+  ]);
   return getChecklist(listId);
 }
 
 /* ----------------------------------------------------------- categories */
 
-export function listCategories(): Category[] {
-  return rows<Category>(
-    getDb().prepare("SELECT * FROM categories ORDER BY kind, name").all(),
-  );
+export async function listCategories(): Promise<Category[]> {
+  return db().all<Category>("SELECT * FROM categories ORDER BY kind, name");
 }
 
-export function createCategory(
+function categoryInsert(c: Category): Statement {
+  return {
+    sql: "INSERT INTO categories (id,name,color,kind) VALUES (?,?,?,?)",
+    params: [c.id, c.name, c.color, c.kind],
+  };
+}
+
+export async function createCategory(
   input: Omit<Category, "id"> & { id?: string },
-): Category {
-  const id = input.id ?? newId();
-  getDb()
-    .prepare("INSERT INTO categories (id,name,color,kind) VALUES (?,?,?,?)")
-    .run(id, input.name, input.color, input.kind);
-  return { name: input.name, color: input.color, kind: input.kind, id };
+): Promise<Category> {
+  const category: Category = {
+    name: input.name,
+    color: input.color,
+    kind: input.kind,
+    id: input.id ?? newId(),
+  };
+  const { sql, params } = categoryInsert(category);
+  await db().run(sql, params);
+  return category;
 }
 
-export function updateCategory(id: string, patch: Partial<Category>) {
-  const current = listCategories().find((c) => c.id === id);
+export async function updateCategory(id: string, patch: Partial<Category>) {
+  const current = (await listCategories()).find((c) => c.id === id);
   if (!current) return null;
   const next = { ...current, ...patch };
-  getDb()
-    .prepare("UPDATE categories SET name=?, color=? WHERE id=?")
-    .run(next.name, next.color, id);
+  await db().run("UPDATE categories SET name=?, color=? WHERE id=?", [
+    next.name,
+    next.color,
+    id,
+  ]);
   return next;
 }
 
-export function deleteCategory(id: string) {
+export async function deleteCategory(id: string) {
   // ON DELETE SET NULL on the referencing tables keeps the items themselves.
-  getDb().prepare("DELETE FROM categories WHERE id = ?").run(id);
+  await db().run("DELETE FROM categories WHERE id = ?", [id]);
+}
+
+/* ---------------------------------------------------------------- links */
+
+export async function listLinks(): Promise<Link[]> {
+  return db().all<Link>("SELECT * FROM links ORDER BY createdAt, rowid");
+}
+
+function linkInsert(id: string, input: Partial<Link>): Statement {
+  return {
+    sql: "INSERT INTO links (id,aKind,aId,bKind,bId,createdAt) VALUES (?,?,?,?,?,?)",
+    params: [
+      id,
+      input.aKind ?? "task",
+      input.aId ?? "",
+      input.bKind ?? "task",
+      input.bId ?? "",
+      input.createdAt ?? now(),
+    ],
+  };
+}
+
+/** Linking the same two items twice keeps the first link. */
+export async function createLink(input: Partial<Link>): Promise<Link> {
+  const existing = await db().get<Link>(
+    `SELECT * FROM links
+     WHERE (aId = ? AND bId = ?) OR (aId = ? AND bId = ?)`,
+    [input.aId ?? "", input.bId ?? "", input.bId ?? "", input.aId ?? ""],
+  );
+  if (existing) return existing;
+  const id = input.id ?? newId();
+  const { sql, params } = linkInsert(id, input);
+  await db().run(sql, params);
+  return (await db().get<Link>("SELECT * FROM links WHERE id = ?", [id]))!;
+}
+
+export async function deleteLink(id: string) {
+  await db().run("DELETE FROM links WHERE id = ?", [id]);
 }
 
 /* ------------------------------------------------------------- settings */
 
-/* ---------------------------------------------------------------- links */
-
-export function listLinks(): Link[] {
-  return rows<Link>(
-    getDb().prepare("SELECT * FROM links ORDER BY createdAt, rowid").all(),
+async function readSetting<T>(key: string): Promise<T | undefined> {
+  const found = await db().get<{ value: string }>(
+    "SELECT value FROM settings WHERE key = ?",
+    [key],
   );
+  return parseJson<T>(found?.value ?? null);
 }
 
-/** Linking the same two items twice keeps the first link. */
-export function createLink(input: Partial<Link>): Link {
-  const db = getDb();
-  const existing = row<Link>(
-    db
-      .prepare(
-        `SELECT * FROM links
-         WHERE (aId = ? AND bId = ?) OR (aId = ? AND bId = ?)`,
-      )
-      .get(input.aId ?? "", input.bId ?? "", input.bId ?? "", input.aId ?? ""),
-  );
-  if (existing) return existing;
-  const id = input.id ?? newId();
-  db.prepare(
-    "INSERT INTO links (id,aKind,aId,bKind,bId,createdAt) VALUES (?,?,?,?,?,?)",
-  ).run(
-    id,
-    input.aKind ?? "task",
-    input.aId ?? "",
-    input.bKind ?? "task",
-    input.bId ?? "",
-    input.createdAt ?? now(),
-  );
-  return row<Link>(db.prepare("SELECT * FROM links WHERE id = ?").get(id))!;
+function settingWrite(key: string, value: unknown): Statement {
+  return {
+    sql: "INSERT OR REPLACE INTO settings (key,value) VALUES (?, ?)",
+    params: [key, JSON.stringify(value)],
+  };
 }
 
-export function deleteLink(id: string) {
-  getDb().prepare("DELETE FROM links WHERE id = ?").run(id);
+async function writeSetting(key: string, value: unknown) {
+  const { sql, params } = settingWrite(key, value);
+  await db().run(sql, params);
 }
 
-export function getCalendarPrefs(): Settings["calendars"] {
-  const found = row<{ value: string }>(
-    getDb().prepare("SELECT value FROM settings WHERE key='calendars'").get(),
-  );
-  return parseJson(found?.value ?? null) ?? {};
+export async function getCalendarPrefs(): Promise<Settings["calendars"]> {
+  return (await readSetting<Settings["calendars"]>("calendars")) ?? {};
 }
 
-export function setCalendarPrefs(value: Settings["calendars"]) {
-  getDb()
-    .prepare(
-      "INSERT OR REPLACE INTO settings (key,value) VALUES ('calendars', ?)",
-    )
-    .run(JSON.stringify(value ?? {}));
+export async function setCalendarPrefs(value: Settings["calendars"]) {
+  await writeSetting("calendars", value ?? {});
   return getCalendarPrefs();
 }
 
-export function getPrefs(): NonNullable<Settings["prefs"]> {
-  const found = row<{ value: string }>(
-    getDb().prepare("SELECT value FROM settings WHERE key='prefs'").get(),
-  );
-  return parseJson(found?.value ?? null) ?? {};
+export async function getPrefs(): Promise<NonNullable<Settings["prefs"]>> {
+  return (await readSetting<NonNullable<Settings["prefs"]>>("prefs")) ?? {};
 }
 
-/** Merges into the stored preferences; a null clears one. */
-export function setPrefs(patch: Record<string, unknown>) {
-  const next: Record<string, unknown> = { ...getPrefs(), ...patch };
+function mergePrefs(
+  current: Record<string, unknown>,
+  patch: Record<string, unknown>,
+) {
+  const next: Record<string, unknown> = { ...current, ...patch };
   for (const [key, value] of Object.entries(next)) {
     if (value === null || value === undefined) delete next[key];
   }
-  getDb()
-    .prepare("INSERT OR REPLACE INTO settings (key,value) VALUES ('prefs', ?)")
-    .run(JSON.stringify(next));
+  return next;
+}
+
+/** Merges into the stored preferences; a null clears one. */
+export async function setPrefs(patch: Record<string, unknown>) {
+  await writeSetting("prefs", mergePrefs({ ...(await getPrefs()) }, patch));
   return getPrefs();
 }
 
-export function getBudgets(): Settings["budgets"] {
-  const found = row<{ value: string }>(
-    getDb().prepare("SELECT value FROM settings WHERE key='budgets'").get(),
-  );
-  return parseJson(found?.value ?? null) ?? {};
+export async function getBudgets(): Promise<Settings["budgets"]> {
+  return (await readSetting<Settings["budgets"]>("budgets")) ?? {};
 }
 
-/** Replaces all budgets; a category left out has none. */
-export function setBudgets(value: Settings["budgets"]) {
-  const clean = Object.fromEntries(
+function cleanBudgets(value: Settings["budgets"]) {
+  return Object.fromEntries(
     Object.entries(value ?? {}).filter(
       ([, amount]) => typeof amount === "number" && amount > 0,
     ),
   );
-  getDb()
-    .prepare(
-      "INSERT OR REPLACE INTO settings (key,value) VALUES ('budgets', ?)",
-    )
-    .run(JSON.stringify(clean));
+}
+
+/** Replaces all budgets; a category left out has none. */
+export async function setBudgets(value: Settings["budgets"]) {
+  await writeSetting("budgets", cleanBudgets(value));
   return getBudgets();
 }
 
-/** Many rows in one database transaction — a bank statement import. */
-export function createTransactions(inputs: Partial<Transaction>[]) {
-  const db = getDb();
-  db.exec("BEGIN");
-  try {
-    const created = inputs.map((input) => createTransaction(input));
-    db.exec("COMMIT");
-    return created;
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
-}
-
-export function deleteTransactions(ids: string[]) {
-  const db = getDb();
-  const stmt = db.prepare("DELETE FROM transactions WHERE id = ?");
-  db.exec("BEGIN");
-  try {
-    for (const id of ids) stmt.run(id);
-    db.exec("COMMIT");
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
-  }
-}
-
-export function getStartMonth(): string {
-  const found = row<{ value: string }>(
-    getDb().prepare("SELECT value FROM settings WHERE key='startMonth'").get(),
+export async function getStartMonth(): Promise<string> {
+  // Stored as plain text, not JSON, since the first version.
+  const found = await db().get<{ value: string }>(
+    "SELECT value FROM settings WHERE key='startMonth'",
   );
   return found?.value ?? new Date().toISOString().slice(0, 7);
 }
 
+function startMonthWrite(month: string): Statement {
+  return {
+    sql: "INSERT OR REPLACE INTO settings (key,value) VALUES ('startMonth', ?)",
+    params: [month],
+  };
+}
+
 /* ------------------------------------------------------- whole snapshot */
 
-export function readAll(): DataSnapshot {
+export async function readAll(): Promise<DataSnapshot> {
   return {
     version: 1,
     exportedAt: now(),
-    tasks: listTasks(),
-    events: listEvents(),
-    transactions: listTransactions(),
-    notes: listNotes(),
-    checklists: listChecklists(),
-    routines: listRoutines(),
-    links: listLinks(),
-    categories: listCategories(),
+    tasks: await listTasks(),
+    events: await listEvents(),
+    transactions: await listTransactions(),
+    notes: await listNotes(),
+    checklists: await listChecklists(),
+    routines: await listRoutines(),
+    links: await listLinks(),
+    categories: await listCategories(),
     settings: {
-      startMonth: getStartMonth(),
-      calendars: getCalendarPrefs(),
-      budgets: getBudgets(),
-      prefs: getPrefs(),
+      startMonth: await getStartMonth(),
+      calendars: await getCalendarPrefs(),
+      budgets: await getBudgets(),
+      prefs: await getPrefs(),
     },
   };
 }
 
-/** Replaces everything. Used by both the JSON import and the one-time
- *  migration of data that was living in localStorage. */
-export function replaceAll(snapshot: Partial<DataSnapshot>) {
-  const db = getDb();
-  db.exec("BEGIN");
-  try {
-    for (const table of [
-      "checklist_items",
-      "checklists",
-      "notes",
-      "transactions",
-      "events",
-      "tasks",
-      "routines",
-      "links",
-      "categories",
-    ]) {
-      db.exec(`DELETE FROM ${table}`);
-    }
+const USER_TABLES = [
+  "checklist_items",
+  "checklists",
+  "notes",
+  "transactions",
+  "events",
+  "tasks",
+  "routines",
+  "links",
+  "categories",
+];
 
-    for (const c of snapshot.categories ?? []) {
-      db.prepare(
-        "INSERT INTO categories (id,name,color,kind) VALUES (?,?,?,?)",
-      ).run(c.id, c.name, c.color, c.kind);
-    }
-    for (const r of snapshot.routines ?? []) createRoutine(r);
-    for (const l of snapshot.links ?? []) createLink(l);
-    for (const t of snapshot.tasks ?? []) createTask(t);
-    for (const e of snapshot.events ?? []) createEvent(e);
-    for (const t of snapshot.transactions ?? []) createTransaction(t);
-    for (const n of snapshot.notes ?? []) createNote(n);
-    for (const l of snapshot.checklists ?? []) {
-      db.prepare(
-        "INSERT INTO checklists (id,title,pinned,createdAt,updatedAt) VALUES (?,?,?,?,?)",
-      ).run(l.id, l.title, l.pinned ? 1 : 0, l.createdAt, l.updatedAt);
-      l.items.forEach((item, index) =>
-        db
-          .prepare(
-            "INSERT INTO checklist_items (id,listId,text,done,position) VALUES (?,?,?,?,?)",
-          )
-          .run(item.id, l.id, item.text, item.done ? 1 : 0, index),
-      );
-    }
-    if (snapshot.settings?.startMonth) {
-      db.prepare(
-        "INSERT OR REPLACE INTO settings (key,value) VALUES ('startMonth', ?)",
-      ).run(snapshot.settings.startMonth);
-    }
-    if (snapshot.settings?.calendars) {
-      setCalendarPrefs(snapshot.settings.calendars);
-    }
-    if (snapshot.settings?.budgets) {
-      setBudgets(snapshot.settings.budgets);
-    }
-    if (snapshot.settings?.prefs) {
-      setPrefs({ ...snapshot.settings.prefs });
-    }
-    db.exec("COMMIT");
-  } catch (error) {
-    db.exec("ROLLBACK");
-    throw error;
+/** Replaces everything, in one transaction. Used by both the JSON import and
+ *  the one-time migration of data that was living in localStorage. */
+export async function replaceAll(snapshot: Partial<DataSnapshot>) {
+  const writes: Statement[] = USER_TABLES.map((table) => ({
+    sql: `DELETE FROM ${table}`,
+  }));
+
+  for (const c of snapshot.categories ?? []) writes.push(categoryInsert(c));
+  for (const r of snapshot.routines ?? [])
+    writes.push(routineInsert(r.id ?? newId(), r));
+  // The same pair linked twice keeps the first link, as createLink does.
+  const linked = new Set<string>();
+  for (const l of snapshot.links ?? []) {
+    const pair = [l.aId ?? "", l.bId ?? ""].sort().join("|");
+    if (linked.has(pair)) continue;
+    linked.add(pair);
+    writes.push(linkInsert(l.id ?? newId(), l));
   }
+  for (const t of snapshot.tasks ?? []) writes.push(taskInsert(t.id ?? newId(), t));
+  for (const e of snapshot.events ?? [])
+    writes.push(eventInsert(e.id ?? newId(), e));
+  for (const t of snapshot.transactions ?? [])
+    writes.push(transactionInsert(t.id ?? newId(), t));
+  for (const n of snapshot.notes ?? []) writes.push(noteInsert(n.id ?? newId(), n));
+  for (const l of snapshot.checklists ?? []) {
+    writes.push({
+      sql: "INSERT INTO checklists (id,title,pinned,createdAt,updatedAt) VALUES (?,?,?,?,?)",
+      params: [l.id, l.title, l.pinned ? 1 : 0, l.createdAt, l.updatedAt],
+    });
+    l.items.forEach((item, index) => writes.push(itemInsert(l.id, item, index)));
+  }
+
+  const settings = snapshot.settings;
+  if (settings?.startMonth) writes.push(startMonthWrite(settings.startMonth));
+  if (settings?.calendars) {
+    writes.push(settingWrite("calendars", settings.calendars));
+  }
+  if (settings?.budgets) {
+    writes.push(settingWrite("budgets", cleanBudgets(settings.budgets)));
+  }
+  if (settings?.prefs) {
+    writes.push(
+      settingWrite(
+        "prefs",
+        mergePrefs({ ...(await getPrefs()) }, { ...settings.prefs }),
+      ),
+    );
+  }
+
+  await db().batch(writes);
   return readAll();
 }
 
-export function clearAll() {
-  const db = getDb();
-  for (const table of [
-    "checklist_items",
-    "checklists",
-    "notes",
-    "transactions",
-    "events",
-    "tasks",
-    "routines",
-    "links",
-    "categories",
-    "settings",
-  ]) {
-    db.exec(`DELETE FROM ${table}`);
-  }
+/** What a database needs before anyone uses it: the default categories and
+ *  the month the books start. */
+export function seedStatements(): Statement[] {
+  return [
+    ...DEFAULT_CATEGORIES.map(([name, color, kind]) =>
+      categoryInsert({
+        id: newId(),
+        name,
+        color: color as Category["color"],
+        kind,
+      }),
+    ),
+    startMonthWrite(localMonthKey()),
+  ];
+}
+
+export async function clearAll() {
   // Categories and the start month are structural, not user content —
   // put them straight back so the app is usable after a wipe.
-  seedDefaults(db);
+  await db().batch([
+    ...[...USER_TABLES, "settings"].map((table) => ({
+      sql: `DELETE FROM ${table}`,
+    })),
+    ...seedStatements(),
+  ]);
   return readAll();
 }

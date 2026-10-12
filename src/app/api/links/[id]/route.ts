@@ -1,12 +1,3 @@
-import { deleteLink } from "@/lib/repo";
-import { handle } from "@/lib/api-helpers";
+import { route } from "@/lib/api-next";
 
-type Params = { params: Promise<{ id: string }> };
-
-export async function DELETE(_request: Request, { params }: Params) {
-  const { id } = await params;
-  return handle(() => {
-    deleteLink(id);
-    return { ok: true };
-  });
-}
+export const { DELETE } = route("/api/links/:id");
