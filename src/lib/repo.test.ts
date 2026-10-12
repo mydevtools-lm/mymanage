@@ -54,6 +54,8 @@ import {
   listLinks,
   getPrefs,
   setPrefs,
+  addSampleData,
+  removeSampleData,
 } from "./repo";
 
 beforeEach(async () => {
@@ -564,5 +566,26 @@ describe("preferences", () => {
     expect(await getPrefs()).toEqual({});
     await replaceAll(snapshot);
     expect(await getPrefs()).toEqual({ weekStart: 1, currency: "USD" });
+  });
+});
+
+describe("sample data", () => {
+  it("adds a set the person can take away again, leaving their own rows", async () => {
+    const mine = await createTask({ title: "שלי" });
+    const added = await addSampleData("2026-10-13");
+    expect(added.tasks.length).toBe(4);
+    expect(added.events.map((e) => e.date)).toEqual(["2026-10-13", "2026-10-14"]);
+    // Linked to the default categories by name.
+    expect(added.transactions.every((t) => t.categoryId)).toBe(true);
+
+    const sampleTask = added.tasks.find((t) => t.id.startsWith("sample-"))!;
+    await createLink({ aKind: "task", aId: sampleTask.id, bKind: "task", bId: mine.id });
+
+    const after = await removeSampleData();
+    expect(after.tasks.map((t) => t.id)).toEqual([mine.id]);
+    expect(after.events).toEqual([]);
+    expect(after.transactions).toEqual([]);
+    expect(after.notes).toEqual([]);
+    expect(after.links).toEqual([]);
   });
 });

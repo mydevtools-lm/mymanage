@@ -8,22 +8,24 @@ use rusqlite::types::{Value, ValueRef};
 use rusqlite::{params_from_iter, Connection};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Number, Value as Json};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::State;
 
-pub struct Db(pub Mutex<Connection>);
+/// The connection, and where its backups go (None for a test database).
+pub struct Db(pub Mutex<Connection>, Option<PathBuf>);
 
 impl Db {
     pub fn open(file: &Path) -> rusqlite::Result<Self> {
         let conn = Connection::open(file)?;
         conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;")?;
-        Ok(Db(Mutex::new(conn)))
+        let backups = file.parent().map(|dir| dir.join("backups"));
+        Ok(Db(Mutex::new(conn), backups))
     }
 
     #[cfg(test)]
     pub fn memory() -> Self {
-        Db(Mutex::new(Connection::open_in_memory().unwrap()))
+        Db(Mutex::new(Connection::open_in_memory().unwrap()), None)
     }
 }
 
@@ -112,6 +114,16 @@ pub fn db_exec(db: State<'_, Db>, sql: String) -> Result<(), String> {
 pub fn db_batch(db: State<'_, Db>, statements: Vec<Statement>) -> Result<usize, String> {
     let mut conn = db.0.lock().map_err(err)?;
     batch(&mut conn, &statements).map_err(err)
+}
+
+/// A snapshot named by the screens: the local date once a day, and
+/// `<date>-before-v<n>` before migrating. Returns the file written, if any.
+#[tauri::command]
+pub fn db_backup(db: State<'_, Db>, label: String) -> Result<Option<String>, String> {
+    let Some(dir) = &db.1 else { return Ok(None) };
+    let conn = db.0.lock().map_err(err)?;
+    let written = crate::backup::snapshot(&conn, dir, &label)?;
+    Ok(written.map(|p| p.to_string_lossy().into_owned()))
 }
 
 fn batch(conn: &mut Connection, statements: &[Statement]) -> rusqlite::Result<usize> {

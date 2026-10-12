@@ -2,7 +2,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type { Db, SqlValue, Statement } from "./db-adapter";
-import { localMonthKey, newId } from "./keys";
+import { localDateKey, localMonthKey, newId } from "./keys";
 import { BASE_SCHEMA, DEFAULT_CATEGORIES, MIGRATIONS } from "./schema";
 
 /**
@@ -25,13 +25,20 @@ export const tauriDb: Db = {
 let ready: Promise<void> | null = null;
 
 /** Schema, migrations and first-run defaults — once per app start, the same
- *  steps db.ts takes on the server. */
-export function openLocalDb() {
+ *  steps db.ts takes on the server — then the daily backup. */
+export async function openLocalDb() {
   ready ??= (async () => {
     await invoke("db_exec", { sql: BASE_SCHEMA });
     const { user_version } = (await tauriDb.get<{ user_version: number }>(
       "PRAGMA user_version",
     ))!;
+    // An existing database is copied before it changes shape; a new one has
+    // nothing to lose.
+    if (user_version > 0 && user_version < MIGRATIONS.length) {
+      await invoke("db_backup", {
+        label: `${localDateKey()}-before-v${MIGRATIONS.length}`,
+      });
+    }
     for (let version = user_version; version < MIGRATIONS.length; version++) {
       await tauriDb.batch([
         { sql: MIGRATIONS[version] },
@@ -55,5 +62,16 @@ export function openLocalDb() {
       [localMonthKey()],
     );
   })();
-  return ready;
+  await ready;
+  await backupIfDue();
+}
+
+let lastBackupDay: string | null = null;
+
+/** One snapshot per calendar day, on the first call of that day — the app
+ *  may stay open across midnight, so every call checks. Rust keeps 14. */
+async function backupIfDue(today = localDateKey()) {
+  if (lastBackupDay === today) return;
+  lastBackupDay = today;
+  await invoke("db_backup", { label: today });
 }

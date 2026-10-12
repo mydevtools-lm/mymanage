@@ -1,4 +1,7 @@
+mod backup;
 mod db;
+mod services;
+mod vault;
 
 use tauri::Manager;
 
@@ -13,17 +16,23 @@ pub fn run() {
                         .build(),
                 )?;
             }
-            // %APPDATA%\<identifier>\lior.db on Windows.
+            // %APPDATA%\<identifier>\data.db on Windows, backups\ beside it.
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
-            app.manage(db::Db::open(&dir.join("lior.db"))?);
+            app.manage(db::Db::open(&dir.join("data.db"))?);
+            app.manage(vault::Vault::new(dir.join("secrets.json")));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             db::db_all,
             db::db_run,
             db::db_exec,
-            db::db_batch
+            db::db_batch,
+            db::db_backup,
+            services::secret_status,
+            services::secret_set,
+            services::calendar_fetch,
+            services::assist_parse
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

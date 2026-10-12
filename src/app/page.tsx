@@ -49,6 +49,7 @@ import type { CalendarEvent, Task } from "@/lib/types";
  */
 export default function TodayPage() {
   const tasks = useAppStore((s) => s.tasks);
+  const userName = useAppStore((s) => s.settings.prefs?.userName);
   const events = useAppStore((s) => s.events);
   const updateTask = useAppStore((s) => s.updateTask);
   const reorderTasks = useAppStore((s) => s.reorderTasks);
@@ -132,7 +133,8 @@ export default function TodayPage() {
         {/* Client-only: a static page is built ahead of time, and a greeting
             baked in at build time would be wrong by morning. */}
         <p className="-mt-4 mb-5 text-sm text-muted-foreground">
-          {greeting()}, ליאור ·{" "}
+          {greeting()}
+          {userName ? `, ${userName}` : ""} ·{" "}
           {format(new Date(), "EEEE, d בMMMM yyyy", { locale: he })}
         </p>
 

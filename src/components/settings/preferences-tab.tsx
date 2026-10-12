@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Field, SimpleSelect } from "@/components/fields";
 import { ReminderField } from "@/components/reminder-field";
 import { install, useInstall } from "@/components/pwa";
@@ -60,6 +61,17 @@ export function PreferencesTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
+          <Field label="איך לקרוא לך" htmlFor="pref-user-name">
+            <Input
+              id="pref-user-name"
+              defaultValue={prefs.userName ?? ""}
+              autoComplete="given-name"
+              onBlur={(e) => {
+                const userName = e.target.value.trim() || undefined;
+                if (userName !== prefs.userName) setPrefs({ userName });
+              }}
+            />
+          </Field>
           <Field label="השבוע מתחיל ביום">
             <SimpleSelect
               label="השבוע מתחיל ביום"

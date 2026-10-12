@@ -20,6 +20,8 @@ import {
   isActive,
   type NavItem,
 } from "./nav";
+import { APP_NAME } from "@/lib/app-info";
+import { useAppStore } from "@/lib/store";
 
 // Collapsed state is a data attribute on <html>, set by an inline script in
 // the layout before hydration. Styling keys off it with the
@@ -60,16 +62,19 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
 export function Sidebar() {
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
+  const userName = useAppStore((s) => s.settings.prefs?.userName);
 
   return (
     <aside className="sticky top-0 hidden print:hidden h-screen w-56 shrink-0 flex-col border-e border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:flex sidebar-collapsed:w-16">
       <div className="px-5 pt-6 pb-4 sidebar-collapsed:px-0 sidebar-collapsed:text-center">
         <div className="text-lg font-bold text-sidebar-primary sidebar-collapsed:hidden">
-          ניהול אישי
+          {APP_NAME}
         </div>
-        <div className="text-xs text-muted-foreground sidebar-collapsed:hidden">
-          Lior Management
-        </div>
+        {userName && (
+          <div className="text-xs text-muted-foreground sidebar-collapsed:hidden">
+            {userName}
+          </div>
+        )}
         <div className="hidden text-lg font-bold text-sidebar-primary sidebar-collapsed:block">
           נ
         </div>
