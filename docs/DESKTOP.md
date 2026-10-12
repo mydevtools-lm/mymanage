@@ -230,8 +230,8 @@ store.ts ─ api() ─┬─ דפדפן: fetch → route.ts (שורה אחת) �
 
 - ☑ סריקת היסטוריה לסודות — נקייה (12.10.2026): רק כתובות לדוגמה
   ב‑`.env.example` ובבדיקות
-- ☐ הוצאת פרטים אישיים מהקוד: ״ליאור״ ב‑`src/app/page.tsx:135`,
-  ״Lior Management״ ב‑`src/app/layout.tsx:26` ו‑`src/components/layout/sidebar.tsx:71`
+- ☑ הוצאת פרטים אישיים מהקוד (ד2): הברכה לוקחת את השם מההגדרות
+  (`prefs.userName`), ושם המוצר במקום אחד — `src/lib/app-info.ts`
 - ☐ מזהים פנימיים (`LIOR_DB_PATH`, `lior-device`) נשארים — שינוי שלהם שובר
   התקנות קיימות בלי תועלת
 - ☐ `docs/FIREBASE.md` ו‑`firestore.rules` — לפי ה2: להעביר ל‑`docs/archive/` או

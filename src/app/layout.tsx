@@ -16,6 +16,8 @@ import { SmartAdd } from "@/components/smart-add";
 import { BriefDialog } from "@/components/brief-dialog";
 import { ReminderWatch } from "@/components/reminder-watch";
 import { Pwa } from "@/components/pwa";
+import { APP_NAME } from "@/lib/app-info";
+import { Onboarding, SampleBanner } from "@/components/onboarding";
 
 const heebo = Heebo({
   variable: "--font-sans",
@@ -23,7 +25,7 @@ const heebo = Heebo({
 });
 
 export const metadata: Metadata = {
-  title: "ניהול אישי — Lior Management",
+  title: APP_NAME,
   description: "היום, משימות, יומן, כספים, הערות ורשימות — במקום אחד",
 };
 
@@ -75,7 +77,10 @@ export default function RootLayout({
                 tabIndex={-1}
                 className="flex-1 outline-none overflow-x-hidden px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))] md:px-8 md:py-6 print:p-0"
               >
-                <div className="mx-auto max-w-6xl">{children}</div>
+                <div className="mx-auto max-w-6xl">
+                  <SampleBanner />
+                  {children}
+                </div>
               </main>
             </div>
           </div>
@@ -88,6 +93,7 @@ export default function RootLayout({
           <CommandPalette />
           <SmartAdd />
           <BriefDialog />
+          <Onboarding />
           <ReminderWatch />
           <Pwa />
         </Providers>

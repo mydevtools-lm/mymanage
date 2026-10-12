@@ -163,6 +163,9 @@ interface AppState {
 
   exportData: () => DataSnapshot;
   importData: (snapshot: DataSnapshot) => Promise<void>;
+  /** First run: add the sample set, or take it away again. */
+  addSampleData: () => Promise<void>;
+  removeSampleData: () => Promise<void>;
   clearAll: () => Promise<void>;
 }
 
@@ -1013,6 +1016,16 @@ export const useAppStore = create<AppState>()((set, get) => ({
   },
   clearAll: async () => {
     const saved = (await api("/api/data", "DELETE")) as DataSnapshot;
+    applySnapshot(saved);
+  },
+  addSampleData: async () => {
+    const saved = (await api("/api/sample", "POST", {
+      today: todayKey(),
+    })) as DataSnapshot;
+    applySnapshot(saved);
+  },
+  removeSampleData: async () => {
+    const saved = (await api("/api/sample", "DELETE")) as DataSnapshot;
     applySnapshot(saved);
   },
 }));

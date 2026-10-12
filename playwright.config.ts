@@ -20,8 +20,8 @@ export default defineConfig({
     locale: "he-IL",
     timezoneId: "Asia/Jerusalem",
     trace: "retain-on-failure",
-    // The morning brief opens by itself on a first visit; tests that aren't
-    // about it start with it already seen.
+    // The morning brief and the first-run questions open by themselves on a
+    // first visit; tests that aren't about them start with them done.
     storageState: {
       cookies: [],
       origins: [
@@ -30,7 +30,11 @@ export default defineConfig({
           localStorage: [
             {
               name: "lior-device",
-              value: JSON.stringify({ autoBrief: false, fired: {} }),
+              value: JSON.stringify({
+                autoBrief: false,
+                onboarded: true,
+                fired: {},
+              }),
             },
           ],
         },

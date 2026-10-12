@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
+import { APP_NAME, APP_SHORT_NAME } from "@/lib/app-info";
 
 /** Installing to the home screen: a name, icons, and an app-like window. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "ניהול אישי",
-    short_name: "ניהול",
+    name: APP_NAME,
+    short_name: APP_SHORT_NAME,
     description: "משימות, יומן, כספים ורשימות — במקום אחד",
     lang: "he",
     dir: "rtl",

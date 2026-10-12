@@ -12,6 +12,8 @@ const KEY = "lior-device";
 
 interface Stored {
   autoBrief: boolean;
+  /** The first-run questions were answered (or skipped) on this device. */
+  onboarded?: boolean;
   briefShownOn?: string;
   /** Reminder keys already shown on this device, with the day they fired. */
   fired: Record<string, string>;
@@ -42,6 +44,7 @@ interface DevicePrefs extends Stored {
   setAutoBrief: (on: boolean) => void;
   markBriefShown: (day: string) => void;
   markFired: (keys: string[], day: string) => void;
+  markOnboarded: () => void;
 }
 
 export const useDevicePrefs = create<DevicePrefs>()((set, get) => {
@@ -50,6 +53,7 @@ export const useDevicePrefs = create<DevicePrefs>()((set, get) => {
     set(patch);
     write({
       autoBrief: next.autoBrief,
+      onboarded: next.onboarded,
       briefShownOn: next.briefShownOn,
       fired: next.fired,
     });
@@ -60,6 +64,7 @@ export const useDevicePrefs = create<DevicePrefs>()((set, get) => {
     load: () => set({ ...read(), loaded: true }),
     setAutoBrief: (autoBrief) => save({ autoBrief }),
     markBriefShown: (briefShownOn) => save({ briefShownOn }),
+    markOnboarded: () => save({ onboarded: true }),
     markFired: (keys, day) => {
       // Keep two days of history; older keys can never fire again anyway.
       const cutoff = new Date(Date.now() - 2 * 86_400_000).toLocaleDateString(

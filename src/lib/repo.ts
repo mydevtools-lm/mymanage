@@ -15,6 +15,7 @@ import type {
   Transaction,
 } from "./types";
 import { instanceId, occursOn } from "./routines";
+import { SAMPLE_PREFIX, sampleData } from "./sample-data";
 
 /**
  * Every read and write of the app's data. Runs wherever the database is: on
@@ -1201,6 +1202,34 @@ export function seedStatements(): Statement[] {
     ),
     startMonthWrite(localMonthKey()),
   ];
+}
+
+/** First-run sample data (sample-data.ts), in one transaction. */
+export async function addSampleData(today: string) {
+  const sample = sampleData(today, await listCategories());
+  await db().batch([
+    ...sample.tasks.map((t) => taskInsert(t.id!, t)),
+    ...sample.events.map((e) => eventInsert(e.id!, e)),
+    ...sample.transactions.map((t) => transactionInsert(t.id!, t)),
+    ...sample.notes.map((n) => noteInsert(n.id!, n)),
+  ]);
+  return readAll();
+}
+
+/** Removes the sample rows and anything linked to them; nothing else. */
+export async function removeSampleData() {
+  const like = `${SAMPLE_PREFIX}%`;
+  await db().batch([
+    ...["tasks", "events", "transactions", "notes"].map((table) => ({
+      sql: `DELETE FROM ${table} WHERE id LIKE ?`,
+      params: [like],
+    })),
+    {
+      sql: "DELETE FROM links WHERE aId LIKE ? OR bId LIKE ?",
+      params: [like, like],
+    },
+  ]);
+  return readAll();
 }
 
 export async function clearAll() {

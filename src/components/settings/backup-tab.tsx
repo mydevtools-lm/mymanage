@@ -26,6 +26,7 @@ import {
 import { useAppStore } from "@/lib/store";
 import { formatMonth, toDateKey } from "@/lib/format";
 import type { DataSnapshot } from "@/lib/types";
+import { APP_SLUG } from "@/lib/app-info";
 
 export function BackupTab() {
   const exportData = useAppStore((s) => s.exportData);
@@ -52,7 +53,7 @@ export function BackupTab() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `lior-management-${toDateKey(new Date())}.json`;
+    a.download = `${APP_SLUG}-${toDateKey(new Date())}.json`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success("הגיבוי הורד");

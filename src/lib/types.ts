@@ -186,6 +186,8 @@ export interface Settings {
 export type CurrencyCode = "ILS" | "USD" | "EUR";
 
 export interface Preferences {
+  /** How the app greets the person; asked on the first run. */
+  userName?: string;
   /** 0 Sunday (default), 1 Monday, 6 Saturday. */
   weekStart?: 0 | 1 | 6;
   currency?: CurrencyCode;

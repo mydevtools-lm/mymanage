@@ -277,8 +277,11 @@ export function BriefDialog() {
     if (!hydrated) return;
     const prefs = useDevicePrefs.getState();
     if (!prefs.loaded) prefs.load();
-    const { autoBrief, briefShownOn, markBriefShown } =
+    const { autoBrief, briefShownOn, markBriefShown, onboarded } =
       useDevicePrefs.getState();
+    // The first-run questions come first; the brief waits for the next visit.
+    const named = !!useAppStore.getState().settings.prefs?.userName;
+    if (!onboarded && !named) return;
     const today = todayKey();
     const now = new Date();
     if (
