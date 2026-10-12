@@ -3,8 +3,10 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, readdirSync, rmSync, existsSync } from "node:fs";
 import path from "node:path";
 import { BASE_SCHEMA, DEFAULT_CATEGORIES, MIGRATIONS } from "./schema";
+import { localDateKey, localMonthKey, newId } from "./keys";
 
 export { SCHEMA_VERSION } from "./schema";
+export { localDateKey, localMonthKey, newId } from "./keys";
 
 /**
  * Local SQLite database, stored as a file inside the project.
@@ -45,25 +47,6 @@ function migrate(db: DatabaseSync) {
       throw error;
     }
   }
-}
-
-
-export function newId() {
-  return crypto.randomUUID();
-}
-
-function pad(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-// Local calendar values, not UTC: at 01:00 in Israel on the 1st of the month
-// toISOString() still reports the previous month.
-export function localMonthKey(date = new Date()) {
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
-}
-
-export function localDateKey(date = new Date()) {
-  return `${localMonthKey(date)}-${pad(date.getDate())}`;
 }
 
 export function seedDefaults(db: DatabaseSync = getDb()) {

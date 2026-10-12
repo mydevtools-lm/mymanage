@@ -1,13 +1,3 @@
-import { listCategories, createCategory } from "@/lib/repo";
-import { badRequest, handle, readJson } from "@/lib/api-helpers";
-import type { Category } from "@/lib/types";
+import { route } from "@/lib/api-next";
 
-export async function GET() {
-  return handle(() => listCategories());
-}
-
-export async function POST(request: Request) {
-  const body = await readJson<Omit<Category, "id"> & { id?: string }>(request);
-  if (!body?.name || !body.kind) return badRequest("חסר שם או סוג");
-  return handle(() => createCategory(body));
-}
+export const { GET, POST } = route("/api/categories");
