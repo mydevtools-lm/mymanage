@@ -241,10 +241,10 @@ store.ts ─ api() ─┬─ דפדפן: fetch → route.ts (שורה אחת) �
   ב‑`.env.example` ובבדיקות
 - ☑ הוצאת פרטים אישיים מהקוד (ד2): הברכה לוקחת את השם מההגדרות
   (`prefs.userName`), ושם המוצר במקום אחד — `src/lib/app-info.ts`
-- ☐ מזהים פנימיים (`LIOR_DB_PATH`, `lior-device`) נשארים — שינוי שלהם שובר
+- ☑ מזהים פנימיים (`LIOR_DB_PATH`, `lior-device`) נשארים — שינוי שלהם שובר
   התקנות קיימות בלי תועלת
-- ☐ `docs/FIREBASE.md` ו‑`firestore.rules` — לפי ה2: להעביר ל‑`docs/archive/` או
-  להשאיר עם הערה
+- ☑ `docs/FIREBASE.md` ו‑`firestore.rules` — הועברו ל‑`docs/archive/` עם הערה (ד5).
+  נבדקו: רק ערכים לדוגמה (`OWNER_UID`, `lior-management`)
 
 **קבצים חדשים**
 
@@ -458,8 +458,13 @@ store.ts ─ api() ─┬─ דפדפן: fetch → route.ts (שורה אחת) �
 
 ### ד5 — קוד פתוח · S–M
 
-- ☐ הקבצים מסעיף 7, צילומי מסך עם נתוני דוגמה
-- ☐ GitHub Actions: בדיקות על PR, `tauri-action` על תג
+- ☑ הקבצים מסעיף 7, צילומי מסך עם נתוני דוגמה — `README.md` (עברית) ו‑`README.en.md`
+  (ה7), `LICENSE` (MIT, על שם `mydevtools-lm`), `CONTRIBUTING.md`, `SECURITY.md`,
+  `CHANGELOG.md`, `docs/DEVELOPMENT.md`, תבניות Issue. הצילומים ב‑`docs/screenshots/`
+  מצולמים בשלב `screenshots` של בדיקת העשן — שם לדוגמה, נתוני דוגמה, ערכה בהירה
+- ☑ GitHub Actions: בדיקות על PR, `tauri-action` על תג — `ci.yml` (lint, tsc, Vitest,
+  build, clippy, `cargo test` על Windows, גם על main), `release.yml` (תג `v*` → טיוטת
+  Release עם המתקין), Dependabot שבועי. הגרסה הועלתה ל‑1.0.0
 - ☐ **פעולה שלך:** שינוי שם המאגר והפיכתו לציבורי
 
 **מוכן כאשר:** Release `v1.0.0` מופיע במאגר הציבורי עם מתקין שנבנה ב‑CI.
