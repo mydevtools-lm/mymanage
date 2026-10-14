@@ -18,6 +18,7 @@ import { Pwa } from "@/components/pwa";
 import { APP_NAME } from "@/lib/app-info";
 import { Onboarding, SampleBanner } from "@/components/onboarding";
 import { DesktopShell } from "@/components/desktop-shell";
+import { UpdatePrompt } from "@/components/update-prompt";
 
 const heebo = Heebo({
   variable: "--font-sans",
@@ -97,6 +98,7 @@ export default function RootLayout({
           <ReminderWatch />
           <Pwa />
           <DesktopShell />
+          <UpdatePrompt />
         </Providers>
       </body>
     </html>

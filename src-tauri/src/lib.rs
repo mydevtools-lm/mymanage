@@ -2,6 +2,7 @@ mod backup;
 mod db;
 mod services;
 mod shell;
+mod updates;
 mod vault;
 
 use tauri::Manager;
@@ -9,7 +10,13 @@ use tauri_plugin_window_state::StateFlags;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let context = tauri::generate_context!();
+    // Only a release build carries the updater's settings (its key and
+    // address, written by .github/workflows/release.yml); without them the
+    // plugin isn't loaded and the app never looks for updates.
+    let updates = context.config().plugins.0.contains_key("updater");
+
+    let mut builder = tauri::Builder::default()
         // First: a second launch hands over to the running one and exits.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| shell::show(app)))
         // Size and place are remembered; whether it was showing is not —
@@ -27,6 +34,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(shell::CloseToTray::default())
+        .manage(updates::Updates::new(updates))
         .manage(shell::Quiet::default())
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -67,8 +75,14 @@ pub fn run() {
             shell::shell_open_data_dir,
             shell::shell_notify,
             shell::shell_open_url,
-            shell::shell_quiet_calls
-        ])
-        .run(tauri::generate_context!())
-        .expect("error while building tauri application");
+            shell::shell_quiet_calls,
+            updates::app_about,
+            updates::update_check,
+            updates::update_install,
+            updates::update_on_exit
+        ]);
+    if updates {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+    builder.run(context).expect("error while building tauri application");
 }

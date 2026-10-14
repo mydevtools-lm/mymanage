@@ -7,8 +7,12 @@ import { ConnectionsTab } from "@/components/settings/connections-tab";
 import { BackupTab } from "@/components/settings/backup-tab";
 import { NotificationsTab } from "@/components/settings/notifications-tab";
 import { PreferencesTab } from "@/components/settings/preferences-tab";
+import { AboutTab } from "@/components/settings/about-tab";
+import { useIsTauri } from "@/lib/platform";
 
 export default function SettingsPage() {
+  // About — the version and updates — belongs to the desktop app.
+  const desktop = useIsTauri();
   return (
     <>
       <PageHeader title="הגדרות" />
@@ -36,6 +40,9 @@ export default function SettingsPage() {
               content: <NotificationsTab />,
             },
             { value: "backup", label: "גיבוי", content: <BackupTab /> },
+            ...(desktop
+              ? [{ value: "about", label: "אודות", content: <AboutTab /> }]
+              : []),
           ]}
         />
       </Hydrated>
