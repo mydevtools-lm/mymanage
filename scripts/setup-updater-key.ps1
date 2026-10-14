@@ -1,17 +1,23 @@
-﻿# The update signing key, once (docs/DEVELOPMENT.md, "מפתח העדכונים").
+﻿# The update signing key (docs/DEVELOPMENT.md, "מפתח העדכונים").
 #
 #   powershell -ExecutionPolicy Bypass -File scripts\setup-updater-key.ps1
+#   powershell -ExecutionPolicy Bypass -File scripts\setup-updater-key.ps1 -New
 #
 # 1. Uses the key at $HOME\.tauri\management.key — moving it there first if an
 #    earlier `npx tauri signer generate -w ~/...` left it in a folder named "~"
-#    inside the project — or creates one.
-# 2. Asks for its password and checks it by signing a scratch file.
+#    inside the project. -New (or no key at all) creates one; an existing key
+#    is kept beside it as management.key.old-<date>, never deleted.
+# 2. Asks for the password with stars on screen, and checks it against the key
+#    by signing a scratch file — an empty password too.
 # 3. Saves the private key and the password as GitHub secrets, and the public
 #    key as the variable UPDATER_PUBKEY, for .github/workflows/release.yml.
 #
 # The key and the password never leave this computer except to GitHub.
 
-param([string]$KeyPath = (Join-Path $HOME ".tauri\management.key"))
+param(
+  [string]$KeyPath = (Join-Path $HOME ".tauri\management.key"),
+  [switch]$New
+)
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
@@ -19,6 +25,15 @@ Set-Location -LiteralPath $root
 
 function Step($text) { Write-Host "`n== $text" -ForegroundColor Cyan }
 function Ok($text) { Write-Host "   $text" -ForegroundColor Green }
+
+# Read-Host -AsSecureString shows a star per character, so it is clear that
+# something was typed. Returns plain text for the CLI and gh.
+function Read-Password($prompt) {
+  $secure = Read-Host $prompt -AsSecureString
+  $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+  try { [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
+  finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
+}
 
 Step "GitHub"
 gh auth status *> $null
@@ -49,41 +64,44 @@ if (Test-Path -LiteralPath $stray) {
   }
 }
 
+if ($New -and (Test-Path -LiteralPath $KeyPath)) {
+  $stamp = Get-Date -Format "yyyy-MM-dd-HHmm"
+  Move-Item -LiteralPath $KeyPath -Destination "$KeyPath.old-$stamp"
+  if (Test-Path -LiteralPath "$KeyPath.pub") { Move-Item -LiteralPath "$KeyPath.pub" -Destination "$KeyPath.pub.old-$stamp" }
+  Ok "המפתח הקודם נשמר בצד: $KeyPath.old-$stamp"
+}
+
 if (-not (Test-Path -LiteralPath $KeyPath)) {
-  Write-Host "   אין מפתח — יוצרים חדש. הסיסמה לא מוצגת בזמן ההקלדה; מקלידים ולוחצים Enter, פעמיים."
+  Write-Host "   יוצרים מפתח חדש. בחרו סיסמה (כוכביות על המסך), או Enter לבלי סיסמה."
+  $first = Read-Password "   סיסמה למפתח החדש"
+  $second = Read-Password "   שוב, לאישור"
+  if ($first -ne $second) { throw "הסיסמאות לא זהות. הריצו שוב." }
   New-Item -ItemType Directory -Force -Path (Split-Path $KeyPath) | Out-Null
-  npx tauri signer generate -w $KeyPath
-  if ($LASTEXITCODE -ne 0) { throw "יצירת המפתח נכשלה" }
+  # --password=<value> rather than -p <value>: Windows PowerShell drops an
+  # empty argument, and the CLI would then stop to ask.
+  npx tauri signer generate -w $KeyPath --ci "--password=$first" *> $null
+  if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $KeyPath)) { throw "יצירת המפתח נכשלה" }
+  $password = $first
+  Ok "נוצר מפתח חדש: $KeyPath"
+} else {
+  Ok "המפתח: $KeyPath"
+  $password = Read-Password "   הסיסמה של המפתח (כוכביות על המסך; Enter אם אין)"
 }
 if (-not (Test-Path -LiteralPath "$KeyPath.pub")) { throw "חסר המפתח הציבורי $KeyPath.pub" }
-Ok "המפתח: $KeyPath"
 
-Step "הסיסמה"
-$secure = Read-Host "   הסיסמה של המפתח (לא תוצג; ריק אם יצרתם בלי סיסמה)" -AsSecureString
-$bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-try {
-  $password = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
-} finally {
-  [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-}
-
+Step "בדיקת הסיסמה"
 # Signing a scratch file proves the key and the password belong together.
-# (Not without a password: PowerShell can't hand the CLI an empty one, and it
-# would wait for it at a prompt.)
-$signed = $true
-if ($password) {
-  $probe = New-TemporaryFile
-  $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = $password
-  try {
-    npx tauri signer sign -f $KeyPath $probe.FullName *> $null
-    $signed = $LASTEXITCODE -eq 0
-  } finally {
-    Remove-Item Env:\TAURI_SIGNING_PRIVATE_KEY_PASSWORD -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $probe.FullName, "$($probe.FullName).sig" -Force -ErrorAction SilentlyContinue
-  }
+$probe = New-TemporaryFile
+try {
+  npx tauri signer sign -f $KeyPath "--password=$password" $probe.FullName *> $null
+  $signed = $LASTEXITCODE -eq 0
+} finally {
+  Remove-Item -LiteralPath $probe.FullName, "$($probe.FullName).sig" -Force -ErrorAction SilentlyContinue
 }
-if (-not $signed) { throw "הסיסמה לא מתאימה למפתח. הריצו שוב." }
-Ok ($(if ($password) { "הסיסמה מתאימה למפתח" } else { "בלי סיסמה" }))
+if (-not $signed) {
+  throw "הסיסמה לא מתאימה למפתח. אם היא לא ידועה — הריצו עם -New ליצירת מפתח חדש (כל עוד לא פורסמה גרסה חתומה, זה לא פוגע באף אחד)."
+}
+Ok ($(if ($password) { "הסיסמה מתאימה למפתח" } else { "המפתח בלי סיסמה — אומת" }))
 
 Step "שמירה ב-GitHub"
 Get-Content -LiteralPath $KeyPath -Raw | gh secret set TAURI_SIGNING_PRIVATE_KEY --repo $repo
@@ -92,11 +110,13 @@ if ($password) {
   $password | gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD --repo $repo
   if ($LASTEXITCODE -ne 0) { throw "שמירת הסיסמה נכשלה" }
 } else {
-  Ok "בלי סיסמה — הסוד TAURI_SIGNING_PRIVATE_KEY_PASSWORD לא נדרש"
+  # A password secret left from an earlier key would now be wrong.
+  gh secret delete TAURI_SIGNING_PRIVATE_KEY_PASSWORD --repo $repo *> $null
+  Ok "בלי סיסמה — אין סוד סיסמה"
 }
 Get-Content -LiteralPath "$KeyPath.pub" -Raw | gh variable set UPDATER_PUBKEY --repo $repo
 if ($LASTEXITCODE -ne 0) { throw "שמירת המפתח הציבורי נכשלה" }
-$password = $null
+$password = $null; $first = $null; $second = $null
 
 Step "מה שמור עכשיו ב-$repo"
 gh secret list --repo $repo
