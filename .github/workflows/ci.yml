@@ -1,0 +1,50 @@
+# The gate on every PR and on main (DESKTOP.md section 7). Windows, because
+# that is what the app ships for, and the Rust side links against WebView2.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit -p .
+      - run: npm test
+      - run: npm run build
+
+  rust:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      # tauri::generate_context! embeds the static export; an empty folder is
+      # enough to compile and test the Rust side.
+      - run: New-Item -ItemType Directory -Force ../out | Out-Null
+        shell: pwsh
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test

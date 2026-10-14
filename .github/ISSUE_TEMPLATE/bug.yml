@@ -1,0 +1,33 @@
+name: באג
+description: משהו לא עובד כמו שצריך
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: מה קרה
+      description: מה עשית, מה ציפית שיקרה, ומה קרה בפועל. צילום מסך עוזר.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: איך משחזרים
+      placeholder: |
+        1. פותחים את …
+        2. לוחצים על …
+  - type: input
+    id: version
+    attributes:
+      label: גרסה
+      description: הגדרות Windows › אפליקציות, ליד ״ניהול אישי״ — או שם קובץ ההתקנה
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows
+      placeholder: Windows 11 23H2
+  - type: markdown
+    attributes:
+      value: "**לא לצרף** קבצי מסד, גיבויים, כתובות יומן או מפתחות — הם פרטיים. בעיית אבטחה מדווחים לפי SECURITY.md."
