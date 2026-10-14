@@ -12,7 +12,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { spawn, execSync } from "node:child_process";
 import path from "node:path";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -212,18 +212,22 @@ if (phase === "write") {
     execSync("powershell -NoProfile -EncodedCommand " + Buffer.from("$ProgressPreference='SilentlyContinue'; " + script, "utf16le").toString("base64"), { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
   const instances = () => Number(ps(`@(Get-Process app -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${EXE}' }).Count`));
 
-  // A task due in two minutes with a reminder one minute before.
-  const due = new Date(Date.now() + 2 * 60_000);
+  // A task with a reminder one minute before it, due three minutes out: the
+  // time drops its seconds, and the reminder must come after the window has
+  // gone to the tray.
+  const due = new Date(Date.now() + 3 * 60_000);
   const pad = (n) => String(n).padStart(2, "0");
   const date = `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}`;
   const time = `${pad(due.getHours())}:${pad(due.getMinutes())}`;
+  // A new id each run: a reminder that fired once is never shown again.
+  const taskId = `smoke-reminder-${Date.now()}`;
   await page.evaluate(
-    ([date, time]) =>
+    ([id, date, time]) =>
       window.__TAURI_INTERNALS__.invoke("db_run", {
-        sql: "INSERT INTO tasks (id,title,dueDate,dueTime,priority,completed,reminder,createdAt,updatedAt) VALUES ('smoke-reminder','עשן תזכורת',?,?,'normal',0,1,datetime('now'),datetime('now'))",
-        params: [date, time],
+        sql: "INSERT INTO tasks (id,title,dueDate,dueTime,priority,completed,reminder,createdAt,updatedAt) VALUES (?,'עשן תזכורת',?,?,'normal',0,1,datetime('now'),datetime('now'))",
+        params: [id, date, time],
       }),
-    [date, time],
+    [taskId, date, time],
   );
   await goto(page, "/");
   // Notifications and links are recorded by Rust, not sent (quiet mode, set
@@ -244,6 +248,15 @@ if (phase === "write") {
   await page.waitForTimeout(500);
   seen.linkOpened = await recorded("open:");
 
+  // The extra backup folder gets a copy of today's backup.
+  const extra = path.join(process.env.TEMP, `management-backup-smoke-${Date.now()}`);
+  await page.evaluate(
+    ([label, also]) => window.__TAURI_INTERNALS__.invoke("db_backup", { label, also }),
+    [date, extra],
+  );
+  seen.extraBackup = existsSync(extra) ? readdirSync(extra) : [];
+  rmSync(extra, { recursive: true, force: true });
+
   // Closing the window (WM_CLOSE, as its X button sends) keeps the app in
   // the tray.
   // The window's handle, taken while it shows (a hidden window is no
@@ -257,7 +270,7 @@ if (phase === "write") {
   seen.afterClose = { running: instances(), windowVisible: windowVisible(), visibility: await page.evaluate(() => document.visibilityState) };
 
   // The reminder comes while it's there.
-  const deadline = Date.now() + 150_000;
+  const deadline = Date.now() + 200_000;
   let notified = [];
   while (Date.now() < deadline && notified.length === 0) {
     await page.waitForTimeout(2000);
@@ -266,7 +279,8 @@ if (phase === "write") {
   seen.reminder = notified;
   seen.reminderWhileHidden = !windowVisible();
   seen.reminderFired = await page.evaluate(() =>
-    Object.keys(JSON.parse(localStorage.getItem("lior-device") ?? "{}").fired ?? {}).filter((k) => k.includes("smoke-reminder")),
+    (id) => Object.keys(JSON.parse(localStorage.getItem("lior-device") ?? "{}").fired ?? {}).filter((k) => k.includes(id)),
+    taskId,
   );
 
   // A second launch brings the running one back, and doesn't stay.
@@ -275,7 +289,7 @@ if (phase === "write") {
   seen.secondLaunch = { running: instances(), windowVisible: windowVisible(), visibility: await page.evaluate(() => document.visibilityState) };
 
   await page.evaluate(() =>
-    window.__TAURI_INTERNALS__.invoke("db_run", { sql: "DELETE FROM tasks WHERE id = 'smoke-reminder'", params: [] }),
+    window.__TAURI_INTERNALS__.invoke("db_run", { sql: "DELETE FROM tasks WHERE id LIKE 'smoke-reminder%'", params: [] }),
   );
   if (process.argv[3]) await page.screenshot({ path: process.argv[3] });
   console.log("seen:", JSON.stringify(seen, null, 1));
