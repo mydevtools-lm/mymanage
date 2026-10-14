@@ -1,0 +1,6 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "identifier": "io.github.mydevtools-lm.management.test",
+  "productName": "management-test",
+  "mainBinaryName": "management-test"
+}

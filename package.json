@@ -12,7 +12,8 @@
     "test:e2e": "playwright test",
     "dev:desktop-web": "cross-env NEXT_TARGET=desktop next dev",
     "build:desktop-web": "cross-env NEXT_TARGET=desktop next build",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build:desktop-test": "tauri build --no-bundle --config src-tauri/tauri.test.conf.json"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

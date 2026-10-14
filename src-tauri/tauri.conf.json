@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "management-spike",
+  "productName": "ניהול אישי",
   "version": "0.1.0",
   "identifier": "io.github.mydevtools-lm.management",
   "build": {
@@ -53,6 +53,25 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
-  }
+    ],
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "Hebrew",
+          "English"
+        ],
+        "displayLanguageSelector": false,
+        "installerIcon": "icons/icon.ico",
+        "customLanguageFiles": {
+          "Hebrew": "nsis/Hebrew.nsh"
+        }
+      }
+    }
+  },
+  "mainBinaryName": "management"
 }
