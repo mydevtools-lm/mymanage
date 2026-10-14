@@ -21,9 +21,10 @@ const EXE = path.join(
   "src-tauri/target/release/app.exe",
 );
 const PORT = 9333;
-const APP_ARGS = JSON.parse(
+const CONF = JSON.parse(
   (await import("node:fs")).readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf8"),
-).app.windows[0].additionalBrowserArgs;
+).app.windows[0];
+const APP_ARGS = CONF.additionalBrowserArgs;
 const phase = process.argv[2];
 
 function stopApp() {
@@ -206,7 +207,7 @@ if (phase === "write") {
 } else if (phase === "shell") {
   const seen = {};
   const ps = (script) =>
-    execSync("powershell -NoProfile -EncodedCommand " + Buffer.from(script, "utf16le").toString("base64"), { encoding: "utf8" }).trim();
+    execSync("powershell -NoProfile -EncodedCommand " + Buffer.from("$ProgressPreference='SilentlyContinue'; " + script, "utf16le").toString("base64"), { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
   const instances = () => Number(ps(`@(Get-Process app -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${EXE}' }).Count`));
 
   // A task due in two minutes with a reminder one minute before.
@@ -224,19 +225,33 @@ if (phase === "write") {
   );
   await goto(page, "/");
   // Notifications and links are recorded, not sent: a test stays quiet and
-  // opens no browser.
-  await page.evaluate(() => {
-    const internals = window.__TAURI_INTERNALS__;
-    const real = internals.invoke.bind(internals);
-    window.__calls = [];
-    internals.invoke = (cmd, args, options) => {
-      if (cmd === "plugin:notification|notify" || cmd === "plugin:opener|open_url") {
-        window.__calls.push({ cmd, args });
-        return Promise.resolve(null);
-      }
-      return real(cmd, args, options);
-    };
+  // opens no browser. Tauri's invoke can't be replaced (it is read-only), so
+  // the calls are caught on their way to Rust, at the IPC address.
+  const calls = [];
+  const QUIET = ["plugin%3Anotification%7Cnotify", "plugin%3Aopener%7Copen_url"];
+  await page.route("http://ipc.localhost/**", async (route) => {
+    const url = route.request().url();
+    const cmd = QUIET.find((c) => url.endsWith("/" + c));
+    if (!cmd) return route.continue();
+    let body = null;
+    try {
+      body = JSON.parse(route.request().postData() ?? "null");
+    } catch {
+      body = route.request().postData();
+    }
+    calls.push({ cmd: decodeURIComponent(cmd), body });
+    return route.fulfill({
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Tauri-Response": "ok",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Expose-Headers": "Tauri-Response",
+      },
+      body: "null",
+    });
   });
+  const recorded = (cmd) => calls.filter((c) => c.cmd === cmd);
 
   // A link out of the app goes to the default browser.
   await page.evaluate(() => {
@@ -246,29 +261,37 @@ if (phase === "write") {
     a.id = "smoke-link";
     document.querySelector("main").append(a);
   });
-  await page.click("#smoke-link");
+  await page.evaluate(() => document.getElementById("smoke-link").click());
   seen.linkStayed = page.url().startsWith("http://tauri.localhost");
-  seen.linkOpened = await page.evaluate(() => window.__calls.filter((c) => c.cmd === "plugin:opener|open_url").map((c) => c.args.url));
+  await page.waitForTimeout(500);
+  seen.linkOpened = recorded("plugin:opener|open_url").map((c) => c.body?.url);
 
-  // Closing the window keeps the app in the tray.
-  ps(`Get-Process app | Where-Object { $_.Path -eq '${EXE}' } | ForEach-Object { [void]$_.CloseMainWindow() }`);
+  // Closing the window (WM_CLOSE, as its X button sends) keeps the app in
+  // the tray.
+  // The window's handle, taken while it shows (a hidden window is no
+  // process's "main window").
+  const handle = ps(`(Get-Process app | Where-Object { $_.Path -eq '${EXE}' } | Select-Object -First 1).MainWindowHandle`);
+  const WIN = `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l); [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h); }'; $h = [IntPtr]${handle};`;
+  seen.window = { handle, visibleBefore: ps(`${WIN} [W]::IsWindowVisible($h)`) === "True" };
+  const windowVisible = () => ps(`${WIN} [W]::IsWindowVisible($h)`) === "True";
+  ps(`${WIN} [void][W]::PostMessage($h, 0x10, [IntPtr]::Zero, [IntPtr]::Zero)`);
   await page.waitForTimeout(1500);
-  seen.afterClose = { running: instances(), visibility: await page.evaluate(() => document.visibilityState) };
+  seen.afterClose = { running: instances(), windowVisible: windowVisible(), visibility: await page.evaluate(() => document.visibilityState) };
 
   // The reminder comes while it's there.
   const deadline = Date.now() + 150_000;
   let notified = [];
   while (Date.now() < deadline && notified.length === 0) {
     await page.waitForTimeout(2000);
-    notified = await page.evaluate(() => window.__calls.filter((c) => c.cmd === "plugin:notification|notify"));
+    notified = recorded("plugin:notification|notify");
   }
-  seen.reminder = notified.map((c) => c.args?.options?.title ?? c.args);
-  seen.reminderWhileHidden = (await page.evaluate(() => document.visibilityState)) === "hidden";
+  seen.reminder = notified.map((c) => c.body?.options?.title ?? c.body);
+  seen.reminderWhileHidden = !windowVisible();
 
   // A second launch brings the running one back, and doesn't stay.
   spawn(EXE, [], { detached: true, stdio: "ignore" }).unref();
   await page.waitForTimeout(4000);
-  seen.secondLaunch = { running: instances(), visibility: await page.evaluate(() => document.visibilityState) };
+  seen.secondLaunch = { running: instances(), windowVisible: windowVisible(), visibility: await page.evaluate(() => document.visibilityState) };
 
   await page.evaluate(() =>
     window.__TAURI_INTERNALS__.invoke("db_run", { sql: "DELETE FROM tasks WHERE id = 'smoke-reminder'", params: [] }),
@@ -285,7 +308,8 @@ if (phase === "write") {
   await goto(page, "/tasks/");
   seen.taskKept = await page.getByText("ד0 נשארת").count();
   seen.taskDeleted = await page.getByText("ד0 נמחקת").count();
-  await goto(page, "/");
+  // The calendar, not Today: the write phase may have run on another day.
+  await goto(page, "/calendar/");
   seen.event = await page.getByText("עשן אירוע").count();
   await goto(page, "/finance/");
   seen.transaction = await page.getByText("עשן תנועה").count();

@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Heebo } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { Providers } from "@/components/layout/providers";
 import { Sidebar } from "@/components/layout/sidebar";
@@ -59,9 +58,9 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full">
-        <Script id="sidebar-state" strategy="beforeInteractive">
-          {sidebarScript}
-        </Script>
+        {/* A plain script: it runs once from the HTML. next/script injected it
+            a second time at runtime, which the desktop app's CSP blocks. */}
+        <script dangerouslySetInnerHTML={{ __html: sidebarScript }} />
         <Providers>
           <a
             href="#main"

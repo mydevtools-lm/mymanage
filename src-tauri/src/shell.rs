@@ -78,6 +78,18 @@ pub fn shell_set_close_to_tray(state: State<'_, CloseToTray>, on: bool) {
     state.0.store(on, Ordering::Relaxed);
 }
 
+/// Whether the person is looking at the window: shown, not minimised, and
+/// focused. The page can't tell by itself — with background throttling off,
+/// WebView2 reports "visible" even while the window sits in the tray.
+#[tauri::command]
+pub fn shell_in_front<R: Runtime>(app: AppHandle<R>) -> bool {
+    app.get_webview_window("main").is_some_and(|w| {
+        w.is_visible().unwrap_or(false)
+            && !w.is_minimized().unwrap_or(false)
+            && w.is_focused().unwrap_or(false)
+    })
+}
+
 /// Where the database, its backups and the secrets live.
 #[tauri::command]
 pub fn shell_data_dir<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {

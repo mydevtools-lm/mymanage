@@ -61,6 +61,7 @@ pub fn run() {
             services::calendar_fetch,
             services::assist_parse,
             shell::shell_set_close_to_tray,
+            shell::shell_in_front,
             shell::shell_data_dir
         ])
         .run(tauri::generate_context!())
