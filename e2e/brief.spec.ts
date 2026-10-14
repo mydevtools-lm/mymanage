@@ -56,8 +56,24 @@ test.beforeAll(async ({ request }) => {
 });
 
 test.describe("on the first visit of the day", () => {
-  // A device that hasn't seen the brief yet.
-  test.use({ storageState: { cookies: [], origins: [] } });
+  // A device that hasn't seen the brief yet — but has answered the first-run
+  // questions, which otherwise come first.
+  test.use({
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: "http://localhost:3100",
+          localStorage: [
+            {
+              name: "lior-device",
+              value: JSON.stringify({ onboarded: true, fired: {} }),
+            },
+          ],
+        },
+      ],
+    },
+  });
 
   test("the morning brief opens by itself, once", async ({ page }) => {
     test.skip(new Date().getHours() < 5, "The brief waits for the morning.");
