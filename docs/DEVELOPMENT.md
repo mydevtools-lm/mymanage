@@ -75,7 +75,13 @@ npm run tauri build    # מתקין NSIS ב‑src-tauri/target/release/bundle/ns
 עדכונים אוטומטיים חתומים במפתח של הפרויקט. בלעדיו השחרור יוצא בלי עדכון עצמי.
 המפתח הפרטי נשאר אצלך ובסודות של GitHub — אף פעם לא במאגר.
 
-ב‑PowerShell (שם `~` לא מתורגם בארגומנט ל‑`npx`, והמפתח היה נוצר בתוך תיקיית
+הכי פשוט — סקריפט שעושה הכול (יוצר או מוצא את המפתח, בודק את הסיסמה, שומר ב‑GitHub):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scriptssetup-updater-key.ps1
+```
+
+או ידנית, ב‑PowerShell (שם `~` לא מתורגם בארגומנט ל‑`npx`, והמפתח היה נוצר בתוך תיקיית
 הפרויקט — לכן `$HOME`):
 
 ```powershell
