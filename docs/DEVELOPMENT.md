@@ -70,10 +70,26 @@ npm run tauri build    # מתקין NSIS ב‑src-tauri/target/release/bundle/ns
 | `e2e`, `test` | Playwright ועזרי Vitest |
 | `scripts` | בדיקת העשן של הדסקטופ, ציור אייקונים |
 
+## מפתח העדכונים (פעם אחת)
+
+עדכונים אוטומטיים חתומים במפתח של הפרויקט. בלעדיו השחרור יוצא בלי עדכון עצמי.
+המפתח הפרטי נשאר אצלך ובסודות של GitHub — אף פעם לא במאגר.
+
+```bash
+npx tauri signer generate -w ~/.tauri/management.key
+gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/management.key
+gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+gh variable set UPDATER_PUBKEY < ~/.tauri/management.key.pub
+```
+
+את הסיסמה שבחרת ואת הקובץ `management.key` שומרים גם במקום בטוח מחוץ למחשב —
+בלעדיהם אי אפשר לחתום עדכון, וההתקנות הקיימות לא יקבלו עוד עדכונים.
+
 ## גרסה חדשה
 
 1. מעדכנים את הגרסה ב‑`package.json`, `src-tauri/tauri.conf.json`
    ו‑`src-tauri/Cargo.toml`, ומוסיפים אותה ל‑[CHANGELOG.md](../CHANGELOG.md).
 2. `git tag vX.Y.Z && git push origin vX.Y.Z`.
 3. `.github/workflows/release.yml` בונה את המתקין ופותח טיוטת Release. בודקים
-   ומפרסמים ידנית.
+   ומפרסמים ידנית. עם מפתח העדכונים מצורף גם `latest.json`, וההתקנות הקיימות
+   מציעות לעדכן מרגע הפרסום.
