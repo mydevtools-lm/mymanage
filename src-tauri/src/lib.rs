@@ -27,6 +27,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(shell::CloseToTray::default())
+        .manage(shell::Quiet::default())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -62,7 +63,11 @@ pub fn run() {
             services::assist_parse,
             shell::shell_set_close_to_tray,
             shell::shell_in_front,
-            shell::shell_data_dir
+            shell::shell_data_dir,
+            shell::shell_open_data_dir,
+            shell::shell_notify,
+            shell::shell_open_url,
+            shell::shell_quiet_calls
         ])
         .run(tauri::generate_context!())
         .expect("error while building tauri application");

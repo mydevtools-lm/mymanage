@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { useQuickAdd } from "@/components/quick-add";
 import { useDevicePrefs } from "@/lib/device-prefs";
 import { isTauri } from "@/lib/platform";
@@ -33,10 +32,8 @@ export function DesktopShell() {
       const url = new URL(link.href, window.location.href);
       if (url.origin === window.location.origin) return;
       event.preventDefault();
-      // Only web addresses leave the app; anything else goes nowhere.
-      if (url.protocol === "https:" || url.protocol === "http:") {
-        void openUrl(url.href);
-      }
+      // Rust opens web addresses only; anything else goes nowhere.
+      void invoke("shell_open_url", { url: url.href }).catch(() => {});
     };
     document.addEventListener("click", onClick, true);
 

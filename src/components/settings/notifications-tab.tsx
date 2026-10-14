@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { useDevicePrefs } from "@/lib/device-prefs";
 import { useBrief } from "@/components/brief-dialog";
 import { isTauri, useIsTauri } from "@/lib/platform";
-import { desktopNotify, desktopNotifyAllowed } from "@/lib/desktop-notify";
+import { desktopNotify } from "@/lib/desktop-notify";
 
 type Permission = NotificationPermission | "unsupported";
 
@@ -35,31 +35,24 @@ export function NotificationsTab() {
     const prefs = useDevicePrefs.getState();
     if (!prefs.loaded) prefs.load();
     // Read after mount: the server has no Notification object. The desktop
-    // app asks Windows, through the notification plugin.
+    // app needs no permission; Windows itself can turn its notifications off.
     const read = () =>
-      isTauri()
-        ? void desktopNotifyAllowed().then(
-            (ok) => setPermission(ok ? "granted" : "default"),
-            () => setPermission("unsupported"),
-          )
-        : setPermission(currentPermission());
+      setPermission(isTauri() ? "granted" : currentPermission());
     read();
     document.addEventListener("visibilitychange", read);
     return () => document.removeEventListener("visibilitychange", read);
   }, []);
 
   async function enable() {
-    if (isTauri()) {
-      setPermission((await desktopNotifyAllowed()) ? "granted" : "denied");
-      return;
-    }
     if (typeof Notification === "undefined") return;
     setPermission(await Notification.requestPermission());
   }
 
   function test() {
     if (isTauri()) {
-      void desktopNotify("בדיקת התראה", "ככה תיראה תזכורת");
+      void desktopNotify("בדיקת התראה", "ככה תיראה תזכורת").catch(() =>
+        toast.error("Windows לא הציג את ההתראה"),
+      );
     } else if (permission === "granted") {
       new Notification("בדיקת התראה", {
         body: "ככה תיראה תזכורת",

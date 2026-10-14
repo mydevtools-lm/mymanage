@@ -3,6 +3,9 @@
 //! Windows launches it at sign-in.
 
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
+use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_opener::OpenerExt;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, Window, WindowEvent};
@@ -17,6 +20,34 @@ pub struct CloseToTray(AtomicBool);
 impl Default for CloseToTray {
     fn default() -> Self {
         CloseToTray(AtomicBool::new(true))
+    }
+}
+
+/// Set by scripts/desktop-smoke.mjs only: notifications and links are written
+/// down instead of shown or opened, so a test run stays quiet and opens no
+/// browser. Unset — every normal launch — this does nothing.
+pub const QUIET_ENV: &str = "MANAGEMENT_SMOKE_QUIET";
+
+pub struct Quiet(Option<Mutex<Vec<String>>>);
+
+impl Default for Quiet {
+    fn default() -> Self {
+        Quiet(std::env::var_os(QUIET_ENV).map(|_| Mutex::new(Vec::new())))
+    }
+}
+
+impl Quiet {
+    /// True when the call was recorded instead of carried out.
+    fn record(&self, call: String) -> bool {
+        match &self.0 {
+            Some(calls) => {
+                if let Ok(mut calls) = calls.lock() {
+                    calls.push(call);
+                }
+                true
+            }
+            None => false,
+        }
     }
 }
 
@@ -97,4 +128,66 @@ pub fn shell_data_dir<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
         .app_data_dir()
         .map(|dir| dir.to_string_lossy().into_owned())
         .map_err(|e| e.to_string())
+}
+
+/// Opens that folder in Explorer. The page can't open any other path.
+#[tauri::command]
+pub fn shell_open_data_dir<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
+    let dir = shell_data_dir(app.clone())?;
+    app.opener().open_path(dir, None::<&str>).map_err(|e| e.to_string())
+}
+
+/// A Windows notification. Through Rust rather than the plugin's page API, so
+/// the page holds no notification permissions of its own.
+#[tauri::command]
+pub fn shell_notify<R: Runtime>(
+    app: AppHandle<R>,
+    quiet: State<'_, Quiet>,
+    title: String,
+    body: String,
+) -> Result<(), String> {
+    if quiet.record(format!("notify: {title}")) {
+        return Ok(());
+    }
+    app.notification().builder().title(title).body(body).show().map_err(|e| e.to_string())
+}
+
+/// Only web addresses leave the app, to the default browser.
+fn web_address(url: &str) -> bool {
+    url.starts_with("https://") || url.starts_with("http://")
+}
+
+#[tauri::command]
+pub fn shell_open_url<R: Runtime>(
+    app: AppHandle<R>,
+    quiet: State<'_, Quiet>,
+    url: String,
+) -> Result<(), String> {
+    if !web_address(&url) {
+        return Err("רק כתובות http ו-https נפתחות".into());
+    }
+    if quiet.record(format!("open: {url}")) {
+        return Ok(());
+    }
+    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+}
+
+/// What a quiet run recorded; empty on a normal launch.
+#[tauri::command]
+pub fn shell_quiet_calls(quiet: State<'_, Quiet>) -> Vec<String> {
+    quiet.0.as_ref().and_then(|c| c.lock().ok().map(|c| c.clone())).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn opens_only_web_addresses() {
+        assert!(web_address("https://example.com/a"));
+        assert!(web_address("http://example.com"));
+        assert!(!web_address("file:///C:/Windows/System32/calc.exe"));
+        assert!(!web_address("ms-settings:"));
+        assert!(!web_address("javascript:alert(1)"));
+    }
 }

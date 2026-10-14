@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { disable, enable, isEnabled } from "@tauri-apps/plugin-autostart";
 import { open } from "@tauri-apps/plugin-dialog";
-import { openPath } from "@tauri-apps/plugin-opener";
 import { FolderOpen, Monitor } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -91,7 +90,9 @@ export function DesktopSettings() {
               size="sm"
               variant="outline"
               disabled={!dataDir}
-              onClick={() => openPath(dataDir).catch(failed("הפתיחה"))}
+              onClick={() =>
+                invoke("shell_open_data_dir").catch(failed("הפתיחה"))
+              }
             >
               <FolderOpen />
               פתיחה

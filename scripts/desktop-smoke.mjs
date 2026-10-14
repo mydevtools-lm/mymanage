@@ -47,6 +47,8 @@ async function launch() {
     env: {
       ...process.env,
       WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `${APP_ARGS} --remote-debugging-port=${PORT}`,
+      // Notifications and links are recorded, never shown (shell.rs).
+      MANAGEMENT_SMOKE_QUIET: "1",
     },
   });
   child.unref();
@@ -224,34 +226,10 @@ if (phase === "write") {
     [date, time],
   );
   await goto(page, "/");
-  // Notifications and links are recorded, not sent: a test stays quiet and
-  // opens no browser. Tauri's invoke can't be replaced (it is read-only), so
-  // the calls are caught on their way to Rust, at the IPC address.
-  const calls = [];
-  const QUIET = ["plugin%3Anotification%7Cnotify", "plugin%3Aopener%7Copen_url"];
-  await page.route("http://ipc.localhost/**", async (route) => {
-    const url = route.request().url();
-    const cmd = QUIET.find((c) => url.endsWith("/" + c));
-    if (!cmd) return route.continue();
-    let body = null;
-    try {
-      body = JSON.parse(route.request().postData() ?? "null");
-    } catch {
-      body = route.request().postData();
-    }
-    calls.push({ cmd: decodeURIComponent(cmd), body });
-    return route.fulfill({
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Tauri-Response": "ok",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Expose-Headers": "Tauri-Response",
-      },
-      body: "null",
-    });
-  });
-  const recorded = (cmd) => calls.filter((c) => c.cmd === cmd);
+  // Notifications and links are recorded by Rust, not sent (quiet mode, set
+  // in launch()): a test stays silent and opens no browser.
+  const recorded = async (prefix) =>
+    (await page.evaluate(() => window.__TAURI_INTERNALS__.invoke("shell_quiet_calls"))).filter((c) => c.startsWith(prefix));
 
   // A link out of the app goes to the default browser.
   await page.evaluate(() => {
@@ -264,7 +242,7 @@ if (phase === "write") {
   await page.evaluate(() => document.getElementById("smoke-link").click());
   seen.linkStayed = page.url().startsWith("http://tauri.localhost");
   await page.waitForTimeout(500);
-  seen.linkOpened = recorded("plugin:opener|open_url").map((c) => c.body?.url);
+  seen.linkOpened = await recorded("open:");
 
   // Closing the window (WM_CLOSE, as its X button sends) keeps the app in
   // the tray.
@@ -283,10 +261,13 @@ if (phase === "write") {
   let notified = [];
   while (Date.now() < deadline && notified.length === 0) {
     await page.waitForTimeout(2000);
-    notified = recorded("plugin:notification|notify");
+    notified = await recorded("notify:");
   }
-  seen.reminder = notified.map((c) => c.body?.options?.title ?? c.body);
+  seen.reminder = notified;
   seen.reminderWhileHidden = !windowVisible();
+  seen.reminderFired = await page.evaluate(() =>
+    Object.keys(JSON.parse(localStorage.getItem("lior-device") ?? "{}").fired ?? {}).filter((k) => k.includes("smoke-reminder")),
+  );
 
   // A second launch brings the running one back, and doesn't stay.
   spawn(EXE, [], { detached: true, stdio: "ignore" }).unref();
