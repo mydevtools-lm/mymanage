@@ -7,3 +7,5 @@ export const APP_NAME = "ניהול אישי";
 export const APP_SHORT_NAME = "ניהול";
 /** For file names, which stay ASCII. */
 export const APP_SLUG = "management";
+/** The project's home on GitHub. Changes with the repository's name (ה4). */
+export const REPO_URL = "https://github.com/mydevtools-lm/my.managment";

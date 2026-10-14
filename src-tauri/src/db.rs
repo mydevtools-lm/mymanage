@@ -23,6 +23,13 @@ impl Db {
         Ok(Db(Mutex::new(conn), backups))
     }
 
+    /// A snapshot in backups/ (backup.rs), when this database has a folder.
+    pub fn backup(&self, label: &str) -> Result<Option<PathBuf>, String> {
+        let Some(dir) = &self.1 else { return Ok(None) };
+        let conn = self.0.lock().map_err(err)?;
+        crate::backup::snapshot(&conn, dir, label, None)
+    }
+
     #[cfg(test)]
     pub fn memory() -> Self {
         Db(Mutex::new(Connection::open_in_memory().unwrap()), None)

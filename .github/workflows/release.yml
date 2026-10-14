@@ -1,6 +1,11 @@
 # A tag v1.2.3 builds the Windows installer and opens a draft release with it.
-# Publishing stays a manual step (DESKTOP.md section 7). Signing the updater is
-# sprint ד6.
+# Publishing stays a manual step (DESKTOP.md section 7).
+#
+# Updates (DESKTOP.md 6.3): with the repository variable UPDATER_PUBKEY and the
+# secrets TAURI_SIGNING_PRIVATE_KEY / TAURI_SIGNING_PRIVATE_KEY_PASSWORD, the
+# build carries the updater's settings, signs the update and attaches
+# latest.json, which installed copies read from releases/latest. Without them
+# the release is the same installer, minus updating itself.
 name: release
 
 on:
@@ -24,10 +29,32 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
+      - name: Updater settings
+        id: updater
+        if: ${{ vars.UPDATER_PUBKEY != '' }}
+        shell: pwsh
+        env:
+          PUBKEY: ${{ vars.UPDATER_PUBKEY }}
+          ENDPOINT: https://github.com/${{ github.repository }}/releases/latest/download/latest.json
+        run: |
+          @{
+            bundle  = @{ createUpdaterArtifacts = $true }
+            plugins = @{ updater = @{
+              pubkey    = $env:PUBKEY
+              endpoints = @($env:ENDPOINT)
+              windows   = @{ installMode = "passive" }
+            } }
+          } | ConvertTo-Json -Depth 5 | Set-Content src-tauri/tauri.updater.conf.json -Encoding utf8
+          "args=--config src-tauri/tauri.updater.conf.json" >> $env:GITHUB_OUTPUT
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
+          args: ${{ steps.updater.outputs.args }}
+          includeUpdaterJson: true
+          updaterJsonPreferNsis: true
           tagName: ${{ github.ref_name }}
           releaseName: "ניהול אישי ${{ github.ref_name }}"
           releaseBody: "מה חדש — CHANGELOG.md. ההתקנה: מורידים את קובץ ה‑setup.exe ומפעילים."

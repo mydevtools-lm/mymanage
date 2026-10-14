@@ -78,7 +78,8 @@ pub fn tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
                 // The page opens the new-task dialog, as ?new=task does.
                 let _ = app.emit("tray-quick-add", ());
             }
-            "quit" => app.exit(0),
+            // An update waiting for the exit is installed first.
+            "quit" => crate::updates::quit(app),
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
