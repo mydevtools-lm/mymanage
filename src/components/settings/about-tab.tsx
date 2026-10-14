@@ -80,7 +80,7 @@ export function AboutTab() {
             קוד פתוח ברישיון MIT:{" "}
             <a
               href={REPO_URL}
-              className="text-primary underline underline-offset-4"
+              className="inline-block text-primary underline underline-offset-4"
               dir="ltr"
             >
               {REPO_URL.replace("https://", "")}
