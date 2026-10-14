@@ -1,5 +1,5 @@
 // Desktop smoke test: drives the built Tauri app through WebView2's debug
-// port. Build first (npm run tauri build), then:
+// port. Build the test app first (npm run build:desktop-test), then:
 //   node scripts/desktop-smoke.mjs write [shot.png]   add, tick, delete tasks
 //   node scripts/desktop-smoke.mjs read  [shot.png]   restart and check them
 //   node scripts/desktop-smoke.mjs first-run          name, sample data, removal
@@ -7,33 +7,44 @@
 //   node scripts/desktop-smoke.mjs shell              tray, reminder, one instance
 // first-run needs a fresh data folder; services connects a public calendar
 // and a fake Claude key, and removes both at the end.
-// It uses the app's real data folder, so run it on a test machine or account.
+// The test app has its own identifier (src-tauri/tauri.test.conf.json), so it
+// keeps its data in its own folder and never touches the installed app's.
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { spawn, execSync } from "node:child_process";
 import path from "node:path";
-import { existsSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
+const read = (file) =>
+  JSON.parse(readFileSync(new URL(`../src-tauri/${file}`, import.meta.url), "utf8"));
+const TEST = read("tauri.test.conf.json");
 const EXE = path.join(
   fileURLToPath(new URL("..", import.meta.url)),
-  "src-tauri/target/release/app.exe",
+  `src-tauri/target/release/${TEST.mainBinaryName}.exe`,
 );
+// Where the test app keeps its data; the installed app's folder is never used.
+const DATA = path.join(process.env.APPDATA, TEST.identifier);
+if (!existsSync(EXE)) {
+  console.error(`no test build at ${EXE} — run npm run build:desktop-test`);
+  process.exit(1);
+}
 const PORT = 9333;
-const CONF = JSON.parse(
-  (await import("node:fs")).readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf8"),
-).app.windows[0];
+const CONF = read("tauri.conf.json").app.windows[0];
 const APP_ARGS = CONF.additionalBrowserArgs;
 const phase = process.argv[2];
 
 function stopApp() {
-  // Only this build, never some other program that is also called app.exe.
-  const ps = `Get-Process app -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${EXE}' } | Stop-Process -Force`;
+  // Only this build, never some other program that is named the same.
+  const ps = `Get-Process ${TEST.mainBinaryName} -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${EXE}' } | Stop-Process -Force`;
   try {
     execSync("powershell -NoProfile -EncodedCommand " + Buffer.from(ps, "utf16le").toString("base64"), { stdio: "ignore" });
   } catch {}
 }
+
+// Whatever happens — a failed step included — the test app doesn't stay open.
+process.on("exit", stopApp);
 
 async function launch() {
   stopApp();
@@ -143,6 +154,8 @@ if (phase === "write") {
   await page.evaluate(() => {
     const device = JSON.parse(localStorage.getItem("lior-device") ?? "{}");
     delete device.onboarded;
+    // In the daytime the morning brief would open over the page.
+    device.autoBrief = false;
     localStorage.setItem("lior-device", JSON.stringify(device));
   });
   await goto(page, "/");
@@ -202,7 +215,7 @@ if (phase === "write") {
   await page.getByRole("region", { name: "חגים" }).waitFor({ state: "detached" });
   seen.cleanedUp = true;
 
-  const backups = path.join(process.env.APPDATA, "io.github.mydevtools-lm.management", "backups");
+  const backups = path.join(DATA, "backups");
   seen.backups = existsSync(backups) ? readdirSync(backups) : [];
   if (process.argv[3]) await page.screenshot({ path: process.argv[3] });
   console.log("seen:", seen);
@@ -210,7 +223,7 @@ if (phase === "write") {
   const seen = {};
   const ps = (script) =>
     execSync("powershell -NoProfile -EncodedCommand " + Buffer.from("$ProgressPreference='SilentlyContinue'; " + script, "utf16le").toString("base64"), { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-  const instances = () => Number(ps(`@(Get-Process app -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${EXE}' }).Count`));
+  const instances = () => Number(ps(`@(Get-Process ${TEST.mainBinaryName} -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${EXE}' }).Count`));
 
   // A task with a reminder one minute before it, due three minutes out: the
   // time drops its seconds, and the reminder must come after the window has
@@ -261,7 +274,7 @@ if (phase === "write") {
   // the tray.
   // The window's handle, taken while it shows (a hidden window is no
   // process's "main window").
-  const handle = ps(`(Get-Process app | Where-Object { $_.Path -eq '${EXE}' } | Select-Object -First 1).MainWindowHandle`);
+  const handle = ps(`(Get-Process ${TEST.mainBinaryName} | Where-Object { $_.Path -eq '${EXE}' } | Select-Object -First 1).MainWindowHandle`);
   const WIN = `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l); [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h); }'; $h = [IntPtr]${handle};`;
   seen.window = { handle, visibleBefore: ps(`${WIN} [W]::IsWindowVisible($h)`) === "True" };
   const windowVisible = () => ps(`${WIN} [W]::IsWindowVisible($h)`) === "True";
