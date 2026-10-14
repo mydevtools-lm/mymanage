@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useDevicePrefs } from "@/lib/device-prefs";
 import { useBrief } from "@/components/brief-dialog";
+import { isTauri, useIsTauri } from "@/lib/platform";
+import { desktopNotify, desktopNotifyAllowed } from "@/lib/desktop-notify";
 
 type Permission = NotificationPermission | "unsupported";
 
@@ -27,24 +29,38 @@ export function NotificationsTab() {
   const autoBrief = useDevicePrefs((s) => s.autoBrief);
   const setAutoBrief = useDevicePrefs((s) => s.setAutoBrief);
   const [permission, setPermission] = useState<Permission>("default");
+  const desktop = useIsTauri();
 
   useEffect(() => {
     const prefs = useDevicePrefs.getState();
     if (!prefs.loaded) prefs.load();
-    // Read after mount: the server has no Notification object.
-    const read = () => setPermission(currentPermission());
+    // Read after mount: the server has no Notification object. The desktop
+    // app asks Windows, through the notification plugin.
+    const read = () =>
+      isTauri()
+        ? void desktopNotifyAllowed().then(
+            (ok) => setPermission(ok ? "granted" : "default"),
+            () => setPermission("unsupported"),
+          )
+        : setPermission(currentPermission());
     read();
     document.addEventListener("visibilitychange", read);
     return () => document.removeEventListener("visibilitychange", read);
   }, []);
 
   async function enable() {
+    if (isTauri()) {
+      setPermission((await desktopNotifyAllowed()) ? "granted" : "denied");
+      return;
+    }
     if (typeof Notification === "undefined") return;
     setPermission(await Notification.requestPermission());
   }
 
   function test() {
-    if (permission === "granted") {
+    if (isTauri()) {
+      void desktopNotify("בדיקת התראה", "ככה תיראה תזכורת");
+    } else if (permission === "granted") {
       new Notification("בדיקת התראה", {
         body: "ככה תיראה תזכורת",
         lang: "he",
@@ -70,7 +86,7 @@ export function NotificationsTab() {
         <CardContent className="grid gap-3 text-sm">
           <div className="flex items-center justify-between gap-3">
             <span>
-              התראות מהדפדפן:{" "}
+              {desktop ? "התראות של Windows" : "התראות מהדפדפן"}:{" "}
               <strong>
                 {permission === "granted"
                   ? "מופעלות"
@@ -90,7 +106,9 @@ export function NotificationsTab() {
           {permission === "denied" && (
             <p className="flex items-start gap-2 text-muted-foreground">
               <CircleAlert className="mt-0.5 size-4 shrink-0" />
-              ההתראות נחסמו בדפדפן. אפשר לאשר אותן מחדש מסמל המנעול שליד הכתובת.
+              {desktop
+                ? "ההתראות כבויות ב‑Windows. אפשר להפעיל אותן בהגדרות › מערכת › הודעות."
+                : "ההתראות נחסמו בדפדפן. אפשר לאשר אותן מחדש מסמל המנעול שליד הכתובת."}
             </p>
           )}
           <Button

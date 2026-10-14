@@ -22,6 +22,8 @@ import { ReminderField } from "@/components/reminder-field";
 import { install, useInstall } from "@/components/pwa";
 import { useAppStore } from "@/lib/store";
 import type { CurrencyCode } from "@/lib/types";
+import { useIsTauri } from "@/lib/platform";
+import { DesktopSettings } from "./desktop-settings";
 
 const WEEK_STARTS = [
   { value: "0", label: "ראשון" },
@@ -47,6 +49,7 @@ export function PreferencesTab() {
   const { theme, setTheme } = useTheme();
   const offer = useInstall((s) => s.offer);
   const installed = useInstall((s) => s.installed);
+  const desktop = useIsTauri();
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -121,42 +124,46 @@ export function PreferencesTab() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MonitorSmartphone className="size-4" />
-              התקנה כאפליקציה
-            </CardTitle>
-            <CardDescription>
-              אייקון במסך הבית ובשולחן העבודה, וחלון משלה בלי שורת כתובת.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3 text-sm">
-            {installed ? (
-              <p>המערכת מותקנת ופתוחה כאפליקציה.</p>
-            ) : offer ? (
-              <Button
-                className="justify-self-start"
-                onClick={() => void install()}
-              >
-                <Download />
-                התקנה
-              </Button>
-            ) : (
-              <ul className="grid list-disc gap-1 ps-5 text-muted-foreground">
-                <li>
-                  כרום במחשב או באנדרואיד: סמל ההתקנה בשורת הכתובת, או התפריט
-                  ״התקנת האפליקציה״.
-                </li>
-                <li>אייפון (ספארי): כפתור השיתוף, ואז ״הוספה למסך הבית״.</li>
-              </ul>
-            )}
-            <p className="text-xs text-muted-foreground">
-              בטלפון זה יעבוד אחרי שהמערכת תתארח ברשת (החלטה 2 בתוכנית) — היום
-              היא רצה רק על המחשב הזה.
-            </p>
-          </CardContent>
-        </Card>
+        {desktop ? (
+          <DesktopSettings />
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MonitorSmartphone className="size-4" />
+                התקנה כאפליקציה
+              </CardTitle>
+              <CardDescription>
+                אייקון במסך הבית ובשולחן העבודה, וחלון משלה בלי שורת כתובת.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3 text-sm">
+              {installed ? (
+                <p>המערכת מותקנת ופתוחה כאפליקציה.</p>
+              ) : offer ? (
+                <Button
+                  className="justify-self-start"
+                  onClick={() => void install()}
+                >
+                  <Download />
+                  התקנה
+                </Button>
+              ) : (
+                <ul className="grid list-disc gap-1 ps-5 text-muted-foreground">
+                  <li>
+                    כרום במחשב או באנדרואיד: סמל ההתקנה בשורת הכתובת, או התפריט
+                    ״התקנת האפליקציה״.
+                  </li>
+                  <li>אייפון (ספארי): כפתור השיתוף, ואז ״הוספה למסך הבית״.</li>
+                </ul>
+              )}
+              <p className="text-xs text-muted-foreground">
+                בטלפון זה יעבוד אחרי שהמערכת תתארח ברשת (החלטה 2 בתוכנית) — היום
+                היא רצה רק על המחשב הזה.
+              </p>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

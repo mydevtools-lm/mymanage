@@ -27,20 +27,40 @@ fn valid_label(label: &str) -> bool {
 }
 
 /// Writes `backup-<label>.db` unless it is already there, then trims the folder
-/// to the newest KEEP. Returns the new file, or None when there was nothing to do.
-pub fn snapshot(conn: &Connection, dir: &Path, label: &str) -> Result<Option<PathBuf>, String> {
+/// to the newest KEEP. With `also` (a folder the person picked — another
+/// drive, a synced folder) the same file is copied there and trimmed the same
+/// way. Returns the new file, or None when there was nothing to do.
+pub fn snapshot(
+    conn: &Connection,
+    dir: &Path,
+    label: &str,
+    also: Option<&Path>,
+) -> Result<Option<PathBuf>, String> {
     if !valid_label(label) {
         return Err(format!("שם גיבוי לא תקין: {label}"));
     }
     fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    let target = dir.join(format!("{PREFIX}{label}.db"));
-    if target.exists() {
-        return Ok(None);
+    let name = format!("{PREFIX}{label}.db");
+    let target = dir.join(&name);
+    let written = if target.exists() {
+        None
+    } else {
+        conn.execute("VACUUM INTO ?1", [target.to_string_lossy()])
+            .map_err(|e| e.to_string())?;
+        prune(dir).map_err(|e| e.to_string())?;
+        Some(target.clone())
+    };
+    // Copied even when today's file already existed: a folder picked midday
+    // gets today's backup now, not tomorrow.
+    if let Some(also) = also {
+        let copy = also.join(&name);
+        if !copy.exists() {
+            fs::create_dir_all(also).map_err(|e| format!("תיקיית הגיבוי הנוספת: {e}"))?;
+            fs::copy(&target, &copy).map_err(|e| format!("תיקיית הגיבוי הנוספת: {e}"))?;
+            prune(also).map_err(|e| e.to_string())?;
+        }
     }
-    conn.execute("VACUUM INTO ?1", [target.to_string_lossy()])
-        .map_err(|e| e.to_string())?;
-    prune(dir).map_err(|e| e.to_string())?;
-    Ok(Some(target))
+    Ok(written)
 }
 
 /// Names start with the date, so name order is age order.
@@ -85,9 +105,9 @@ mod tests {
 
         for day in 1..=16 {
             let label = format!("2099-01-{day:02}");
-            assert!(snapshot(&conn, &dir, &label).unwrap().is_some());
+            assert!(snapshot(&conn, &dir, &label, None).unwrap().is_some());
         }
-        assert!(snapshot(&conn, &dir, "2099-01-16").unwrap().is_none());
+        assert!(snapshot(&conn, &dir, "2099-01-16", None).unwrap().is_none());
 
         let mut names: Vec<String> = fs::read_dir(&dir)
             .unwrap()
@@ -102,5 +122,19 @@ mod tests {
         assert_eq!(a, "x");
         drop(copy);
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn copies_to_the_extra_folder_even_when_today_is_already_backed_up() {
+        let dir = temp_dir("main");
+        let extra = temp_dir("extra");
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("CREATE TABLE t (a TEXT)").unwrap();
+
+        snapshot(&conn, &dir, "2099-02-01", None).unwrap();
+        assert!(snapshot(&conn, &dir, "2099-02-01", Some(&extra)).unwrap().is_none());
+        assert!(extra.join("backup-2099-02-01.db").exists());
+        fs::remove_dir_all(&dir).unwrap();
+        fs::remove_dir_all(&extra).unwrap();
     }
 }

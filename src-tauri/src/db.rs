@@ -117,12 +117,18 @@ pub fn db_batch(db: State<'_, Db>, statements: Vec<Statement>) -> Result<usize, 
 }
 
 /// A snapshot named by the screens: the local date once a day, and
-/// `<date>-before-v<n>` before migrating. Returns the file written, if any.
+/// `<date>-before-v<n>` before migrating; `also` is the extra backup folder
+/// from settings, if one is set. Returns the file written, if any.
 #[tauri::command]
-pub fn db_backup(db: State<'_, Db>, label: String) -> Result<Option<String>, String> {
+pub fn db_backup(
+    db: State<'_, Db>,
+    label: String,
+    also: Option<String>,
+) -> Result<Option<String>, String> {
     let Some(dir) = &db.1 else { return Ok(None) };
     let conn = db.0.lock().map_err(err)?;
-    let written = crate::backup::snapshot(&conn, dir, &label)?;
+    let also = also.filter(|p| !p.trim().is_empty()).map(PathBuf::from);
+    let written = crate::backup::snapshot(&conn, dir, &label, also.as_deref())?;
     Ok(written.map(|p| p.to_string_lossy().into_owned()))
 }
 

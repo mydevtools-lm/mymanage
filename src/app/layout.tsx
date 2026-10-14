@@ -18,6 +18,7 @@ import { ReminderWatch } from "@/components/reminder-watch";
 import { Pwa } from "@/components/pwa";
 import { APP_NAME } from "@/lib/app-info";
 import { Onboarding, SampleBanner } from "@/components/onboarding";
+import { DesktopShell } from "@/components/desktop-shell";
 
 const heebo = Heebo({
   variable: "--font-sans",
@@ -96,6 +97,7 @@ export default function RootLayout({
           <Onboarding />
           <ReminderWatch />
           <Pwa />
+          <DesktopShell />
         </Providers>
       </body>
     </html>

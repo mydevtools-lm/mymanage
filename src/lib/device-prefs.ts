@@ -14,6 +14,10 @@ interface Stored {
   autoBrief: boolean;
   /** The first-run questions were answered (or skipped) on this device. */
   onboarded?: boolean;
+  /** Desktop app: closing the window keeps it in the tray (unset is on). */
+  closeToTray?: boolean;
+  /** Desktop app: a second folder that gets a copy of each daily backup. */
+  backupDir?: string;
   briefShownOn?: string;
   /** Reminder keys already shown on this device, with the day they fired. */
   fired: Record<string, string>;
@@ -45,6 +49,8 @@ interface DevicePrefs extends Stored {
   markBriefShown: (day: string) => void;
   markFired: (keys: string[], day: string) => void;
   markOnboarded: () => void;
+  setCloseToTray: (on: boolean) => void;
+  setBackupDir: (dir: string | undefined) => void;
 }
 
 export const useDevicePrefs = create<DevicePrefs>()((set, get) => {
@@ -54,6 +60,8 @@ export const useDevicePrefs = create<DevicePrefs>()((set, get) => {
     write({
       autoBrief: next.autoBrief,
       onboarded: next.onboarded,
+      closeToTray: next.closeToTray,
+      backupDir: next.backupDir,
       briefShownOn: next.briefShownOn,
       fired: next.fired,
     });
@@ -65,6 +73,8 @@ export const useDevicePrefs = create<DevicePrefs>()((set, get) => {
     setAutoBrief: (autoBrief) => save({ autoBrief }),
     markBriefShown: (briefShownOn) => save({ briefShownOn }),
     markOnboarded: () => save({ onboarded: true }),
+    setCloseToTray: (closeToTray) => save({ closeToTray }),
+    setBackupDir: (backupDir) => save({ backupDir }),
     markFired: (keys, day) => {
       // Keep two days of history; older keys can never fire again anyway.
       const cutoff = new Date(Date.now() - 2 * 86_400_000).toLocaleDateString(
