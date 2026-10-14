@@ -1,4 +1,4 @@
-# ניהול אישי — personal management
+# mymanage
 
 A Windows desktop app for running your day — tasks, calendar, money, notes and
 lists — in Hebrew. Everything stays on your computer: no account, no server, no

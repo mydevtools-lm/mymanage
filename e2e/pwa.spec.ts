@@ -13,7 +13,7 @@ async function ready(page: Page, path: string) {
 test("the manifest and its icons are served", async ({ request }) => {
   const manifest = await (await request.get("/manifest.webmanifest")).json();
   expect(manifest).toMatchObject({
-    name: "ניהול אישי",
+    name: "mymanage",
     lang: "he",
     dir: "rtl",
     display: "standalone",
