@@ -75,12 +75,17 @@ npm run tauri build    # מתקין NSIS ב‑src-tauri/target/release/bundle/ns
 עדכונים אוטומטיים חתומים במפתח של הפרויקט. בלעדיו השחרור יוצא בלי עדכון עצמי.
 המפתח הפרטי נשאר אצלך ובסודות של GitHub — אף פעם לא במאגר.
 
-```bash
-npx tauri signer generate -w ~/.tauri/management.key
-gh secret set TAURI_SIGNING_PRIVATE_KEY < ~/.tauri/management.key
+ב‑PowerShell (שם `~` לא מתורגם בארגומנט ל‑`npx`, והמפתח היה נוצר בתוך תיקיית
+הפרויקט — לכן `$HOME`):
+
+```powershell
+npx tauri signer generate -w "$HOME\.tauri\management.key"
+Get-Content "$HOME\.tauri\management.key" -Raw | gh secret set TAURI_SIGNING_PRIVATE_KEY
 gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-gh variable set UPDATER_PUBKEY < ~/.tauri/management.key.pub
+Get-Content "$HOME\.tauri\management.key.pub" -Raw | gh variable set UPDATER_PUBKEY
 ```
+
+הסיסמה לא מוצגת בזמן ההקלדה — מקלידים ולוחצים Enter. המאגר מתעלם מ‑`*.key`.
 
 את הסיסמה שבחרת ואת הקובץ `management.key` שומרים גם במקום בטוח מחוץ למחשב —
 בלעדיהם אי אפשר לחתום עדכון, וההתקנות הקיימות לא יקבלו עוד עדכונים.
