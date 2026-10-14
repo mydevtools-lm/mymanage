@@ -1,0 +1,35 @@
+# A tag v1.2.3 builds the Windows installer and opens a draft release with it.
+# Publishing stays a manual step (DESKTOP.md section 7). Signing the updater is
+# sprint ד6.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "ניהול אישי ${{ github.ref_name }}"
+          releaseBody: "מה חדש — CHANGELOG.md. ההתקנה: מורידים את קובץ ה‑setup.exe ומפעילים."
+          releaseDraft: true
+          prerelease: false

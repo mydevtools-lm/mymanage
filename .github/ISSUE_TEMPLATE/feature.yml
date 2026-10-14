@@ -1,0 +1,16 @@
+name: בקשה
+description: רעיון לשיפור או יכולת חדשה
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: מה חסר
+      description: מה רצית לעשות ולא הצלחת, או מה מסורבל היום.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: הצעה
+      description: איך זה יכול לעבוד. לא חובה.

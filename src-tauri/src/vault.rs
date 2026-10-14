@@ -78,7 +78,7 @@ fn to_hex(bytes: &[u8]) -> String {
 }
 
 fn from_hex(text: &str) -> Result<Vec<u8>, String> {
-    if text.len() % 2 != 0 {
+    if !text.len().is_multiple_of(2) {
         return Err("קובץ הסודות פגום".into());
     }
     (0..text.len())

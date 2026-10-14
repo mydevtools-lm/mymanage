@@ -5,6 +5,7 @@
 //   node scripts/desktop-smoke.mjs first-run          name, sample data, removal
 //   node scripts/desktop-smoke.mjs services           calendar, Claude, backups
 //   node scripts/desktop-smoke.mjs shell              tray, reminder, one instance
+//   node scripts/desktop-smoke.mjs screenshots        README pictures, sample data
 // first-run needs a fresh data folder; services connects a public calendar
 // and a fake Claude key, and removes both at the end.
 // The test app has its own identifier (src-tauri/tauri.test.conf.json), so it
@@ -147,6 +148,28 @@ if (phase === "write") {
   }
   if (process.argv[3]) await page.screenshot({ path: process.argv[3] });
   console.log("write done");
+} else if (phase === "screenshots") {
+  // The README's pictures: a fresh data folder, a sample name, sample data,
+  // light theme, the window's own size.
+  await page.evaluate(() => {
+    localStorage.setItem("lior-device", JSON.stringify({ autoBrief: false, fired: {} }));
+    localStorage.setItem("theme", "light");
+  });
+  await goto(page, "/");
+  const dialog = page.getByRole("dialog", { name: /ברוכים הבאים/ });
+  await dialog.waitFor({ timeout: 10000 });
+  await dialog.getByLabel("איך לקרוא לך?").fill("דנה");
+  await dialog.getByRole("button", { name: "המשך" }).click();
+  await page.getByRole("button", { name: "עם נתוני דוגמה" }).click();
+  await page.getByText("מוצגים נתוני דוגמה.").waitFor();
+  const out = fileURLToPath(new URL("../docs/screenshots/", import.meta.url));
+  const shots = { today: "/", tasks: "/tasks/", calendar: "/calendar/", finance: "/finance/", settings: "/settings/?tab=connections" };
+  for (const [name, route] of Object.entries(shots)) {
+    await goto(page, route);
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: path.join(out, `${name}.png`) });
+  }
+  console.log("screenshots:", Object.keys(shots).join(", "));
 } else if (phase === "first-run") {
   const seen = {};
   // This device may have answered on an earlier run; forget that here (the
