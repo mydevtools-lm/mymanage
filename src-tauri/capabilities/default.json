@@ -1,11 +1,16 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "enables the default permissions",
+  "description": "Only what the screens use (DESKTOP.md 5.5): events from the tray, sign-in launch and a folder picker. Notifications, web links and the data folder go through the app's own Rust commands (shell.rs), which check what they are given.",
   "windows": [
     "main"
   ],
   "permissions": [
-    "core:default"
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
+    "dialog:allow-open"
   ]
 }

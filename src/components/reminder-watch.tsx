@@ -7,12 +7,24 @@ import { useAppStore } from "@/lib/store";
 import { useDevicePrefs } from "@/lib/device-prefs";
 import { dueReminders, upcomingBills } from "@/lib/brief";
 import { formatCurrency, todayKey } from "@/lib/format";
+import { invoke } from "@tauri-apps/api/core";
+import { isTauri } from "@/lib/platform";
+import { desktopNotify } from "@/lib/desktop-notify";
 
 const CHECK_MS = 30_000;
 // Bills are mentioned once a day, from this hour.
 const BILL_HOUR = 8;
 
 function notify(title: string, body: string, tag: string) {
+  // The desktop app: a Windows notification unless the window is in front —
+  // hidden in the tray, minimised or behind another window all count. Rust
+  // knows; the page's own visibilityState stays "visible" in the tray.
+  if (isTauri()) {
+    void invoke<boolean>("shell_in_front")
+      .then((front) => (front ? false : desktopNotify(title, body)))
+      .catch(() => {});
+    return;
+  }
   // A system notification when the app is in the background and allowed;
   // on screen a toast is enough.
   if (

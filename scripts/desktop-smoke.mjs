@@ -4,6 +4,7 @@
 //   node scripts/desktop-smoke.mjs read  [shot.png]   restart and check them
 //   node scripts/desktop-smoke.mjs first-run          name, sample data, removal
 //   node scripts/desktop-smoke.mjs services           calendar, Claude, backups
+//   node scripts/desktop-smoke.mjs shell              tray, reminder, one instance
 // first-run needs a fresh data folder; services connects a public calendar
 // and a fake Claude key, and removes both at the end.
 // It uses the app's real data folder, so run it on a test machine or account.
@@ -11,7 +12,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { spawn, execSync } from "node:child_process";
 import path from "node:path";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -20,6 +21,10 @@ const EXE = path.join(
   "src-tauri/target/release/app.exe",
 );
 const PORT = 9333;
+const CONF = JSON.parse(
+  (await import("node:fs")).readFileSync(new URL("../src-tauri/tauri.conf.json", import.meta.url), "utf8"),
+).app.windows[0];
+const APP_ARGS = CONF.additionalBrowserArgs;
 const phase = process.argv[2];
 
 function stopApp() {
@@ -37,7 +42,14 @@ async function launch() {
   const child = spawn(EXE, [], {
     detached: true,
     stdio: "ignore",
-    env: { ...process.env, WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${PORT}` },
+    // The variable replaces the window's own arguments (tauri.conf.json), so
+    // they are repeated here with the debug port.
+    env: {
+      ...process.env,
+      WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `${APP_ARGS} --remote-debugging-port=${PORT}`,
+      // Notifications and links are recorded, never shown (shell.rs).
+      MANAGEMENT_SMOKE_QUIET: "1",
+    },
   });
   child.unref();
   let browser;
@@ -194,6 +206,93 @@ if (phase === "write") {
   seen.backups = existsSync(backups) ? readdirSync(backups) : [];
   if (process.argv[3]) await page.screenshot({ path: process.argv[3] });
   console.log("seen:", seen);
+} else if (phase === "shell") {
+  const seen = {};
+  const ps = (script) =>
+    execSync("powershell -NoProfile -EncodedCommand " + Buffer.from("$ProgressPreference='SilentlyContinue'; " + script, "utf16le").toString("base64"), { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  const instances = () => Number(ps(`@(Get-Process app -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq '${EXE}' }).Count`));
+
+  // A task with a reminder one minute before it, due three minutes out: the
+  // time drops its seconds, and the reminder must come after the window has
+  // gone to the tray.
+  const due = new Date(Date.now() + 3 * 60_000);
+  const pad = (n) => String(n).padStart(2, "0");
+  const date = `${due.getFullYear()}-${pad(due.getMonth() + 1)}-${pad(due.getDate())}`;
+  const time = `${pad(due.getHours())}:${pad(due.getMinutes())}`;
+  // A new id each run: a reminder that fired once is never shown again.
+  const taskId = `smoke-reminder-${Date.now()}`;
+  await page.evaluate(
+    ([id, date, time]) =>
+      window.__TAURI_INTERNALS__.invoke("db_run", {
+        sql: "INSERT INTO tasks (id,title,dueDate,dueTime,priority,completed,reminder,createdAt,updatedAt) VALUES (?,'עשן תזכורת',?,?,'normal',0,1,datetime('now'),datetime('now'))",
+        params: [id, date, time],
+      }),
+    [taskId, date, time],
+  );
+  await goto(page, "/");
+  // Notifications and links are recorded by Rust, not sent (quiet mode, set
+  // in launch()): a test stays silent and opens no browser.
+  const recorded = async (prefix) =>
+    (await page.evaluate(() => window.__TAURI_INTERNALS__.invoke("shell_quiet_calls"))).filter((c) => c.startsWith(prefix));
+
+  // A link out of the app goes to the default browser.
+  await page.evaluate(() => {
+    const a = document.createElement("a");
+    a.href = "https://example.com/";
+    a.textContent = "קישור החוצה";
+    a.id = "smoke-link";
+    document.querySelector("main").append(a);
+  });
+  await page.evaluate(() => document.getElementById("smoke-link").click());
+  seen.linkStayed = page.url().startsWith("http://tauri.localhost");
+  await page.waitForTimeout(500);
+  seen.linkOpened = await recorded("open:");
+
+  // The extra backup folder gets a copy of today's backup.
+  const extra = path.join(process.env.TEMP, `management-backup-smoke-${Date.now()}`);
+  await page.evaluate(
+    ([label, also]) => window.__TAURI_INTERNALS__.invoke("db_backup", { label, also }),
+    [date, extra],
+  );
+  seen.extraBackup = existsSync(extra) ? readdirSync(extra) : [];
+  rmSync(extra, { recursive: true, force: true });
+
+  // Closing the window (WM_CLOSE, as its X button sends) keeps the app in
+  // the tray.
+  // The window's handle, taken while it shows (a hidden window is no
+  // process's "main window").
+  const handle = ps(`(Get-Process app | Where-Object { $_.Path -eq '${EXE}' } | Select-Object -First 1).MainWindowHandle`);
+  const WIN = `Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class W { [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l); [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h); }'; $h = [IntPtr]${handle};`;
+  seen.window = { handle, visibleBefore: ps(`${WIN} [W]::IsWindowVisible($h)`) === "True" };
+  const windowVisible = () => ps(`${WIN} [W]::IsWindowVisible($h)`) === "True";
+  ps(`${WIN} [void][W]::PostMessage($h, 0x10, [IntPtr]::Zero, [IntPtr]::Zero)`);
+  await page.waitForTimeout(1500);
+  seen.afterClose = { running: instances(), windowVisible: windowVisible(), visibility: await page.evaluate(() => document.visibilityState) };
+
+  // The reminder comes while it's there.
+  const deadline = Date.now() + 200_000;
+  let notified = [];
+  while (Date.now() < deadline && notified.length === 0) {
+    await page.waitForTimeout(2000);
+    notified = await recorded("notify:");
+  }
+  seen.reminder = notified;
+  seen.reminderWhileHidden = !windowVisible();
+  seen.reminderFired = await page.evaluate(() =>
+    (id) => Object.keys(JSON.parse(localStorage.getItem("lior-device") ?? "{}").fired ?? {}).filter((k) => k.includes(id)),
+    taskId,
+  );
+
+  // A second launch brings the running one back, and doesn't stay.
+  spawn(EXE, [], { detached: true, stdio: "ignore" }).unref();
+  await page.waitForTimeout(4000);
+  seen.secondLaunch = { running: instances(), windowVisible: windowVisible(), visibility: await page.evaluate(() => document.visibilityState) };
+
+  await page.evaluate(() =>
+    window.__TAURI_INTERNALS__.invoke("db_run", { sql: "DELETE FROM tasks WHERE id LIKE 'smoke-reminder%'", params: [] }),
+  );
+  if (process.argv[3]) await page.screenshot({ path: process.argv[3] });
+  console.log("seen:", JSON.stringify(seen, null, 1));
 } else {
   // After a restart: what was written is still there, on every screen.
   const seen = {};
@@ -204,7 +303,8 @@ if (phase === "write") {
   await goto(page, "/tasks/");
   seen.taskKept = await page.getByText("ד0 נשארת").count();
   seen.taskDeleted = await page.getByText("ד0 נמחקת").count();
-  await goto(page, "/");
+  // The calendar, not Today: the write phase may have run on another day.
+  await goto(page, "/calendar/");
   seen.event = await page.getByText("עשן אירוע").count();
   await goto(page, "/finance/");
   seen.transaction = await page.getByText("עשן תנועה").count();

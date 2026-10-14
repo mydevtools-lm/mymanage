@@ -4,6 +4,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { Db, SqlValue, Statement } from "./db-adapter";
 import { localDateKey, localMonthKey, newId } from "./keys";
 import { BASE_SCHEMA, DEFAULT_CATEGORIES, MIGRATIONS } from "./schema";
+import { useDevicePrefs } from "./device-prefs";
 
 /**
  * repo.ts in the desktop app: the same SQLite schema as the server, reached
@@ -69,9 +70,20 @@ export async function openLocalDb() {
 let lastBackupDay: string | null = null;
 
 /** One snapshot per calendar day, on the first call of that day — the app
- *  may stay open across midnight, so every call checks. Rust keeps 14. */
+ *  may stay open across midnight, so every call checks. Rust keeps 14, in
+ *  the data folder and in the extra folder from settings, if one is set. */
 async function backupIfDue(today = localDateKey()) {
   if (lastBackupDay === today) return;
   lastBackupDay = today;
-  await invoke("db_backup", { label: today });
+  await backupNow(today);
+}
+
+/** Today's snapshot now — also right after an extra folder is picked. */
+export function backupNow(today = localDateKey()) {
+  const prefs = useDevicePrefs.getState();
+  if (!prefs.loaded) prefs.load();
+  return invoke<string | null>("db_backup", {
+    label: today,
+    also: useDevicePrefs.getState().backupDir ?? null,
+  });
 }
