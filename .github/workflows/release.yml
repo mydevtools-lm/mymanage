@@ -56,7 +56,7 @@ jobs:
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
           tagName: ${{ github.ref_name }}
-          releaseName: "ניהול אישי ${{ github.ref_name }}"
+          releaseName: "mymanage ${{ github.ref_name }}"
           releaseBody: "מה חדש — CHANGELOG.md. ההתקנה: מורידים את קובץ ה‑setup.exe ומפעילים."
           releaseDraft: true
           prerelease: false

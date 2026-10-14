@@ -20,7 +20,7 @@ body:
     id: version
     attributes:
       label: גרסה
-      description: הגדרות Windows › אפליקציות, ליד ״ניהול אישי״ — או שם קובץ ההתקנה
+      description: הגדרות Windows › אפליקציות, ליד ״mymanage״ — או שם קובץ ההתקנה
     validations:
       required: true
   - type: input

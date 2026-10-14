@@ -86,7 +86,7 @@ function Questions() {
         }}
       >
         <DialogHeader>
-          <DialogTitle>ברוכים הבאים ל{APP_NAME}</DialogTitle>
+          <DialogTitle>ברוכים הבאים ל‑{APP_NAME}</DialogTitle>
           <DialogDescription>שלוש שאלות קצרות, ואפשר להתחיל.</DialogDescription>
         </DialogHeader>
         <div className="grid gap-1.5">

@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "ניהול אישי",
+  "productName": "mymanage",
   "version": "1.0.0",
   "identifier": "io.github.mydevtools-lm.management",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "ניהול אישי",
+        "title": "mymanage",
         "width": 1280,
         "height": 820,
         "resizable": true,
@@ -73,5 +73,5 @@
       }
     }
   },
-  "mainBinaryName": "management"
+  "mainBinaryName": "mymanage"
 }
