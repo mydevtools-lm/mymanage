@@ -43,6 +43,9 @@ function stopApp() {
   } catch {}
 }
 
+// Whatever happens — a failed step included — the test app doesn't stay open.
+process.on("exit", stopApp);
+
 async function launch() {
   stopApp();
   await new Promise((r) => setTimeout(r, 800));
@@ -151,6 +154,8 @@ if (phase === "write") {
   await page.evaluate(() => {
     const device = JSON.parse(localStorage.getItem("lior-device") ?? "{}");
     delete device.onboarded;
+    // In the daytime the morning brief would open over the page.
+    device.autoBrief = false;
     localStorage.setItem("lior-device", JSON.stringify(device));
   });
   await goto(page, "/");
