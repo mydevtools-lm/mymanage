@@ -9,39 +9,41 @@ import { NotificationsTab } from "@/components/settings/notifications-tab";
 import { PreferencesTab } from "@/components/settings/preferences-tab";
 import { AboutTab } from "@/components/settings/about-tab";
 import { useIsTauri } from "@/lib/platform";
+import { t } from "@/lib/i18n";
 
 export default function SettingsPage() {
   // About — the version and updates — belongs to the desktop app.
   const desktop = useIsTauri();
+  const m = t().settings.tabs;
   return (
     <>
-      <PageHeader title="הגדרות" />
+      <PageHeader title={t().common.nav.settings} />
       <Hydrated>
         <UrlTabs
           tabs={[
             {
               value: "categories",
-              label: "קטגוריות",
+              label: m.categories,
               content: <CategoriesTab />,
             },
             {
               value: "connections",
-              label: "חיבורים",
+              label: m.connections,
               content: <ConnectionsTab />,
             },
             {
               value: "preferences",
-              label: "העדפות",
+              label: m.preferences,
               content: <PreferencesTab />,
             },
             {
               value: "notifications",
-              label: "התראות",
+              label: m.notifications,
               content: <NotificationsTab />,
             },
-            { value: "backup", label: "גיבוי", content: <BackupTab /> },
+            { value: "backup", label: m.backup, content: <BackupTab /> },
             ...(desktop
-              ? [{ value: "about", label: "אודות", content: <AboutTab /> }]
+              ? [{ value: "about", label: m.about, content: <AboutTab /> }]
               : []),
           ]}
         />

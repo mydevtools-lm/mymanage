@@ -5,7 +5,7 @@
 //! user, and one connection is what makes a `batch` a real transaction.
 
 use rusqlite::types::{Value, ValueRef};
-use rusqlite::{params_from_iter, Connection};
+use rusqlite::{Connection, params_from_iter};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Number, Value as Json};
 use std::path::{Path, PathBuf};
@@ -61,7 +61,11 @@ fn to_json(value: ValueRef<'_>) -> Json {
     }
 }
 
-fn query(conn: &Connection, sql: &str, params: &[Json]) -> rusqlite::Result<Vec<Map<String, Json>>> {
+fn query(
+    conn: &Connection,
+    sql: &str,
+    params: &[Json],
+) -> rusqlite::Result<Vec<Map<String, Json>>> {
     let mut stmt = conn.prepare(sql)?;
     let names: Vec<String> = stmt.column_names().iter().map(|n| n.to_string()).collect();
     let mut rows = stmt.query(params_from_iter(params.iter().map(to_sql)))?;
@@ -94,7 +98,11 @@ fn err(e: impl std::fmt::Display) -> String {
 
 /// Rows of a SELECT, each as a column → value object.
 #[tauri::command]
-pub fn db_all(db: State<'_, Db>, sql: String, params: Vec<Json>) -> Result<Vec<Map<String, Json>>, String> {
+pub fn db_all(
+    db: State<'_, Db>,
+    sql: String,
+    params: Vec<Json>,
+) -> Result<Vec<Map<String, Json>>, String> {
     let conn = db.0.lock().map_err(err)?;
     query(&conn, &sql, &params).map_err(err)
 }
@@ -159,17 +167,25 @@ mod tests {
     use serde_json::json;
 
     fn stmt(sql: &str, params: Vec<Json>) -> Statement {
-        Statement { sql: sql.into(), params }
+        Statement {
+            sql: sql.into(),
+            params,
+        }
     }
 
     #[test]
     fn round_trips_values() {
         let db = Db::memory();
         let conn = db.0.lock().unwrap();
-        conn.execute_batch("CREATE TABLE t (a TEXT, b INTEGER, c REAL, d TEXT)").unwrap();
+        conn.execute_batch("CREATE TABLE t (a TEXT, b INTEGER, c REAL, d TEXT)")
+            .unwrap();
         conn.execute(
             "INSERT INTO t VALUES (?, ?, ?, ?)",
-            params_from_iter([json!("שלום"), json!(true), json!(1.5), json!(null)].iter().map(to_sql)),
+            params_from_iter(
+                [json!("שלום"), json!(true), json!(1.5), json!(null)]
+                    .iter()
+                    .map(to_sql),
+            ),
         )
         .unwrap();
         let rows = query(&conn, "SELECT * FROM t", &[]).unwrap();
@@ -183,7 +199,8 @@ mod tests {
     fn batch_rolls_back_when_one_statement_fails() {
         let db = Db::memory();
         let mut conn = db.0.lock().unwrap();
-        conn.execute_batch("CREATE TABLE t (id TEXT PRIMARY KEY)").unwrap();
+        conn.execute_batch("CREATE TABLE t (id TEXT PRIMARY KEY)")
+            .unwrap();
         let result = batch(
             &mut conn,
             &[

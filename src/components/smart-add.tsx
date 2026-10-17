@@ -20,6 +20,7 @@ import { useAppStore } from "@/lib/store";
 import { formatDate, todayKey } from "@/lib/format";
 import type { Proposal, ProposalKind } from "@/lib/nl-parse";
 import { isTauri } from "@/lib/platform";
+import { getLocale, t } from "@/lib/i18n";
 import { desktopParse } from "@/lib/desktop-services";
 
 interface SmartAddState {
@@ -35,12 +36,6 @@ export const useSmartAdd = create<SmartAddState>()((set) => ({
   close: () => set({ text: null }),
 }));
 
-const KIND_LABELS: Record<ProposalKind, string> = {
-  task: "משימה",
-  event: "אירוע",
-  transaction: "תנועה",
-};
-
 type Row = Proposal & { include: boolean };
 
 async function fetchProposals(text: string) {
@@ -48,11 +43,11 @@ async function fetchProposals(text: string) {
   if (isTauri()) return desktopParse(text, todayKey());
   const response = await fetch("/api/assist/parse", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-locale": getLocale() },
     body: JSON.stringify({ text, today: todayKey() }),
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error ?? "הפענוח נכשל");
+  if (!response.ok) throw new Error(data.error ?? t().assist.failed);
   return data as { source: "claude" | "local"; proposals: Proposal[] };
 }
 
@@ -100,7 +95,7 @@ function SmartAddForm({
     setRows(data.proposals.map((p) => ({ ...p, include: true })));
   };
   const failure = (e: unknown) =>
-    setError(e instanceof Error ? e.message : "הפענוח נכשל");
+    setError(e instanceof Error ? e.message : t().assist.failed);
 
   async function read(value = text) {
     if (!value.trim()) return;
@@ -162,25 +157,21 @@ function SmartAddForm({
         });
       }
     }
-    toast.success(
-      picked.length === 1 ? "נוסף פריט אחד" : `נוספו ${picked.length} פריטים`,
-    );
+    toast.success(t().assist.added(picked.length));
     onDone();
   }
 
   const count = rows?.filter(ready).length ?? 0;
+  const m = t().assist;
 
   return (
     <div className="grid gap-4">
       <DialogHeader>
         <DialogTitle className="flex items-center gap-2">
           <Sparkles className="size-4 text-primary" />
-          הוספה במשפט
+          {m.title}
         </DialogTitle>
-        <DialogDescription>
-          כותבים כמו שמדברים — ״ביום שני חממה ואחרי זה ארוחת צהריים״. לפני שנשמר
-          משהו, רואים מה הובן ואפשר לתקן.
-        </DialogDescription>
+        <DialogDescription>{m.description}</DialogDescription>
       </DialogHeader>
 
       <form
@@ -191,7 +182,7 @@ function SmartAddForm({
         }}
       >
         <Textarea
-          aria-label="מה להוסיף"
+          aria-label={m.input}
           rows={2}
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -209,7 +200,7 @@ function SmartAddForm({
           className="justify-self-start"
           disabled={busy || !text.trim()}
         >
-          {busy ? "קורא…" : rows ? "קריאה מחדש" : "מה הבנת?"}
+          {busy ? m.reading : rows ? m.readAgain : m.read}
         </Button>
       </form>
 
@@ -224,10 +215,10 @@ function SmartAddForm({
         <div className="grid gap-2">
           <p className="text-xs text-muted-foreground" role="status">
             {rows.length === 0
-              ? "לא הצלחתי למצוא כאן משהו להוסיף."
+              ? m.nothingFound
               : source === "claude"
-                ? `Claude הבין ${rows.length} פריטים`
-                : `הובנו ${rows.length} פריטים (קריאה מקומית — עם מפתח Claude היא חכמה יותר)`}
+                ? m.claudeFound(rows.length)
+                : m.localFound(rows.length)}
           </p>
           {rows.map((r, i) => (
             <div
@@ -237,24 +228,24 @@ function SmartAddForm({
               <Checkbox
                 checked={r.include}
                 onCheckedChange={(v) => update(i, { include: !!v })}
-                aria-label={`להוסיף את ${r.title}`}
+                aria-label={m.include(r.title)}
               />
               <select
-                aria-label="סוג"
+                aria-label={m.kind}
                 value={r.kind}
                 onChange={(e) =>
                   update(i, { kind: e.target.value as ProposalKind })
                 }
                 className="h-8 rounded-md border bg-background px-2 text-sm"
               >
-                {Object.entries(KIND_LABELS).map(([value, label]) => (
+                {Object.entries(m.kinds).map(([value, label]) => (
                   <option key={value} value={value}>
                     {label}
                   </option>
                 ))}
               </select>
               <Input
-                aria-label="כותרת"
+                aria-label={m.itemTitle}
                 value={r.title}
                 onChange={(e) => update(i, { title: e.target.value })}
                 className="h-8"
@@ -262,7 +253,7 @@ function SmartAddForm({
               <div className="flex flex-wrap items-center gap-2 sm:col-span-3 sm:ps-7">
                 <Input
                   type="date"
-                  aria-label="תאריך"
+                  aria-label={m.date}
                   value={r.date ?? ""}
                   onChange={(e) =>
                     update(i, { date: e.target.value || undefined })
@@ -272,7 +263,7 @@ function SmartAddForm({
                 {r.kind !== "transaction" ? (
                   <Input
                     type="time"
-                    aria-label="שעה"
+                    aria-label={m.time}
                     value={r.time ?? ""}
                     onChange={(e) =>
                       update(i, { time: e.target.value || undefined })
@@ -284,7 +275,7 @@ function SmartAddForm({
                     <Input
                       type="number"
                       inputMode="decimal"
-                      aria-label="סכום"
+                      aria-label={m.amount}
                       value={r.amount ?? ""}
                       onChange={(e) =>
                         update(i, {
@@ -294,7 +285,7 @@ function SmartAddForm({
                       className="h-8 w-28"
                     />
                     <select
-                      aria-label="הוצאה או הכנסה"
+                      aria-label={m.direction}
                       value={r.type ?? "expense"}
                       onChange={(e) =>
                         update(i, {
@@ -303,13 +294,13 @@ function SmartAddForm({
                       }
                       className="h-8 rounded-md border bg-background px-2 text-sm"
                     >
-                      <option value="expense">הוצאה</option>
-                      <option value="income">הכנסה</option>
+                      <option value="expense">{m.expense}</option>
+                      <option value="income">{m.income}</option>
                     </select>
                   </>
                 )}
                 <span className="text-xs text-muted-foreground">
-                  {r.date ? formatDate(r.date) : "בלי תאריך"}
+                  {r.date ? formatDate(r.date) : t().common.noDate}
                   {r.time
                     ? ` · ${r.time}${r.endTime ? `–${r.endTime}` : ""}`
                     : ""}
@@ -322,10 +313,10 @@ function SmartAddForm({
 
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onDone}>
-          ביטול
+          {t().common.cancel}
         </Button>
         <Button type="button" disabled={count === 0} onClick={save}>
-          הוספה{count > 0 ? ` (${count})` : ""}
+          {m.addCount(count)}
         </Button>
       </DialogFooter>
     </div>

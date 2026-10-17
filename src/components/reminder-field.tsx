@@ -1,18 +1,22 @@
 "use client";
 
 import { SimpleSelect } from "@/components/fields";
+import { t } from "@/lib/i18n";
 
 const NONE = "none";
 
-const OPTIONS = [
-  { value: NONE, label: "בלי תזכורת" },
-  { value: "0", label: "בזמן" },
-  { value: "5", label: "5 דקות לפני" },
-  { value: "10", label: "10 דקות לפני" },
-  { value: "30", label: "חצי שעה לפני" },
-  { value: "60", label: "שעה לפני" },
-  { value: "1440", label: "יום לפני" },
-];
+function options() {
+  const m = t().common.reminder;
+  return [
+    { value: NONE, label: m.none },
+    { value: "0", label: m.atTime },
+    { value: "5", label: m.minutesBefore(5) },
+    { value: "10", label: m.minutesBefore(10) },
+    { value: "30", label: m.halfHourBefore },
+    { value: "60", label: m.hourBefore },
+    { value: "1440", label: m.dayBefore },
+  ];
+}
 
 /** Minutes before the set time; undefined is no reminder. */
 export function ReminderField({
@@ -24,10 +28,10 @@ export function ReminderField({
 }) {
   return (
     <SimpleSelect
-      label="תזכורת"
+      label={t().common.reminder.label}
       value={value === undefined ? NONE : String(value)}
       onChange={(v) => onChange(v === NONE ? undefined : Number(v))}
-      options={OPTIONS}
+      options={options()}
     />
   );
 }

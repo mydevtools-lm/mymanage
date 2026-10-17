@@ -27,6 +27,7 @@ import { useAppStore } from "@/lib/store";
 import { formatMonth, toDateKey } from "@/lib/format";
 import type { DataSnapshot } from "@/lib/types";
 import { APP_SLUG } from "@/lib/app-info";
+import { t } from "@/lib/i18n";
 
 export function BackupTab() {
   const exportData = useAppStore((s) => s.exportData);
@@ -45,6 +46,7 @@ export function BackupTab() {
   const fileRef = useRef<HTMLInputElement>(null);
   const pendingFile = useRef<File | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const m = t().settings.backup;
 
   function download() {
     const blob = new Blob([JSON.stringify(exportData(), null, 2)], {
@@ -56,7 +58,7 @@ export function BackupTab() {
     a.download = `${APP_SLUG}-${toDateKey(new Date())}.json`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("הגיבוי הורד");
+    toast.success(m.downloaded);
   }
 
   async function applyImport() {
@@ -66,9 +68,9 @@ export function BackupTab() {
       const parsed = JSON.parse(await file.text()) as DataSnapshot;
       if (!parsed || !Array.isArray(parsed.tasks)) throw new Error("bad file");
       await importData(parsed);
-      toast.success("הנתונים יובאו בהצלחה");
+      toast.success(m.imported);
     } catch {
-      toast.error("הקובץ אינו גיבוי תקין");
+      toast.error(m.badFile);
     } finally {
       pendingFile.current = null;
       if (fileRef.current) fileRef.current.value = "";
@@ -79,29 +81,29 @@ export function BackupTab() {
     <div className="grid gap-4 lg:grid-cols-3">
       <Card>
         <CardHeader>
-          <CardTitle>מצב הנתונים</CardTitle>
+          <CardTitle>{m.statusTitle}</CardTitle>
           <CardDescription>
-            מסד נתונים מקומי — <code className="text-xs">data/lior.db</code>
+            {m.localDb} <code className="text-xs">data/lior.db</code>
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-1.5 text-sm">
-          <Row label="חודש התחלה" value={formatMonth(counts.startMonth)} />
-          <Row label="משימות" value={counts.tasks} />
-          <Row label="אירועים" value={counts.events} />
-          <Row label="תנועות כספיות" value={counts.transactions} />
-          <Row label="הערות" value={counts.notes} />
-          <Row label="רשימות" value={counts.checklists} />
+          <Row label={m.startMonth} value={formatMonth(counts.startMonth)} />
+          <Row label={m.tasks} value={counts.tasks} />
+          <Row label={m.events} value={counts.events} />
+          <Row label={m.transactions} value={counts.transactions} />
+          <Row label={m.notes} value={counts.notes} />
+          <Row label={m.lists} value={counts.checklists} />
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle>גיבוי ושחזור</CardTitle>
-          <CardDescription>מומלץ לייצא גיבוי פעם בשבוע</CardDescription>
+          <CardTitle>{m.backupTitle}</CardTitle>
+          <CardDescription>{m.backupHint}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-2">
           <Button onClick={download}>
-            <Download /> ייצוא לקובץ JSON
+            <Download /> {m.exportJson}
           </Button>
 
           <input
@@ -117,12 +119,9 @@ export function BackupTab() {
           <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>
-                  לייבא ולדרוס את הנתונים הקיימים?
-                </AlertDialogTitle>
+                <AlertDialogTitle>{m.importConfirmTitle}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  כל המשימות, האירועים, התנועות וההערות הנוכחיים יוחלפו בתוכן
-                  הקובץ.
+                  {m.importConfirmBody}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -132,51 +131,51 @@ export function BackupTab() {
                     if (fileRef.current) fileRef.current.value = "";
                   }}
                 >
-                  ביטול
+                  {t().common.cancel}
                 </AlertDialogCancel>
                 <AlertDialogAction onClick={applyImport}>
-                  ייבוא
+                  {m.importAction}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
           <Button variant="outline" onClick={() => fileRef.current?.click()}>
-            <Upload /> ייבוא מקובץ JSON
+            <Upload /> {m.importJson}
           </Button>
         </CardContent>
       </Card>
 
       <Card className="border-destructive/30">
         <CardHeader>
-          <CardTitle className="text-destructive">אזור מסוכן</CardTitle>
-          <CardDescription>מחיקה של כל הנתונים במערכת</CardDescription>
+          <CardTitle className="text-destructive">{m.dangerTitle}</CardTitle>
+          <CardDescription>{m.dangerHint}</CardDescription>
         </CardHeader>
         <CardContent>
           <AlertDialog>
             <AlertDialogTrigger render={<Button variant="destructive" />}>
-              <Trash2 /> מחיקת כל הנתונים
+              <Trash2 /> {m.deleteAll}
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>למחוק את כל הנתונים?</AlertDialogTitle>
+                <AlertDialogTitle>{m.deleteConfirmTitle}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  הפעולה אינה הפיכה. כדאי לייצא גיבוי לפני כן.
+                  {m.deleteConfirmBody}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>ביטול</AlertDialogCancel>
+                <AlertDialogCancel>{t().common.cancel}</AlertDialogCancel>
                 <AlertDialogAction
                   variant="destructive"
                   onClick={async () => {
                     try {
                       await clearAll();
-                      toast.success("כל הנתונים נמחקו");
+                      toast.success(m.deleted);
                     } catch {
-                      toast.error("המחיקה נכשלה");
+                      toast.error(m.deleteFailed);
                     }
                   }}
                 >
-                  מחיקה
+                  {t().common.delete}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

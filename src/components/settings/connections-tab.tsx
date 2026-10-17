@@ -15,10 +15,10 @@ import { googleTint } from "@/components/calendar/chips";
 import { useGoogleEvents } from "@/lib/use-google-events";
 import { useAppStore } from "@/lib/store";
 import { addDays, format } from "date-fns";
-import { he } from "date-fns/locale";
 import { toDateKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useIsTauri } from "@/lib/platform";
+import { dateLocale, t } from "@/lib/i18n";
 import {
   ClaudeCard,
   DesktopCalendarControls,
@@ -33,6 +33,7 @@ export function ConnectionsTab() {
   const setPref = useAppStore((s) => s.setCalendarPref);
   // The desktop app keeps the addresses itself; the browser reads .env.local.
   const desktop = useIsTauri();
+  const m = t().settings.connections;
 
   const allFailed =
     google.calendars.length > 0 && google.calendars.every((c) => c.failed);
@@ -45,24 +46,22 @@ export function ConnectionsTab() {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <CalendarCheck className="size-4" />
-                גוגל יומן
+                {m.googleTitle}
               </CardTitle>
-              <CardDescription>
-                קריאה בלבד דרך כתובות iCal פרטיות
-              </CardDescription>
+              <CardDescription>{m.googleHint}</CardDescription>
             </div>
             {google.loading ? (
-              <Badge variant="secondary">בודק…</Badge>
+              <Badge variant="secondary">{m.checking}</Badge>
             ) : allFailed ? (
-              <Badge variant="destructive">שגיאה</Badge>
+              <Badge variant="destructive">{m.error}</Badge>
             ) : google.configured ? (
               <Badge className="bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-200">
                 {google.calendars.length > 1
-                  ? `${google.calendars.length} יומנים מחוברים`
-                  : "מחובר"}
+                  ? m.connectedMany(google.calendars.length)
+                  : m.connected}
               </Badge>
             ) : (
-              <Badge variant="outline">לא מחובר</Badge>
+              <Badge variant="outline">{m.notConnected}</Badge>
             )}
           </div>
         </CardHeader>
@@ -93,15 +92,15 @@ export function ConnectionsTab() {
                     <div className="truncate font-medium">{calendar.name}</div>
                     <div className="text-xs text-muted-foreground">
                       {calendar.failed
-                        ? "לא הצלחנו לקרוא את היומן הזה"
+                        ? m.calendarFailed
                         : calendar.hidden
-                          ? "מוסתר ביומן ובמסך היום"
-                          : `${count} אירועים ב‑30 הימים הקרובים`}
+                          ? m.calendarHidden
+                          : m.calendarEvents(count)}
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <label htmlFor={switchId} className="text-xs">
-                      הצגה
+                      {m.show}
                     </label>
                     <Switch
                       id={switchId}
@@ -130,7 +129,7 @@ export function ConnectionsTab() {
           {google.configured && google.events.length > 0 && (
             <div className="grid gap-1.5">
               <div className="text-xs font-medium text-muted-foreground">
-                הקרובים
+                {m.upcoming}
               </div>
               {google.events.slice(0, 5).map((e) => (
                 <div
@@ -142,9 +141,11 @@ export function ConnectionsTab() {
                 >
                   <span className="truncate">{e.title}</span>
                   <span className="shrink-0 text-xs text-muted-foreground">
-                    {format(new Date(e.date + "T00:00"), "d בMMM", {
-                      locale: he,
-                    })}
+                    {format(
+                      new Date(e.date + "T00:00"),
+                      t().common.dates.dayMonth,
+                      { locale: dateLocale() },
+                    )}
                     {e.startTime ? ` · ${e.startTime}` : ""}
                   </span>
                 </div>
@@ -155,8 +156,7 @@ export function ConnectionsTab() {
           {google.configured && (
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <Lock className="size-3" />
-              אי אפשר לערוך או למחוק אירועי גוגל מכאן. שינוי נעשה בגוגל יומן
-              עצמו, ומופיע כאן תוך כעשר דקות.
+              {m.readOnly}
             </p>
           )}
 
@@ -170,13 +170,12 @@ export function ConnectionsTab() {
             <div className="grid gap-2 text-muted-foreground">
               <p className="flex items-start gap-2">
                 <PlugZap className="mt-0.5 size-4 shrink-0" />
-                {google.configured ? "יומן נוסף" : "כדי לחבר"}: בגוגל יומן →
-                הגדרות היומן → ״שילוב יומן״ → להעתיק את ״כתובת סודית בפורמט
-                iCal״.
+                {m.envSteps(google.configured)}
               </p>
               <p>
-                להדביק אותה בקובץ{" "}
-                <code className="rounded bg-muted px-1">.env.local</code> בשורה{" "}
+                {m.envPasteIn}{" "}
+                <code className="rounded bg-muted px-1">.env.local</code>{" "}
+                {m.envOnLine}{" "}
                 <code className="rounded bg-muted px-1">
                   {google.configured
                     ? `GOOGLE_CALENDAR_ICS_URL_${google.calendars.length + 1}=`
@@ -185,14 +184,14 @@ export function ConnectionsTab() {
                 {google.configured && (
                   <>
                     {" "}
-                    (ושם לתצוגה ב־
+                    {m.envNameIn}
                     <code className="rounded bg-muted px-1">
                       GOOGLE_CALENDAR_NAME_{google.calendars.length + 1}=
                     </code>
                     )
                   </>
                 )}{" "}
-                ולהפעיל מחדש את השרת. ההוראות המלאות בקובץ{" "}
+                {m.envRestart}{" "}
                 <code className="rounded bg-muted px-1">.env.example</code>.
               </p>
             </div>

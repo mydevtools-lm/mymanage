@@ -69,6 +69,7 @@ import {
 import { COLOR_STYLES } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import type { SeriesScope, Transaction, TransactionType } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 function SummaryCard({
   title,
@@ -198,14 +199,17 @@ export default function FinancePage() {
     (b) => !breakdown.some((row) => row.category?.id === b.categoryId),
   );
 
+  const m = t().finance;
+  const common = t().common;
+
   const exportCsv = () => {
     if (view === "year") {
       downloadCsv(
-        `כספים-${year}.csv`,
+        m.page.csvFile(year),
         transactionsToCsv(yearSummary(transactions, year).rows, categories),
       );
     } else {
-      downloadCsv(`כספים-${month}.csv`, transactionsToCsv(rows, categories));
+      downloadCsv(m.page.csvFile(month), transactionsToCsv(rows, categories));
     }
   };
   const reportHref =
@@ -263,33 +267,33 @@ export default function FinancePage() {
   return (
     <>
       <PageHeader
-        title="כספים"
-        description={`מעקב חודשי החל מ‑${formatMonth(startMonth)}`}
+        title={m.title}
+        description={m.page.description(formatMonth(startMonth))}
         actions={
           <>
             <Button variant="outline" onClick={() => setImportOpen(true)}>
               <FileUp />
-              <span className="max-sm:sr-only">ייבוא</span>
+              <span className="max-sm:sr-only">{m.page.import}</span>
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="outline" />}>
                 <Download />
-                <span className="max-sm:sr-only">ייצוא</span>
+                <span className="max-sm:sr-only">{m.page.export}</span>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="min-w-48">
                 <DropdownMenuItem onClick={exportCsv}>
                   <Download />
-                  {view === "year" ? `CSV של ${year}` : "CSV של החודש"}
+                  {view === "year" ? m.page.csvYear(year) : m.page.csvMonth}
                 </DropdownMenuItem>
                 <DropdownMenuItem render={<Link href={reportHref} />}>
                   <FileText />
-                  דוח להדפסה / PDF
+                  {m.page.printReport}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
             <Button onClick={openNew}>
               <Plus />
-              תנועה חדשה
+              {m.newTransaction}
             </Button>
           </>
         }
@@ -309,8 +313,8 @@ export default function FinancePage() {
           )}
           <Tabs value={view} onValueChange={(v) => setView(v as string)}>
             <TabsList>
-              <TabsTrigger value="month">חודש</TabsTrigger>
-              <TabsTrigger value="year">שנה</TabsTrigger>
+              <TabsTrigger value="month">{m.month}</TabsTrigger>
+              <TabsTrigger value="year">{m.year}</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -329,19 +333,19 @@ export default function FinancePage() {
           <>
             <div className="mb-6 grid grid-cols-3 gap-2 sm:gap-4">
               <SummaryCard
-                title="הכנסות"
+                title={m.income}
                 value={summary.income}
                 icon={ArrowUpRight}
                 tone="income"
               />
               <SummaryCard
-                title="הוצאות"
+                title={m.expenses}
                 value={summary.expense}
                 icon={ArrowDownLeft}
                 tone="expense"
               />
               <SummaryCard
-                title="מאזן"
+                title={m.balance}
                 value={summary.balance}
                 icon={Scale}
                 tone="balance"
@@ -351,16 +355,16 @@ export default function FinancePage() {
             <div className="grid gap-6 lg:grid-cols-3">
               <Card className="lg:col-span-2">
                 <CardHeader className="gap-3">
-                  <CardTitle>תנועות החודש</CardTitle>
+                  <CardTitle>{m.page.monthTransactions}</CardTitle>
                   <div className="col-span-full flex flex-wrap items-center gap-2">
                     <Tabs
                       value={typeFilter}
                       onValueChange={(v) => setTypeFilter(v as string)}
                     >
                       <TabsList>
-                        <TabsTrigger value="all">הכול</TabsTrigger>
-                        <TabsTrigger value="income">הכנסות</TabsTrigger>
-                        <TabsTrigger value="expense">הוצאות</TabsTrigger>
+                        <TabsTrigger value="all">{common.all}</TabsTrigger>
+                        <TabsTrigger value="income">{m.income}</TabsTrigger>
+                        <TabsTrigger value="expense">{m.expenses}</TabsTrigger>
                       </TabsList>
                     </Tabs>
                     <CategorySelect
@@ -375,7 +379,7 @@ export default function FinancePage() {
                       <Input
                         className="ps-8"
                         data-search
-                        placeholder="חיפוש תיאור או סכום..."
+                        placeholder={m.page.searchPlaceholder}
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                       />
@@ -387,18 +391,16 @@ export default function FinancePage() {
                     <EmptyState
                       icon={Wallet}
                       title={
-                        rows.length === 0
-                          ? "אין תנועות בחודש זה"
-                          : "לא נמצאו תנועות"
+                        rows.length === 0 ? m.page.emptyMonth : m.page.noMatches
                       }
                       hint={
                         rows.length === 0
-                          ? "הכנסה או הוצאה ראשונה לחודש הזה"
-                          : "נסה לשנות את החיפוש או הסינון"
+                          ? m.page.emptyMonthHint
+                          : m.page.noMatchesHint
                       }
                       action={
                         rows.length === 0
-                          ? { label: "תנועה חדשה", onClick: openNew }
+                          ? { label: m.newTransaction, onClick: openNew }
                           : undefined
                       }
                     />
@@ -438,14 +440,14 @@ export default function FinancePage() {
                                     className="size-3.5 shrink-0 text-muted-foreground"
                                     aria-label={
                                       r.overridden
-                                        ? "תנועה חוזרת, שונתה החודש"
-                                        : "תנועה חוזרת"
+                                        ? m.page.recurringChanged
+                                        : m.page.recurring
                                     }
                                   />
                                 )}
                                 {r.overridden && (
                                   <span className="shrink-0 rounded bg-muted px-1 text-[10px] text-muted-foreground">
-                                    שונה החודש
+                                    {m.page.changedThisMonth}
                                   </span>
                                 )}
                               </div>
@@ -466,12 +468,12 @@ export default function FinancePage() {
                             <RowActions
                               actions={[
                                 {
-                                  label: "עריכה",
+                                  label: common.edit,
                                   icon: Pencil,
                                   onSelect: () => requestEdit(r),
                                 },
                                 {
-                                  label: "מחיקה",
+                                  label: common.delete,
                                   icon: Trash2,
                                   destructive: true,
                                   onSelect: () => requestDelete(r),
@@ -489,7 +491,7 @@ export default function FinancePage() {
               <div className="grid content-start gap-6">
                 <Card>
                   <CardHeader className="gap-2">
-                    <CardTitle>פילוח לפי קטגוריה</CardTitle>
+                    <CardTitle>{m.page.byCategory}</CardTitle>
                     <CardDescription>{formatMonth(month)}</CardDescription>
                     <CardAction>
                       <Button
@@ -498,7 +500,7 @@ export default function FinancePage() {
                         onClick={() => setBudgetOpen(true)}
                       >
                         <PiggyBank />
-                        תקציב
+                        {m.page.budget}
                       </Button>
                     </CardAction>
                     <Tabs
@@ -513,13 +515,13 @@ export default function FinancePage() {
                           value="expense"
                           className="data-active:text-expense"
                         >
-                          הוצאות
+                          {m.expenses}
                         </TabsTrigger>
                         <TabsTrigger
                           value="income"
                           className="data-active:text-income"
                         >
-                          הכנסות
+                          {m.income}
                         </TabsTrigger>
                       </TabsList>
                     </Tabs>
@@ -528,8 +530,8 @@ export default function FinancePage() {
                     {breakdown.length === 0 && (
                       <p className="text-sm text-muted-foreground">
                         {breakdownType === "expense"
-                          ? "אין הוצאות החודש."
-                          : "אין הכנסות החודש."}
+                          ? m.page.noExpensesMonth
+                          : m.page.noIncomeMonth}
                       </p>
                     )}
                     {breakdown.map(({ category, amount, share }) => {
@@ -556,7 +558,7 @@ export default function FinancePage() {
                                 </>
                               ) : (
                                 <span className="text-muted-foreground">
-                                  ללא קטגוריה
+                                  {m.noCategory}
                                 </span>
                               )}
                             </span>
@@ -569,7 +571,9 @@ export default function FinancePage() {
                               {formatCurrency(amount)}
                               <span className="ms-1.5 text-xs text-muted-foreground">
                                 {budget
-                                  ? `מתוך ${formatCurrency(budget.budget)}`
+                                  ? m.page.ofBudget(
+                                      formatCurrency(budget.budget),
+                                    )
                                   : `${Math.round(share * 100)}%`}
                               </span>
                             </span>
@@ -578,7 +582,9 @@ export default function FinancePage() {
                             className="h-1.5 overflow-hidden rounded-full bg-muted"
                             role={budget ? "meter" : undefined}
                             aria-label={
-                              budget ? `תקציב ${category?.name}` : undefined
+                              budget
+                                ? m.page.budgetOf(category?.name ?? "")
+                                : undefined
                             }
                             aria-valuemin={budget ? 0 : undefined}
                             aria-valuemax={budget?.budget}
@@ -606,8 +612,9 @@ export default function FinancePage() {
                           </div>
                           {budget?.over && (
                             <span className="text-xs text-destructive">
-                              חריגה של{" "}
-                              {formatCurrency(budget.spent - budget.budget)}
+                              {m.page.overBy(
+                                formatCurrency(budget.spent - budget.budget),
+                              )}
                             </span>
                           )}
                         </div>
@@ -634,7 +641,7 @@ export default function FinancePage() {
                               {category.name}
                             </span>
                             <span className="tabular-nums">
-                              ₪0 מתוך {formatCurrency(b.budget)}
+                              {m.page.unspent(formatCurrency(b.budget))}
                             </span>
                           </div>
                         );
@@ -644,10 +651,8 @@ export default function FinancePage() {
 
                 <Card>
                   <CardHeader>
-                    <CardTitle>מגמה</CardTitle>
-                    <CardDescription>
-                      הכנסות מול הוצאות, עד 6 חודשים אחרונים
-                    </CardDescription>
+                    <CardTitle>{m.page.trend}</CardTitle>
+                    <CardDescription>{m.page.trendHint}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <TrendChart data={trend} />

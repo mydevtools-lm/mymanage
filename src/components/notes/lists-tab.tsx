@@ -36,6 +36,7 @@ import { useAppStore } from "@/lib/store";
 import { listMatches, listToText, sortLists } from "@/lib/list-text";
 import { cn } from "@/lib/utils";
 import type { Checklist, ChecklistItem } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 async function copyText(text: string) {
   try {
@@ -91,7 +92,7 @@ function ItemRow({
       <Button
         variant="ghost"
         size="icon-xs"
-        aria-label={`הסרת ${item.text}`}
+        aria-label={t().notes.lists.removeItem(item.text)}
         className="text-muted-foreground transition-opacity can-hover:opacity-0 can-hover:group-hover/item:opacity-100 can-hover:group-focus-within/item:opacity-100"
         onClick={() => deleteItem(listId, item.id)}
       >
@@ -116,6 +117,7 @@ function ListCard({ list }: { list: Checklist }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   // When the clipboard is blocked, show the text to copy by hand.
   const [manualCopy, setManualCopy] = useState<string | null>(null);
+  const m = t().notes.lists;
 
   const open = list.items.filter((i) => !i.done);
   const done = list.items.filter((i) => i.done);
@@ -130,37 +132,37 @@ function ListCard({ list }: { list: Checklist }) {
         // Cancelled, or sharing failed — fall through to copying.
       }
     }
-    if (await copyText(text)) toast.success("הרשימה הועתקה — אפשר להדביק");
+    if (await copyText(text)) toast.success(m.copied);
     else setManualCopy(text);
   };
 
   const cardActions: RowAction[] = [
     {
-      label: list.pinned ? "ביטול נעיצה" : "נעיצה למעלה",
+      label: list.pinned ? m.unpin : m.pin,
       icon: list.pinned ? PinOff : Pin,
       onSelect: () => togglePin(list.id),
     },
     {
-      label: canShare() ? "שיתוף" : "העתקה כטקסט",
+      label: canShare() ? m.share : m.copyAsText,
       icon: canShare() ? Share2 : ClipboardCopy,
       onSelect: share,
     },
     ...(done.length > 0
       ? [
           {
-            label: "איפוס — ביטול כל הסימונים",
+            label: m.reset,
             icon: RotateCcw,
             onSelect: () => resetList(list.id),
           },
           {
-            label: "הסרת המסומנים",
+            label: m.clearDone,
             icon: Eraser,
             onSelect: () => clearDone(list.id),
           },
         ]
       : []),
     {
-      label: "שינוי שם",
+      label: m.rename,
       icon: Pencil,
       onSelect: () => {
         setTitle(list.title);
@@ -168,7 +170,7 @@ function ListCard({ list }: { list: Checklist }) {
       },
     },
     {
-      label: "מחיקת הרשימה",
+      label: m.deleteList,
       icon: Trash2,
       destructive: true,
       onSelect: () => setConfirmDelete(true),
@@ -186,7 +188,7 @@ function ListCard({ list }: { list: Checklist }) {
   function submitRename(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
-      toast.error("צריך שם לרשימה");
+      toast.error(m.nameRequired);
       return;
     }
     renameList(list.id, title.trim());
@@ -202,15 +204,15 @@ function ListCard({ list }: { list: Checklist }) {
               {list.pinned && (
                 <Pin
                   className="size-3.5 shrink-0 text-primary"
-                  aria-label="נעוצה"
+                  aria-label={m.pinned}
                 />
               )}
               {list.title}
             </h3>
             <p className="text-xs text-muted-foreground">
               {list.items.length === 0
-                ? "רשימה ריקה"
-                : `${done.length} מתוך ${list.items.length} סומנו`}
+                ? m.emptyList
+                : m.progress(done.length, list.items.length)}
             </p>
           </div>
           <RowActions actions={cardActions} group="card" />
@@ -243,7 +245,7 @@ function ListCard({ list }: { list: Checklist }) {
           <Input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="הוסף פריט ואנטר"
+            placeholder={m.addItemPlaceholder}
             enterKeyHint="done"
             className="h-9"
           />
@@ -251,7 +253,7 @@ function ListCard({ list }: { list: Checklist }) {
             type="submit"
             size="icon"
             variant="secondary"
-            aria-label="הוספת פריט"
+            aria-label={m.addItem}
             disabled={!draft.trim()}
           >
             <Plus />
@@ -262,7 +264,7 @@ function ListCard({ list }: { list: Checklist }) {
         {done.length > 0 && (
           <div className="mt-3 grid gap-0.5 border-t pt-2">
             <span className="px-1 text-xs text-muted-foreground">
-              סומנו ({done.length})
+              {m.ticked(done.length)}
             </span>
             {done.map((item) => (
               <ItemRow key={item.id} listId={list.id} item={item} />
@@ -277,11 +279,9 @@ function ListCard({ list }: { list: Checklist }) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>העתקת הרשימה</DialogTitle>
+            <DialogTitle>{m.copyTitle}</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            הדפדפן חסם העתקה אוטומטית. הטקסט מסומן — העתק אותו ידנית.
-          </p>
+          <p className="text-sm text-muted-foreground">{m.copyBlocked}</p>
           <textarea
             readOnly
             autoFocus
@@ -296,8 +296,8 @@ function ListCard({ list }: { list: Checklist }) {
       <ConfirmDialog
         open={confirmDelete}
         onOpenChange={setConfirmDelete}
-        title={`למחוק את ״${list.title}״?`}
-        description={`הרשימה ו־${list.items.length} הפריטים שבה יימחקו.`}
+        title={m.deleteTitle(list.title)}
+        description={m.deleteDescription(list.items.length)}
         onConfirm={() => deleteList(list.id)}
       />
 
@@ -305,9 +305,9 @@ function ListCard({ list }: { list: Checklist }) {
         <DialogContent>
           <form onSubmit={submitRename} className="grid gap-4">
             <DialogHeader>
-              <DialogTitle>שינוי שם הרשימה</DialogTitle>
+              <DialogTitle>{m.renameTitle}</DialogTitle>
             </DialogHeader>
-            <Field label="שם" htmlFor={`rename-${list.id}`}>
+            <Field label={m.name} htmlFor={`rename-${list.id}`}>
               <Input
                 id={`rename-${list.id}`}
                 value={title}
@@ -321,9 +321,9 @@ function ListCard({ list }: { list: Checklist }) {
                 variant="outline"
                 onClick={() => setRenaming(false)}
               >
-                ביטול
+                {m.cancel}
               </Button>
-              <Button type="submit">שמירה</Button>
+              <Button type="submit">{m.save}</Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -340,13 +340,14 @@ export function ListsTab({ query = "" }: { query?: string }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [items, setItems] = useState("");
+  const m = t().notes.lists;
 
   const shown = sortLists(checklists).filter((l) => listMatches(l, query));
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
-      toast.error("צריך שם לרשימה");
+      toast.error(m.nameRequired);
       return;
     }
     // One item per line, so a whole list can be pasted in at once — boxes
@@ -359,7 +360,7 @@ export function ListsTab({ query = "" }: { query?: string }) {
     setTitle("");
     setItems("");
     setOpen(false);
-    toast.success("הרשימה נוצרה");
+    toast.success(m.created);
   }
 
   return (
@@ -367,26 +368,26 @@ export function ListsTab({ query = "" }: { query?: string }) {
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {checklists.length === 0
-            ? "רשימות לסימון — קניות, אריזה, כל דבר חוזר"
+            ? m.intro
             : query
-              ? `${shown.length} מתוך ${checklists.length} רשימות`
-              : `${checklists.length} רשימות`}
+              ? m.countOf(shown.length, checklists.length)
+              : m.count(checklists.length)}
         </p>
         <Button onClick={() => setOpen(true)}>
-          <Plus /> רשימה חדשה
+          <Plus /> {m.newList}
         </Button>
       </div>
 
       {checklists.length === 0 ? (
         <EmptyState
           icon={ListChecks}
-          title="אין רשימות"
-          hint="קניות, אריזה, כל דבר שחוזר על עצמו"
-          action={{ label: "רשימה חדשה", onClick: () => setOpen(true) }}
+          title={m.empty}
+          hint={m.emptyHint}
+          action={{ label: m.newList, onClick: () => setOpen(true) }}
         />
       ) : shown.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
-          אין רשימה שמתאימה לחיפוש.
+          {m.noMatch}
         </p>
       ) : (
         <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -406,27 +407,24 @@ export function ListsTab({ query = "" }: { query?: string }) {
         <DialogContent className="sm:max-w-md">
           <form onSubmit={submit} className="grid gap-4">
             <DialogHeader>
-              <DialogTitle>רשימה חדשה</DialogTitle>
+              <DialogTitle>{m.newList}</DialogTitle>
             </DialogHeader>
-            <Field label="שם הרשימה" htmlFor="list-title">
+            <Field label={m.listName} htmlFor="list-title">
               <Input
                 id="list-title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="למשל: קניות לשבוע"
+                placeholder={m.listNamePlaceholder}
                 autoFocus
               />
             </Field>
-            <Field
-              label="פריטים (שורה לכל פריט — אפשר גם להדביק רשימה)"
-              htmlFor="list-items"
-            >
+            <Field label={m.itemsLabel} htmlFor="list-items">
               <textarea
                 id="list-items"
                 rows={5}
                 value={items}
                 onChange={(e) => setItems(e.target.value)}
-                placeholder={"שמן בישול\nאקונומיקה"}
+                placeholder={m.itemsPlaceholder}
                 className="w-full rounded-lg border border-input bg-transparent px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
               />
             </Field>
@@ -436,9 +434,9 @@ export function ListsTab({ query = "" }: { query?: string }) {
                 variant="outline"
                 onClick={() => setOpen(false)}
               >
-                ביטול
+                {m.cancel}
               </Button>
-              <Button type="submit">יצירה</Button>
+              <Button type="submit">{m.create}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

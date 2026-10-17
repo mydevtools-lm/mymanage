@@ -7,6 +7,7 @@ import * as notes from "./notes";
 import * as settings from "./settings";
 import * as data from "./data";
 import * as assist from "./assist";
+import * as onboarding from "./onboarding";
 
 /** Every message, by area (one file each) and language. */
 const en = {
@@ -19,6 +20,7 @@ const en = {
   settings: settings.en,
   data: data.en,
   assist: assist.en,
+  onboarding: onboarding.en,
 };
 
 export type Messages = typeof en;
@@ -33,6 +35,7 @@ const he: Messages = {
   settings: settings.he,
   data: data.he,
   assist: assist.he,
+  onboarding: onboarding.he,
 };
 
 export const MESSAGES = { en, he };

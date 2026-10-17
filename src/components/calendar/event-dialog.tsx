@@ -23,6 +23,7 @@ import { useEventActions } from "@/components/calendar/event-actions";
 import { todayKey } from "@/lib/format";
 import { useAppStore } from "@/lib/store";
 import type { CalendarEvent, ColorKey, Repeat } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 interface EventDialogProps {
   open: boolean;
@@ -74,15 +75,17 @@ function EventForm({
     event ? event.reminder : defaultReminder,
   );
   const [busy, setBusy] = useState(false);
+  const m = t().calendar;
+  const common = t().common;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
-      toast.error("צריך כותרת לאירוע");
+      toast.error(m.dialog.needTitle);
       return;
     }
     if (!date) {
-      toast.error("צריך תאריך");
+      toast.error(m.dialog.needDate);
       return;
     }
     const input = {
@@ -117,10 +120,10 @@ function EventForm({
   return (
     <form onSubmit={submit} className="grid gap-4">
       <DialogHeader>
-        <DialogTitle>{event ? "עריכת אירוע" : "אירוע חדש"}</DialogTitle>
+        <DialogTitle>{event ? m.dialog.editTitle : m.newEvent}</DialogTitle>
       </DialogHeader>
 
-      <Field label="כותרת" htmlFor="ev-title">
+      <Field label={m.dialog.title} htmlFor="ev-title">
         <Input
           id="ev-title"
           value={title}
@@ -130,7 +133,7 @@ function EventForm({
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="תאריך" htmlFor="ev-date">
+        <Field label={m.dialog.date} htmlFor="ev-date">
           <Input
             id="ev-date"
             type="date"
@@ -140,13 +143,13 @@ function EventForm({
         </Field>
         <div className="flex items-end gap-2 pb-2">
           <Switch id="ev-allday" checked={allDay} onCheckedChange={setAllDay} />
-          <Label htmlFor="ev-allday">כל היום</Label>
+          <Label htmlFor="ev-allday">{m.allDay}</Label>
         </div>
       </div>
 
       {!allDay && (
         <div className="grid grid-cols-2 gap-3">
-          <Field label="שעת התחלה" htmlFor="ev-start">
+          <Field label={m.dialog.startTime} htmlFor="ev-start">
             <Input
               id="ev-start"
               type="time"
@@ -154,7 +157,7 @@ function EventForm({
               onChange={(e) => setStartTime(e.target.value)}
             />
           </Field>
-          <Field label="שעת סיום" htmlFor="ev-end">
+          <Field label={m.dialog.endTime} htmlFor="ev-end">
             <Input
               id="ev-end"
               type="time"
@@ -166,16 +169,16 @@ function EventForm({
       )}
 
       {!allDay && startTime && (
-        <Field label="תזכורת">
+        <Field label={m.dialog.reminder}>
           <ReminderField value={reminder} onChange={setReminder} />
         </Field>
       )}
 
-      <Field label="חזרה">
+      <Field label={m.dialog.repeat}>
         <RepeatField value={repeat} onChange={setRepeat} startDate={date} />
       </Field>
       {repeat && (
-        <Field label="עד תאריך (רשות)" htmlFor="ev-until">
+        <Field label={m.dialog.until} htmlFor="ev-until">
           <Input
             id="ev-until"
             type="date"
@@ -186,7 +189,7 @@ function EventForm({
         </Field>
       )}
 
-      <Field label="מיקום" htmlFor="ev-loc">
+      <Field label={m.dialog.location} htmlFor="ev-loc">
         <Input
           id="ev-loc"
           value={location}
@@ -194,7 +197,7 @@ function EventForm({
         />
       </Field>
 
-      <Field label="הערות" htmlFor="ev-notes">
+      <Field label={m.dialog.notes} htmlFor="ev-notes">
         <Textarea
           id="ev-notes"
           rows={2}
@@ -203,7 +206,7 @@ function EventForm({
         />
       </Field>
 
-      <Field label="צבע">
+      <Field label={m.dialog.color}>
         <ColorSelect value={color} onChange={setColor} />
       </Field>
 
@@ -225,7 +228,7 @@ function EventForm({
             onClick={onDelete}
           >
             <Trash2 />
-            מחיקה
+            {common.delete}
           </Button>
         )}
         <Button
@@ -233,10 +236,10 @@ function EventForm({
           variant="outline"
           onClick={() => onOpenChange(false)}
         >
-          ביטול
+          {common.cancel}
         </Button>
         <Button type="submit" disabled={busy}>
-          {event ? "שמירה" : "הוספה"}
+          {event ? common.save : common.add}
         </Button>
       </DialogFooter>
     </form>

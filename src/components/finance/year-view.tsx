@@ -15,6 +15,7 @@ import { categoryBreakdown, yearSummary } from "@/lib/finance";
 import { formatCurrency, formatMonth } from "@/lib/format";
 import { COLOR_STYLES } from "@/lib/colors";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 /**
  * A whole year: twelve months side by side with totals, and where the money
@@ -42,6 +43,7 @@ export function YearView({
     () => categoryBreakdown(rows, categories, "expense"),
     [rows, categories],
   );
+  const fm = t().finance;
   const busiest = Math.max(
     1,
     ...months.map((m) => Math.max(m.income, m.expense)),
@@ -53,7 +55,7 @@ export function YearView({
         <Button
           variant="outline"
           size="icon"
-          aria-label="השנה הקודמת"
+          aria-label={fm.yearView.previousYear}
           onClick={() => onYearChange(year - 1)}
         >
           <ChevronRight className="ltr:rotate-180" />
@@ -61,7 +63,7 @@ export function YearView({
         <Button
           variant="outline"
           size="icon"
-          aria-label="השנה הבאה"
+          aria-label={fm.yearView.nextYear}
           onClick={() => onYearChange(year + 1)}
         >
           <ChevronLeft className="ltr:rotate-180" />
@@ -72,19 +74,19 @@ export function YearView({
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>חודש אחר חודש</CardTitle>
-            <CardDescription>לחיצה על חודש פותחת אותו</CardDescription>
+            <CardTitle>{fm.yearView.monthByMonth}</CardTitle>
+            <CardDescription>{fm.yearView.openHint}</CardDescription>
           </CardHeader>
           <CardContent className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-xs text-muted-foreground">
                 <tr className="border-b">
-                  <th className="py-2 text-start font-medium">חודש</th>
-                  <th className="py-2 text-end font-medium">הכנסות</th>
-                  <th className="py-2 text-end font-medium">הוצאות</th>
-                  <th className="py-2 text-end font-medium">מאזן</th>
+                  <th className="py-2 text-start font-medium">{fm.month}</th>
+                  <th className="py-2 text-end font-medium">{fm.income}</th>
+                  <th className="py-2 text-end font-medium">{fm.expenses}</th>
+                  <th className="py-2 text-end font-medium">{fm.balance}</th>
                   <th className="hidden w-32 py-2 sm:table-cell">
-                    <span className="sr-only">השוואה</span>
+                    <span className="sr-only">{fm.yearView.comparison}</span>
                   </th>
                 </tr>
               </thead>
@@ -140,7 +142,7 @@ export function YearView({
               </tbody>
               <tfoot>
                 <tr className="border-t-2 font-semibold">
-                  <td className="py-2">סה״כ</td>
+                  <td className="py-2">{fm.yearView.total}</td>
                   <td className="py-2 text-end text-income tabular-nums">
                     {formatCurrency(total.income)}
                   </td>
@@ -164,12 +166,14 @@ export function YearView({
 
         <Card>
           <CardHeader>
-            <CardTitle>לאן הלך הכסף</CardTitle>
-            <CardDescription>הוצאות {year} לפי קטגוריה</CardDescription>
+            <CardTitle>{fm.yearView.whereMoneyWent}</CardTitle>
+            <CardDescription>{fm.yearView.byCategory(year)}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
             {byCategory.length === 0 && (
-              <p className="text-sm text-muted-foreground">אין הוצאות השנה.</p>
+              <p className="text-sm text-muted-foreground">
+                {fm.yearView.noExpenses}
+              </p>
             )}
             {byCategory.map(({ category, amount, share }) => (
               <div key={category?.id ?? "none"} className="grid gap-1">
@@ -186,7 +190,9 @@ export function YearView({
                         {category.name}
                       </>
                     ) : (
-                      <span className="text-muted-foreground">ללא קטגוריה</span>
+                      <span className="text-muted-foreground">
+                        {fm.noCategory}
+                      </span>
                     )}
                   </span>
                   <span className="tabular-nums">

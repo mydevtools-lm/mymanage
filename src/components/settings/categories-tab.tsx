@@ -25,14 +25,7 @@ import { RowActions } from "@/components/row-actions";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useAppStore } from "@/lib/store";
 import type { Category, CategoryKind, ColorKey } from "@/lib/types";
-
-const KIND_LABELS: Record<
-  CategoryKind,
-  { title: string; description: string }
-> = {
-  task: { title: "קטגוריות משימות", description: "תחומים לסיווג משימות" },
-  finance: { title: "קטגוריות כספים", description: "לסיווג הכנסות והוצאות" },
-};
+import { t } from "@/lib/i18n";
 
 function CategoryGroup({ kind }: { kind: CategoryKind }) {
   const categories = useAppStore((s) => s.categories).filter(
@@ -49,6 +42,8 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
   // Kept apart from the open flag so the confirm keeps its text while closing.
   const [deleting, setDeleting] = useState<Category | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const m = t().settings.categories;
+  const common = t().common;
   const usage = useAppStore((s) =>
     deleting
       ? s.tasks.filter((t) => t.categoryId === deleting.id).length +
@@ -66,7 +61,7 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) {
-      toast.error("צריך שם לקטגוריה");
+      toast.error(m.nameRequired);
       return;
     }
     if (editing) updateCategory(editing.id, { name: name.trim(), color });
@@ -79,17 +74,17 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>{KIND_LABELS[kind].title}</CardTitle>
-            <CardDescription>{KIND_LABELS[kind].description}</CardDescription>
+            <CardTitle>{m.kinds[kind].title}</CardTitle>
+            <CardDescription>{m.kinds[kind].description}</CardDescription>
           </div>
           <Button size="sm" variant="outline" onClick={() => openDialog(null)}>
-            <Plus /> הוספה
+            <Plus /> {common.add}
           </Button>
         </div>
       </CardHeader>
       <CardContent className="grid gap-1">
         {categories.length === 0 && (
-          <p className="text-sm text-muted-foreground">אין קטגוריות.</p>
+          <p className="text-sm text-muted-foreground">{m.empty}</p>
         )}
         {categories.map((c) => (
           <div
@@ -100,9 +95,13 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
             <span className="flex-1 text-sm">{c.name}</span>
             <RowActions
               actions={[
-                { label: "עריכה", icon: Pencil, onSelect: () => openDialog(c) },
                 {
-                  label: "מחיקה",
+                  label: common.edit,
+                  icon: Pencil,
+                  onSelect: () => openDialog(c),
+                },
+                {
+                  label: common.delete,
                   icon: Trash2,
                   destructive: true,
                   onSelect: () => {
@@ -119,16 +118,12 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`למחוק את הקטגוריה ״${deleting?.name ?? ""}״?`}
-        description={
-          usage > 0
-            ? `${usage} פריטים משויכים אליה. הם יישארו, בלי קטגוריה.`
-            : "אין פריטים משויכים לקטגוריה הזו."
-        }
+        title={m.deleteTitle(deleting?.name ?? "")}
+        description={usage > 0 ? m.deleteInUse(usage) : m.deleteUnused}
         onConfirm={() => {
           if (!deleting) return;
           deleteCategory(deleting.id);
-          toast.success("הקטגוריה נמחקה");
+          toast.success(m.deleted);
         }}
       />
 
@@ -136,11 +131,9 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
         <DialogContent>
           <form onSubmit={submit} className="grid gap-4">
             <DialogHeader>
-              <DialogTitle>
-                {editing ? "עריכת קטגוריה" : "קטגוריה חדשה"}
-              </DialogTitle>
+              <DialogTitle>{editing ? m.editTitle : m.newTitle}</DialogTitle>
             </DialogHeader>
-            <Field label="שם" htmlFor="cat-name">
+            <Field label={m.name} htmlFor="cat-name">
               <Input
                 id="cat-name"
                 value={name}
@@ -148,7 +141,7 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
                 autoFocus
               />
             </Field>
-            <Field label="צבע">
+            <Field label={m.color}>
               <ColorSelect value={color} onChange={setColor} />
             </Field>
             <DialogFooter>
@@ -157,9 +150,11 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
                 variant="outline"
                 onClick={() => setOpen(false)}
               >
-                ביטול
+                {common.cancel}
               </Button>
-              <Button type="submit">{editing ? "שמירה" : "הוספה"}</Button>
+              <Button type="submit">
+                {editing ? common.save : common.add}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

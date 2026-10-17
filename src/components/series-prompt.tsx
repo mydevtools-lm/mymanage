@@ -12,6 +12,7 @@ import {
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { SeriesScope } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 interface Question {
   action: "edit" | "delete";
@@ -49,34 +50,38 @@ export const useSeriesPrompt = create<PromptState>()((set, get) => ({
   },
 }));
 
-const OPTIONS: {
+function options(): {
   scope: SeriesScope;
   label: string;
   icon: typeof Repeat;
   hint: (date: string) => string;
-}[] = [
-  {
-    scope: "this",
-    label: "רק המופע הזה",
-    icon: CalendarX2,
-    hint: (d) => `רק ב־${formatDate(d)}. שאר המופעים לא משתנים.`,
-  },
-  {
-    scope: "following",
-    label: "מכאן והלאה",
-    icon: CalendarRange,
-    hint: (d) => `מ־${formatDate(d)} והלאה. מה שלפני נשאר כמו שהוא.`,
-  },
-  {
-    scope: "all",
-    label: "כל הסדרה",
-    icon: Repeat,
-    hint: () => "כל המופעים, גם אלה שכבר עברו.",
-  },
-];
+}[] {
+  const m = t().common.series;
+  return [
+    {
+      scope: "this",
+      label: m.thisLabel,
+      icon: CalendarX2,
+      hint: (d) => m.thisHint(formatDate(d)),
+    },
+    {
+      scope: "following",
+      label: m.followingLabel,
+      icon: CalendarRange,
+      hint: (d) => m.followingHint(formatDate(d)),
+    },
+    {
+      scope: "all",
+      label: m.allLabel,
+      icon: Repeat,
+      hint: () => m.allHint,
+    },
+  ];
+}
 
 export function SeriesPrompt() {
   const { open, question, answer } = useSeriesPrompt();
+  const m = t().common.series;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && answer(null)}>
@@ -85,15 +90,14 @@ export function SeriesPrompt() {
           <>
             <DialogHeader>
               <DialogTitle>
-                {question.action === "delete" ? "מחיקת" : "עריכת"} ״
-                {question.title}״
+                {question.action === "delete"
+                  ? m.deleteTitle(question.title)
+                  : m.editTitle(question.title)}
               </DialogTitle>
-              <DialogDescription>
-                זה אירוע חוזר. על אילו מופעים זה חל?
-              </DialogDescription>
+              <DialogDescription>{m.description}</DialogDescription>
             </DialogHeader>
             <div className="grid gap-2">
-              {OPTIONS.map(({ scope, label, icon: Icon, hint }) => (
+              {options().map(({ scope, label, icon: Icon, hint }) => (
                 <button
                   key={scope}
                   type="button"

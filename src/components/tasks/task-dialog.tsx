@@ -15,18 +15,23 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CategorySelect, Field, NONE, SimpleSelect } from "@/components/fields";
-import { PRIORITY_LABELS } from "@/components/shared";
+import { priorityLabels } from "@/components/shared";
 import { RepeatField } from "@/components/tasks/repeat-field";
 import { LinksSection } from "@/components/links-section";
 import { ReminderField } from "@/components/reminder-field";
 import { useAppStore } from "@/lib/store";
 import { describeRepeat } from "@/lib/routines";
 import { todayKey } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import type { Priority, Repeat, Routine, Subtask, Task } from "@/lib/types";
 
-const PRIORITY_OPTIONS = (Object.keys(PRIORITY_LABELS) as Priority[]).map(
-  (p) => ({ value: p, label: PRIORITY_LABELS[p] }),
-);
+function priorityOptions() {
+  const labels = priorityLabels();
+  return (Object.keys(labels) as Priority[]).map((p) => ({
+    value: p,
+    label: labels[p],
+  }));
+}
 
 interface TaskDialogProps {
   open: boolean;
@@ -60,6 +65,7 @@ function SubtaskEditor({
   onChange: (value: Subtask[]) => void;
 }) {
   const [draft, setDraft] = useState("");
+  const text = t().tasks;
 
   function add() {
     const text = draft.trim();
@@ -74,7 +80,7 @@ function SubtaskEditor({
         <div key={st.id} className="flex items-center gap-2">
           <Checkbox
             checked={st.done}
-            aria-label={`סימון ${st.text}`}
+            aria-label={text.row.checkOff(st.text)}
             onCheckedChange={() =>
               onChange(
                 value.map((s) =>
@@ -85,7 +91,7 @@ function SubtaskEditor({
           />
           <Input
             value={st.text}
-            aria-label="תת־משימה"
+            aria-label={text.dialog.subtask}
             className="h-8"
             onChange={(e) =>
               onChange(
@@ -99,7 +105,7 @@ function SubtaskEditor({
             type="button"
             variant="ghost"
             size="icon-sm"
-            aria-label={`הסרת ${st.text}`}
+            aria-label={text.dialog.removeSubtask(st.text)}
             onClick={() => onChange(value.filter((s) => s.id !== st.id))}
           >
             <X />
@@ -109,8 +115,8 @@ function SubtaskEditor({
       <div className="flex gap-2">
         <Input
           value={draft}
-          placeholder="הוספת תת־משימה"
-          aria-label="תת־משימה חדשה"
+          placeholder={text.dialog.addSubtask}
+          aria-label={text.dialog.newSubtask}
           className="h-8"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -125,7 +131,7 @@ function SubtaskEditor({
           type="button"
           variant="outline"
           size="icon-sm"
-          aria-label="הוספת תת־משימה"
+          aria-label={text.dialog.addSubtask}
           onClick={add}
         >
           <Plus />
@@ -176,11 +182,13 @@ function TaskForm({
   // Only a new task can become a routine; a routine is edited as one.
   const canRepeat = !task;
   const repeating = !!repeat;
+  const { common } = t();
+  const text = t().tasks.dialog;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
-      toast.error("צריך כותרת למשימה");
+      toast.error(text.titleRequired);
       return;
     }
     const common = {
@@ -199,10 +207,10 @@ function TaskForm({
       };
       if (routine) {
         updateRoutine(routine.id, fields);
-        toast.success("המשימה הקבועה עודכנה");
+        toast.success(text.routineUpdated);
       } else {
         addRoutine(fields);
-        toast.success(`נוספה משימה קבועה — ${describeRepeat(repeat)}`);
+        toast.success(text.routineAdded(describeRepeat(repeat)));
       }
       onOpenChange(false);
       return;
@@ -221,10 +229,10 @@ function TaskForm({
     };
     if (task) {
       updateTask(task.id, input);
-      toast.success("המשימה עודכנה");
+      toast.success(text.taskUpdated);
     } else {
       addTask(input);
-      toast.success("המשימה נוספה");
+      toast.success(text.taskAdded);
     }
     onOpenChange(false);
   }
@@ -233,29 +241,28 @@ function TaskForm({
     <form onSubmit={submit} className="grid gap-4">
       <DialogHeader>
         <DialogTitle>
-          {routine ? "עריכת משימה קבועה" : task ? "עריכת משימה" : "משימה חדשה"}
+          {routine ? text.editRoutine : task ? text.editTask : text.newTask}
         </DialogTitle>
       </DialogHeader>
 
       {parentRoutine && (
         <p className="flex items-center gap-2 rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
           <RepeatIcon className="size-4 shrink-0" />
-          העותק של היום מתוך משימה קבועה ({describeRepeat(parentRoutine.repeat)}
-          ). שינוי כאן חל רק עליו.
+          {text.routineCopy(describeRepeat(parentRoutine.repeat))}
         </p>
       )}
 
-      <Field label="כותרת" htmlFor="task-title">
+      <Field label={text.title} htmlFor="task-title">
         <Input
           id="task-title"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="מה צריך לעשות?"
+          placeholder={text.titlePlaceholder}
           autoFocus
         />
       </Field>
 
-      <Field label="תיאור" htmlFor="task-desc">
+      <Field label={text.description} htmlFor="task-desc">
         <Textarea
           id="task-desc"
           value={description}
@@ -266,7 +273,7 @@ function TaskForm({
 
       <div className="grid grid-cols-2 gap-3">
         <Field
-          label={repeating ? "החל מתאריך" : "תאריך יעד"}
+          label={repeating ? text.startingFrom : text.dueDate}
           htmlFor="task-due"
         >
           <Input
@@ -276,7 +283,7 @@ function TaskForm({
             onChange={(e) => setDueDate(e.target.value)}
           />
         </Field>
-        <Field label="שעה (רשות)" htmlFor="task-time">
+        <Field label={text.timeOptional} htmlFor="task-time">
           <Input
             id="task-time"
             type="time"
@@ -288,13 +295,13 @@ function TaskForm({
       </div>
 
       {!repeating && dueDate && dueTime && (
-        <Field label="תזכורת">
+        <Field label={text.reminder}>
           <ReminderField value={reminder} onChange={setReminder} />
         </Field>
       )}
 
       {(canRepeat || routine) && (
-        <Field label="חזרה">
+        <Field label={text.repeat}>
           <RepeatField
             value={repeat}
             onChange={(next) => {
@@ -309,15 +316,15 @@ function TaskForm({
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="עדיפות">
+        <Field label={t().tasks.priority}>
           <SimpleSelect
             value={priority}
             onChange={(v) => setPriority(v as Priority)}
-            options={PRIORITY_OPTIONS}
-            label="עדיפות"
+            options={priorityOptions()}
+            label={t().tasks.priority}
           />
         </Field>
-        <Field label="קטגוריה">
+        <Field label={t().tasks.category}>
           <CategorySelect
             kind="task"
             value={categoryId}
@@ -327,7 +334,7 @@ function TaskForm({
       </div>
 
       {!repeating && (
-        <Field label="תת־משימות">
+        <Field label={text.subtasks}>
           <SubtaskEditor value={subtasks} onChange={setSubtasks} />
         </Field>
       )}
@@ -346,9 +353,9 @@ function TaskForm({
           variant="outline"
           onClick={() => onOpenChange(false)}
         >
-          ביטול
+          {common.cancel}
         </Button>
-        <Button type="submit">{source ? "שמירה" : "הוספה"}</Button>
+        <Button type="submit">{source ? common.save : common.add}</Button>
       </DialogFooter>
     </form>
   );

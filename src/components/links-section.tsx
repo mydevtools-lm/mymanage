@@ -18,6 +18,7 @@ import { useAppStore } from "@/lib/store";
 import { searchAll } from "@/lib/search";
 import { todayKey } from "@/lib/format";
 import type { LinkKind } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 const ICONS: Record<LinkKind, LucideIcon> = {
   task: CheckSquare,
@@ -43,7 +44,9 @@ function useTitleOf() {
         return transactions.find((t) => t.id === id)?.description;
       case "note": {
         const n = notes.find((x) => x.id === id);
-        return n ? n.title || n.body.slice(0, 30) || "הערה" : undefined;
+        return n
+          ? n.title || n.body.slice(0, 30) || t().common.links.note
+          : undefined;
       }
       case "list":
         return checklists.find((l) => l.id === id)?.title;
@@ -72,6 +75,7 @@ export function LinksSection({
   const titleOf = useTitleOf();
   const [picking, setPicking] = useState(false);
   const [query, setQuery] = useState("");
+  const m = t().common.links;
 
   const tasks = useAppStore((s) => s.tasks);
   const events = useAppStore((s) => s.events);
@@ -105,7 +109,7 @@ export function LinksSection({
   return (
     <div className="grid gap-2">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">קישורים</span>
+        <span className="text-sm font-medium">{m.title}</span>
         {!picking && (
           <Button
             type="button"
@@ -114,7 +118,7 @@ export function LinksSection({
             onClick={() => setPicking(true)}
           >
             <Link2 />
-            קישור לפריט
+            {m.linkItem}
           </Button>
         )}
       </div>
@@ -141,7 +145,7 @@ export function LinksSection({
                 </button>
                 <button
                   type="button"
-                  aria-label={`ביטול הקישור ל${title}`}
+                  aria-label={m.unlink(title ?? "")}
                   className="rounded-full p-1 text-muted-foreground hover:text-foreground"
                   onClick={() => removeLink(link.id)}
                 >
@@ -158,8 +162,8 @@ export function LinksSection({
           <Input
             autoFocus
             value={query}
-            aria-label="חיפוש פריט לקישור"
-            placeholder="חיפוש משימה, אירוע, תנועה, הערה או רשימה"
+            aria-label={m.searchLabel}
+            placeholder={m.searchPlaceholder}
             className="h-8"
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {
@@ -211,7 +215,7 @@ export function LinksSection({
               setQuery("");
             }}
           >
-            סיום
+            {m.done}
           </Button>
         </div>
       )}

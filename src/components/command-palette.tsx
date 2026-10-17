@@ -25,6 +25,7 @@ import { useAppStore } from "@/lib/store";
 import { matchScore, searchAll, type ResultKind } from "@/lib/search";
 import { formatDate, todayKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 interface PaletteState {
   open: boolean;
@@ -36,14 +37,17 @@ export const usePalette = create<PaletteState>()((set) => ({
   setOpen: (open) => set({ open }),
 }));
 
-const KIND_META: Record<ResultKind, { label: string; icon: LucideIcon }> = {
-  task: { label: "משימות", icon: CheckSquare },
-  routine: { label: "משימות קבועות", icon: Repeat },
-  event: { label: "אירועים", icon: CalendarDays },
-  transaction: { label: "כספים", icon: Wallet },
-  note: { label: "הערות", icon: NotebookPen },
-  list: { label: "רשימות", icon: ListChecks },
-};
+function kindMeta(): Record<ResultKind, { label: string; icon: LucideIcon }> {
+  const kinds = t().common.palette.kinds;
+  return {
+    task: { label: kinds.task, icon: CheckSquare },
+    routine: { label: kinds.routine, icon: Repeat },
+    event: { label: kinds.event, icon: CalendarDays },
+    transaction: { label: kinds.transaction, icon: Wallet },
+    note: { label: kinds.note, icon: NotebookPen },
+    list: { label: kinds.list, icon: ListChecks },
+  };
+}
 
 interface Entry {
   key: string;
@@ -77,7 +81,9 @@ export function CommandPalette() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="top-[12%] translate-y-0 gap-0 p-0 sm:max-w-xl max-sm:top-0">
-        <DialogTitle className="sr-only">חיפוש ופעולות</DialogTitle>
+        <DialogTitle className="sr-only">
+          {t().common.palette.title}
+        </DialogTitle>
         {open && <Palette onDone={() => setOpen(false)} />}
       </DialogContent>
     </Dialog>
@@ -100,6 +106,9 @@ function Palette({ onDone }: { onDone: () => void }) {
   const [active, setActive] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
+  const m = t().common.palette;
+  const nav = t().common.nav;
+
   const entries = useMemo(() => {
     const go = (fn: () => void) => () => {
       onDone();
@@ -108,92 +117,93 @@ function Palette({ onDone }: { onDone: () => void }) {
     const actions: Entry[] = [
       {
         key: "new-task",
-        group: "חדש",
+        group: m.groupNew,
         icon: Plus,
-        title: "משימה חדשה",
+        title: m.newTask,
         run: go(() => openNew("task")),
       },
       {
         key: "new-event",
-        group: "חדש",
+        group: m.groupNew,
         icon: Plus,
-        title: "אירוע חדש",
+        title: m.newEvent,
         run: go(() => openNew("event")),
       },
       {
         key: "new-tx",
-        group: "חדש",
+        group: m.groupNew,
         icon: Plus,
-        title: "תנועה חדשה",
+        title: m.newTransaction,
         run: go(() => openNew("transaction")),
       },
       {
         key: "new-item",
-        group: "חדש",
+        group: m.groupNew,
         icon: Plus,
-        title: "פריט לרשימה",
+        title: m.listItem,
         run: go(() => openNew("item")),
       },
       {
         key: "smart",
-        group: "חדש",
+        group: m.groupNew,
         icon: Sparkles,
-        title: "הוספה במשפט",
+        title: m.smart,
         run: go(() => openSmart()),
       },
       {
         key: "go-today",
-        group: "מעבר",
+        group: m.groupGo,
         icon: Sun,
-        title: "היום",
+        title: nav.today,
         run: go(() => router.push("/")),
       },
       {
         key: "go-tasks",
-        group: "מעבר",
+        group: m.groupGo,
         icon: CheckSquare,
-        title: "משימות",
+        title: nav.tasks,
         run: go(() => router.push("/tasks")),
       },
       {
         key: "go-cal",
-        group: "מעבר",
+        group: m.groupGo,
         icon: CalendarDays,
-        title: "יומן",
+        title: nav.calendar,
         run: go(() => router.push("/calendar")),
       },
       {
         key: "go-fin",
-        group: "מעבר",
+        group: m.groupGo,
         icon: Wallet,
-        title: "כספים",
+        title: nav.finance,
         run: go(() => router.push("/finance")),
       },
       {
         key: "go-notes",
-        group: "מעבר",
+        group: m.groupGo,
         icon: NotebookPen,
-        title: "הערות ורשימות",
+        title: nav.notes,
         run: go(() => router.push("/notes")),
       },
       {
         key: "go-settings",
-        group: "מעבר",
+        group: m.groupGo,
         icon: Settings,
-        title: "הגדרות",
+        title: nav.settings,
         run: go(() => router.push("/settings")),
       },
     ];
     if (!query.trim()) return actions;
 
+    const kinds = kindMeta();
     const found: Entry[] = searchAll(
       query,
       { tasks, routines, events, transactions, notes, checklists },
       todayKey(),
     ).map((r) => ({
       key: `${r.kind}-${r.id}`,
-      group: KIND_META[r.kind].label,
-      icon: KIND_META[r.kind].icon,
+      group: kinds[r.kind].label,
+      icon: kinds[r.kind].icon,
       title: r.title,
       detail:
         r.detail && /^\d{4}-\d{2}-\d{2}$/.test(r.detail)
@@ -206,9 +216,9 @@ function Palette({ onDone }: { onDone: () => void }) {
         ? [
             {
               key: "smart-query",
-              group: "הוספה",
+              group: m.groupAdd,
               icon: Sparkles,
-              title: `להוסיף: ״${query.trim()}״`,
+              title: m.addQuery(query.trim()),
               run: go(() => openSmart(query.trim())),
             },
           ]
@@ -228,6 +238,8 @@ function Palette({ onDone }: { onDone: () => void }) {
     openSmart,
     openItem,
     router,
+    m,
+    nav,
   ]);
 
   const current = Math.min(active, Math.max(0, entries.length - 1));
@@ -250,8 +262,8 @@ function Palette({ onDone }: { onDone: () => void }) {
           aria-activedescendant={
             entries[current] ? `palette-${current}` : undefined
           }
-          aria-label="חיפוש ופעולות"
-          placeholder="חיפוש בכל המערכת, או מה להוסיף…"
+          aria-label={m.title}
+          placeholder={m.placeholder}
           className="h-12 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground"
           value={query}
           autoFocus
@@ -276,13 +288,13 @@ function Palette({ onDone }: { onDone: () => void }) {
       <div
         id="palette-list"
         role="listbox"
-        aria-label="תוצאות"
+        aria-label={m.results}
         ref={listRef}
         className="max-h-[60dvh] overflow-y-auto p-1.5"
       >
         {entries.length === 0 && (
           <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-            לא נמצא כלום.
+            {m.nothing}
           </p>
         )}
         {entries.map((entry, index) => {

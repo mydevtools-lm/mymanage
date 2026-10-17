@@ -1,5 +1,6 @@
 import "server-only";
 import { parseEvents, type ExternalEvent } from "./ical-parse";
+import { t } from "./i18n";
 
 export { parseEvents, type ExternalEvent };
 
@@ -28,7 +29,8 @@ export function calendarSources(
   if (first) {
     sources.push({
       id: "1",
-      name: env.GOOGLE_CALENDAR_NAME?.trim() || "גוגל יומן",
+      name:
+        env.GOOGLE_CALENDAR_NAME?.trim() || t().data.calendars.defaultName("1"),
       url: first,
     });
   }
@@ -37,7 +39,9 @@ export function calendarSources(
     if (!url) continue;
     sources.push({
       id: String(n),
-      name: env[`GOOGLE_CALENDAR_NAME_${n}`]?.trim() || `יומן ${n}`,
+      name:
+        env[`GOOGLE_CALENDAR_NAME_${n}`]?.trim() ||
+        t().data.calendars.defaultName(String(n)),
       url,
     });
   }

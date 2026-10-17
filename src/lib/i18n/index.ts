@@ -106,3 +106,12 @@ export const intlLocale = (locale: Locale = current) =>
 export const LOCALE_SCRIPT = `try{var l;try{l=JSON.parse(localStorage.getItem(${JSON.stringify(
   DEVICE_KEY,
 )})||"{}").language}catch(e){}if(l!=="he"&&l!=="en")l=/^(he|iw)\\b/i.test(navigator.language)?"he":"en";document.documentElement.lang=l;document.documentElement.dir=l==="he"?"rtl":"ltr"}catch(e){}`;
+
+/**
+ * On the server: answer in the language the page sent (`x-locale`). One
+ * person, one browser — setting it per request is enough.
+ */
+export function applyRequestLocale(request: Request) {
+  const locale = request.headers.get("x-locale");
+  if (isLocale(locale)) setLocale(locale);
+}

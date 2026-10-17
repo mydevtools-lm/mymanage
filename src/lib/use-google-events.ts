@@ -6,6 +6,7 @@ import { defaultCalendarColor } from "@/components/calendar/chips";
 import type { ColorKey } from "./types";
 import { isTauri } from "./platform";
 import { desktopCalendars, SECRETS_CHANGED } from "./desktop-services";
+import { getLocale, t } from "./i18n";
 
 export interface ExternalEvent {
   id: string;
@@ -84,6 +85,7 @@ export function useGoogleEvents(from: string, to: string): State {
           ? await desktopCalendars(from, to)
           : await fetch(`/api/calendar/google?from=${from}&to=${to}`, {
               signal: controller.signal,
+              headers: { "x-locale": getLocale() },
             }).then((response) => response.json());
         if (controller.signal.aborted) return;
         setFetched({
@@ -100,7 +102,7 @@ export function useGoogleEvents(from: string, to: string): State {
           calendars: [],
           configured: false,
           loading: false,
-          error: "החיבור ליומן גוגל נכשל",
+          error: t().calendar.google.failed,
         });
       }
     }

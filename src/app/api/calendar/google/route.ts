@@ -1,8 +1,10 @@
 import { fetchGoogleCalendars, isConfigured } from "@/lib/google-calendar";
+import { applyRequestLocale, t } from "@/lib/i18n";
 
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function GET(request: Request) {
+  applyRequestLocale(request);
   const { searchParams } = new URL(request.url);
   const from = searchParams.get("from") ?? "";
   const to = searchParams.get("to") ?? "";
@@ -13,7 +15,7 @@ export async function GET(request: Request) {
         configured: isConfigured(),
         calendars: [],
         events: [],
-        error: "טווח תאריכים לא תקין",
+        error: t().data.calendars.badRange,
       },
       { status: 400 },
     );
@@ -32,7 +34,7 @@ export async function GET(request: Request) {
         configured: true,
         calendars,
         events: [],
-        error: "לא הצלחנו לקרוא את היומן מגוגל. בדוק את הכתובת ב-.env.local",
+        error: t().data.calendars.allFailedEnv,
       },
       { status: 502 },
     );
@@ -42,7 +44,7 @@ export async function GET(request: Request) {
     calendars,
     events,
     error: failed.length
-      ? `לא הצלחנו לקרוא את: ${failed.map((c) => c.name).join(", ")}`
+      ? t().data.calendars.someFailed(failed.map((c) => c.name))
       : undefined,
   });
 }

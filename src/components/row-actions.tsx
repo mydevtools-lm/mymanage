@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 export interface RowAction {
   label: string;
@@ -74,7 +75,7 @@ export function RowActions({
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label="פעולות"
+              aria-label={t().common.rowActions.actions}
               className="can-hover:hidden"
             />
           }

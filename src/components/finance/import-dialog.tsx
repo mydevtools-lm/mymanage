@@ -26,6 +26,7 @@ import {
 } from "@/lib/bank-import";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 /** Bank "Excel" files are often an HTML table with an .xls name. */
 function htmlTableRows(html: string): string[][] {
@@ -43,7 +44,7 @@ async function readTable(file: File): Promise<string[][]> {
   const bytes = new Uint8Array(await file.arrayBuffer());
   // "PK" — a real .xlsx (a zip). Excel can save it as CSV in one step.
   if (bytes[0] === 0x50 && bytes[1] === 0x4b) {
-    throw new Error("זה קובץ Excel חדש (xlsx). שמור אותו כ‑CSV ונסה שוב.");
+    throw new Error(t().finance.import.xlsx);
   }
   const text = decodeBytes(bytes);
   return /^\s*</.test(text) ? htmlTableRows(text) : parseCsv(text);
@@ -84,7 +85,7 @@ function ColumnSelect({
         {optional && <option value={NO_COLUMN}>—</option>}
         {headers.map((h, i) => (
           <option key={i} value={i}>
-            {h || `עמודה ${i + 1}`}
+            {h || t().finance.import.column(i + 1)}
           </option>
         ))}
       </select>
@@ -177,15 +178,13 @@ function ImportForm({ onDone }: { onDone: () => void }) {
       setTable(rows);
       setMapping(guess);
       if (!guess) {
-        setError(
-          "לא זיהינו את העמודות אוטומטית. בחר למטה איזו עמודה היא תאריך, תיאור וסכום.",
-        );
+        setError(t().finance.import.noColumns);
         setMapping({ date: 0, description: 1, amount: 2 });
       }
     } catch (e) {
       setTable(null);
       setMapping(null);
-      setError(e instanceof Error ? e.message : "לא הצלחנו לקרוא את הקובץ");
+      setError(e instanceof Error ? e.message : t().finance.import.readFailed);
     }
   }
 
@@ -207,29 +206,25 @@ function ImportForm({ onDone }: { onDone: () => void }) {
     onDone();
   }
 
+  const m = t().finance;
   const splitColumns = mapping?.amount === undefined;
   const duplicateCount = duplicates.filter(Boolean).length;
 
   return (
     <div className="grid gap-4">
       <DialogHeader>
-        <DialogTitle>ייבוא מדף חשבון</DialogTitle>
-        <DialogDescription>
-          קובץ CSV מהבנק (או קובץ ה‑Excel שהבנק מוריד). שום דבר לא נשמר עד
-          הלחיצה על ״ייבוא״.
-        </DialogDescription>
+        <DialogTitle>{m.import.title}</DialogTitle>
+        <DialogDescription>{m.import.description}</DialogDescription>
       </DialogHeader>
 
       <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed p-4 transition-colors can-hover:hover:bg-accent/40">
         <FileUp className="size-5 text-muted-foreground" />
-        <span className="text-sm">
-          {fileName || "בחירת קובץ (CSV, XLS מהבנק)"}
-        </span>
+        <span className="text-sm">{fileName || m.import.pickFile}</span>
         <input
           type="file"
           accept=".csv,.txt,.xls,.html,text/csv"
           className="sr-only"
-          aria-label="קובץ מהבנק"
+          aria-label={m.import.file}
           onChange={(e) => onFile(e.target.files?.[0])}
         />
       </label>
@@ -244,18 +239,20 @@ function ImportForm({ onDone }: { onDone: () => void }) {
       {table && mapping && (
         <>
           <fieldset className="grid gap-2">
-            <legend className="mb-1 text-sm font-medium">עמודות</legend>
+            <legend className="mb-1 text-sm font-medium">
+              {m.import.columns}
+            </legend>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               <ColumnSelect
                 id="map-date"
-                label="תאריך"
+                label={m.date}
                 headers={headers}
                 value={mapping.date}
                 onChange={(v) => remap({ ...mapping, date: v ?? 0 })}
               />
               <ColumnSelect
                 id="map-desc"
-                label="תיאור"
+                label={m.description}
                 headers={headers}
                 value={mapping.description}
                 onChange={(v) => remap({ ...mapping, description: v ?? 0 })}
@@ -264,7 +261,7 @@ function ImportForm({ onDone }: { onDone: () => void }) {
                 <>
                   <ColumnSelect
                     id="map-debit"
-                    label="חובה (יוצא)"
+                    label={m.import.debit}
                     headers={headers}
                     value={mapping.debit}
                     optional
@@ -272,7 +269,7 @@ function ImportForm({ onDone }: { onDone: () => void }) {
                   />
                   <ColumnSelect
                     id="map-credit"
-                    label="זכות (נכנס)"
+                    label={m.import.credit}
                     headers={headers}
                     value={mapping.credit}
                     optional
@@ -282,7 +279,7 @@ function ImportForm({ onDone }: { onDone: () => void }) {
               ) : (
                 <ColumnSelect
                   id="map-amount"
-                  label="סכום (מינוס = הוצאה)"
+                  label={m.import.signedAmount}
                   headers={headers}
                   value={mapping.amount}
                   onChange={(v) => remap({ ...mapping, amount: v ?? 0 })}
@@ -308,16 +305,14 @@ function ImportForm({ onDone }: { onDone: () => void }) {
                 )
               }
             >
-              {splitColumns
-                ? "הסכום בעמודה אחת, עם מינוס להוצאה"
-                : "חובה וזכות בשתי עמודות"}
+              {splitColumns ? m.import.oneColumn : m.import.twoColumns}
             </button>
           </fieldset>
 
           <p className="text-sm text-muted-foreground" role="status">
             {drafts.length === 0
-              ? "לא נמצאו שורות עם תאריך וסכום. בדוק את העמודות."
-              : `נמצאו ${drafts.length} תנועות${duplicateCount ? ` · ${duplicateCount} כבר קיימות ולא סומנו` : ""}`}
+              ? m.import.noRows
+              : m.import.found(drafts.length, duplicateCount)}
           </p>
 
           {drafts.length > 0 && (
@@ -326,12 +321,14 @@ function ImportForm({ onDone }: { onDone: () => void }) {
                 <thead className="sticky top-0 bg-muted text-xs text-muted-foreground">
                   <tr>
                     <th className="w-10 p-2">
-                      <span className="sr-only">לייבא</span>
+                      <span className="sr-only">{m.import.include}</span>
                     </th>
-                    <th className="p-2 text-start font-medium">תאריך</th>
-                    <th className="p-2 text-start font-medium">תיאור</th>
-                    <th className="p-2 text-start font-medium">סכום</th>
-                    <th className="p-2 text-start font-medium">קטגוריה</th>
+                    <th className="p-2 text-start font-medium">{m.date}</th>
+                    <th className="p-2 text-start font-medium">
+                      {m.description}
+                    </th>
+                    <th className="p-2 text-start font-medium">{m.amount}</th>
+                    <th className="p-2 text-start font-medium">{m.category}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -349,7 +346,7 @@ function ImportForm({ onDone }: { onDone: () => void }) {
                           <Checkbox
                             checked={!off}
                             onCheckedChange={() => toggle(i)}
-                            aria-label={`לייבא את ${d.description}`}
+                            aria-label={m.import.includeRow(d.description)}
                           />
                         </td>
                         <td className="p-2 whitespace-nowrap tabular-nums">
@@ -361,7 +358,7 @@ function ImportForm({ onDone }: { onDone: () => void }) {
                           </span>
                           {duplicates[i] && (
                             <span className="ms-2 rounded bg-muted px-1.5 text-[11px] text-muted-foreground">
-                              כבר קיימת
+                              {m.import.exists}
                             </span>
                           )}
                         </td>
@@ -378,14 +375,16 @@ function ImportForm({ onDone }: { onDone: () => void }) {
                         </td>
                         <td className="p-2">
                           <select
-                            aria-label={`קטגוריה ל${d.description}`}
+                            aria-label={m.import.categoryFor(d.description)}
                             value={chosen[i] ?? suggested[i]}
                             onChange={(e) =>
                               setChosen({ ...chosen, [i]: e.target.value })
                             }
                             className="h-7 max-w-36 rounded-md border bg-background px-1.5 text-xs"
                           >
-                            <option value={NONE_CATEGORY}>ללא</option>
+                            <option value={NONE_CATEGORY}>
+                              {t().common.none}
+                            </option>
                             {categories.map((c) => (
                               <option key={c.id} value={c.id}>
                                 {c.name}
@@ -405,10 +404,10 @@ function ImportForm({ onDone }: { onDone: () => void }) {
 
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onDone}>
-          ביטול
+          {t().common.cancel}
         </Button>
         <Button type="button" disabled={picked.length === 0} onClick={submit}>
-          ייבוא {picked.length > 0 ? `${picked.length} תנועות` : ""}
+          {m.import.submit(picked.length)}
         </Button>
       </DialogFooter>
     </div>

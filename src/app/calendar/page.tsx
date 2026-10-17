@@ -12,7 +12,6 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import { he } from "date-fns/locale";
 import {
   CalendarDays,
   ChevronLeft,
@@ -37,6 +36,7 @@ import { useAppStore } from "@/lib/store";
 import { toDateKey } from "@/lib/format";
 import { useIsDesktop } from "@/lib/use-media";
 import { cn } from "@/lib/utils";
+import { dateLocale, t } from "@/lib/i18n";
 import type { CalendarEvent, Task } from "@/lib/types";
 
 type View = "month" | "week" | "list";
@@ -69,13 +69,15 @@ function rangeFor(view: View, cursor: Date, weekStartsOn: 0 | 1 | 6) {
 }
 
 function labelFor(view: View, days: Date[], cursor: Date) {
-  if (view === "month") return format(cursor, "MMMM yyyy", { locale: he });
+  const locale = dateLocale();
+  const { dates } = t().common;
+  if (view === "month") return format(cursor, "MMMM yyyy", { locale });
   const first = days[0];
   const last = days[days.length - 1];
   const sameYear = first.getFullYear() === last.getFullYear();
-  return `${format(first, sameYear ? "d בMMM" : "d בMMM yyyy", {
-    locale: he,
-  })} – ${format(last, "d בMMM yyyy", { locale: he })}`;
+  return `${format(first, sameYear ? dates.dayMonth : dates.short, {
+    locale,
+  })} – ${format(last, dates.short, { locale })}`;
 }
 
 function pad(n: number) {
@@ -161,14 +163,16 @@ export default function CalendarPage() {
     setTaskDialog(true);
   };
 
+  const m = t().calendar;
+
   return (
     <>
       <PageHeader
-        title="יומן"
+        title={m.title}
         actions={
           <Button onClick={() => openNewEvent()}>
             <Plus />
-            אירוע חדש
+            {m.newEvent}
           </Button>
         }
       />
@@ -178,7 +182,7 @@ export default function CalendarPage() {
           <Button
             variant="outline"
             size="icon"
-            aria-label="הקודם"
+            aria-label={m.previous}
             onClick={() => shift(-1)}
           >
             <ChevronRight className="ltr:rotate-180" />
@@ -186,13 +190,13 @@ export default function CalendarPage() {
           <Button
             variant="outline"
             size="icon"
-            aria-label="הבא"
+            aria-label={m.next}
             onClick={() => shift(1)}
           >
             <ChevronLeft className="ltr:rotate-180" />
           </Button>
           <Button variant="ghost" onClick={() => setCursor(new Date())}>
-            היום
+            {t().common.today}
           </Button>
           <h2 className="ms-1 text-lg font-semibold">
             {labelFor(current, days, cursor)}
@@ -204,17 +208,17 @@ export default function CalendarPage() {
             onValueChange={(v) => changeView(v as View)}
           >
             <TabsList>
-              <TabsTrigger value="month" aria-label="תצוגת חודש">
+              <TabsTrigger value="month" aria-label={m.viewMonth}>
                 <LayoutGrid />
-                <span className="max-sm:sr-only">חודש</span>
+                <span className="max-sm:sr-only">{m.month}</span>
               </TabsTrigger>
-              <TabsTrigger value="week" aria-label="תצוגת שבוע">
+              <TabsTrigger value="week" aria-label={m.viewWeek}>
                 <CalendarDays />
-                <span className="max-sm:sr-only">שבוע</span>
+                <span className="max-sm:sr-only">{m.week}</span>
               </TabsTrigger>
-              <TabsTrigger value="list" aria-label="תצוגת רשימה">
+              <TabsTrigger value="list" aria-label={m.viewList}>
                 <List />
-                <span className="max-sm:sr-only">רשימה</span>
+                <span className="max-sm:sr-only">{m.list}</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -255,7 +259,7 @@ export default function CalendarPage() {
         <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="size-3 rounded bg-teal-100 dark:bg-teal-900/50" />
-            אירוע
+            {m.legend.event}
           </span>
           {google.calendars
             .filter((c) => !c.hidden && !c.failed)
@@ -267,10 +271,11 @@ export default function CalendarPage() {
             ))}
           <span className="flex items-center gap-1.5">
             <span className="size-3 rounded border border-dashed border-primary/40" />
-            משימה
+            {m.legend.task}
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="line-through">משימה</span> הושלמה
+            <span className="line-through">{m.legend.task}</span>{" "}
+            {m.legend.taskDone}
           </span>
 
           <span className="ms-auto">
@@ -281,12 +286,12 @@ export default function CalendarPage() {
                 href="/settings?tab=connections"
                 className="underline-offset-4 hover:text-foreground hover:underline"
               >
-                גוגל יומן לא מחובר · לחיבור
+                {m.google.notConnected}
               </Link>
             ) : google.loading ? (
-              "טוען מגוגל…"
+              m.google.loading
             ) : (
-              `${google.events.length} אירועים מגוגל בתקופה זו`
+              m.google.count(google.events.length)
             )}
           </span>
         </div>

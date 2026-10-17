@@ -10,11 +10,13 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { formatCurrency, formatMonth } from "@/lib/format";
+import { t } from "@/lib/i18n";
 
-const config = {
-  income: { label: "הכנסות", color: "var(--income)" },
-  expense: { label: "הוצאות", color: "var(--expense)" },
-} satisfies ChartConfig;
+const chartConfig = () =>
+  ({
+    income: { label: t().finance.income, color: "var(--income)" },
+    expense: { label: t().finance.expenses, color: "var(--expense)" },
+  }) satisfies ChartConfig;
 
 export interface TrendPoint {
   month: string; // yyyy-MM
@@ -28,18 +30,19 @@ export interface TrendPoint {
  */
 export function TrendChart({ data }: { data: TrendPoint[] }) {
   const monthsWithData = data.filter((d) => d.income + d.expense > 0).length;
+  const m = t().finance.trend;
   if (monthsWithData < 2) {
     return (
       <div className="flex h-40 flex-col items-center justify-center gap-1 rounded-lg border border-dashed text-center">
-        <p className="text-sm font-medium">עוד אין מגמה להציג</p>
+        <p className="text-sm font-medium">{m.empty}</p>
         <p className="max-w-56 text-xs text-muted-foreground">
-          {monthsWithData === 0
-            ? "אחרי שתירשמנה תנועות בשני חודשים, תופיע כאן השוואה ביניהם."
-            : "יש נתונים לחודש אחד. מהחודש הבא תופיע כאן השוואה."}
+          {monthsWithData === 0 ? m.noMonths : m.oneMonth}
         </p>
       </div>
     );
   }
+
+  const config = chartConfig();
 
   return (
     <ChartContainer config={config} className="h-56 w-full aspect-auto">

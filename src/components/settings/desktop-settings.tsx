@@ -18,9 +18,10 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useDevicePrefs } from "@/lib/device-prefs";
 import { backupNow } from "@/lib/tauri-db";
+import { t } from "@/lib/i18n";
 
-const failed = (what: string) => (error: unknown) =>
-  toast.error(typeof error === "string" ? error : `${what} נכשל`);
+const failed = (message: string) => (error: unknown) =>
+  toast.error(typeof error === "string" ? error : message);
 
 /** Settings › preferences, desktop app only: the window, sign-in, folders. */
 export function DesktopSettings() {
@@ -28,6 +29,7 @@ export function DesktopSettings() {
   const backupDir = useDevicePrefs((s) => s.backupDir);
   const [autostart, setAutostart] = useState<boolean | null>(null);
   const [dataDir, setDataDir] = useState("");
+  const m = t().settings.desktop;
 
   useEffect(() => {
     const prefs = useDevicePrefs.getState();
@@ -41,15 +43,13 @@ export function DesktopSettings() {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Monitor className="size-4" />
-          אפליקציית המחשב
+          {m.title}
         </CardTitle>
-        <CardDescription>חלות על המחשב הזה בלבד.</CardDescription>
+        <CardDescription>{m.hint}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4 text-sm">
         <div className="flex items-center justify-between gap-3">
-          <Label htmlFor="close-to-tray">
-            סגירת החלון משאירה את האפליקציה במגש, כדי שתזכורות ימשיכו לקפוץ
-          </Label>
+          <Label htmlFor="close-to-tray">{m.closeToTray}</Label>
           <Switch
             id="close-to-tray"
             checked={closeToTray}
@@ -61,9 +61,7 @@ export function DesktopSettings() {
         </div>
 
         <div className="flex items-center justify-between gap-3">
-          <Label htmlFor="autostart">
-            הפעלה עם הכניסה ל‑Windows (במגש, בלי חלון)
-          </Label>
+          <Label htmlFor="autostart">{m.autostart}</Label>
           <Switch
             id="autostart"
             disabled={autostart === null}
@@ -71,14 +69,14 @@ export function DesktopSettings() {
             onCheckedChange={(on) =>
               (on ? enable() : disable()).then(
                 () => setAutostart(on),
-                failed("השינוי"),
+                failed(m.changeFailed),
               )
             }
           />
         </div>
 
         <div className="grid gap-1.5">
-          <div className="font-medium">תיקיית הנתונים</div>
+          <div className="font-medium">{m.dataDir}</div>
           <div className="flex items-center justify-between gap-3">
             <code
               dir="ltr"
@@ -91,26 +89,24 @@ export function DesktopSettings() {
               variant="outline"
               disabled={!dataDir}
               onClick={() =>
-                invoke("shell_open_data_dir").catch(failed("הפתיחה"))
+                invoke("shell_open_data_dir").catch(failed(m.openFailed))
               }
             >
               <FolderOpen />
-              פתיחה
+              {m.open}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            המסד, 14 הגיבויים היומיים האחרונים, והסודות (מוצפנים).
-          </p>
+          <p className="text-xs text-muted-foreground">{m.dataDirHint}</p>
         </div>
 
         <div className="grid gap-1.5">
-          <div className="font-medium">תיקיית גיבוי נוספת</div>
+          <div className="font-medium">{m.backupDir}</div>
           <div className="flex items-center justify-between gap-3">
             <code
               dir="ltr"
               className="min-w-0 truncate text-xs text-muted-foreground"
             >
-              {backupDir ?? "לא נבחרה"}
+              {backupDir ?? m.notChosen}
             </code>
             <div className="flex shrink-0 gap-2">
               {backupDir && (
@@ -121,7 +117,7 @@ export function DesktopSettings() {
                     useDevicePrefs.getState().setBackupDir(undefined)
                   }
                 >
-                  הסרה
+                  {m.remove}
                 </Button>
               )}
               <Button
@@ -132,19 +128,16 @@ export function DesktopSettings() {
                   if (typeof picked !== "string") return;
                   useDevicePrefs.getState().setBackupDir(picked);
                   backupNow().then(
-                    () => toast.success("הגיבוי של היום הועתק לתיקייה"),
-                    failed("הגיבוי"),
+                    () => toast.success(m.backupCopied),
+                    failed(m.backupFailed),
                   );
                 }}
               >
-                בחירה
+                {m.choose}
               </Button>
             </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            כונן אחר או תיקייה מסונכרנת (OneDrive, Google Drive) — עותק של כל
-            גיבוי יומי, גם כאן 14 אחרונים.
-          </p>
+          <p className="text-xs text-muted-foreground">{m.backupDirHint}</p>
         </div>
       </CardContent>
     </Card>

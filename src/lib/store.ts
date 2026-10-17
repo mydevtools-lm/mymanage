@@ -182,7 +182,11 @@ async function api(
     // Rust. Round-trip the body as JSON so cleared fields arrive as null,
     // exactly as the server receives them.
     const { localApi } = await import("./local-api");
-    return localApi(url, method, body ? JSON.parse(toJsonBody(body)) : undefined);
+    return localApi(
+      url,
+      method,
+      body ? JSON.parse(toJsonBody(body)) : undefined,
+    );
   }
   const response = await fetch(url, {
     method,
@@ -203,7 +207,7 @@ async function api(
 // Fire a write and keep the mirror honest if it fails.
 function push(work: Promise<unknown>) {
   work.catch((error: Error) => {
-    toast.error(error.message || "השמירה נכשלה");
+    toast.error(error.message || t().data.store.saveFailed);
     void useAppStore.getState().load();
   });
 }
@@ -230,7 +234,7 @@ function offerUndo(
   toast(label, {
     duration: UNDO_MS,
     action: {
-      label: "בטל",
+      label: t().data.store.undo,
       onClick: () => {
         restoreLocal();
         push(deleting.catch(() => undefined).then(recreate));
@@ -297,7 +301,7 @@ async function migrateLegacyData(current: DataSnapshot) {
 
     localStorage.setItem(`${LEGACY_KEY}-migrated`, raw);
     localStorage.removeItem(LEGACY_KEY);
-    toast.success(`${count} פריטים הועברו מהדפדפן למסד הנתונים`);
+    toast.success(t().data.store.migrated(count));
     return migrated;
   } catch (error) {
     console.error("legacy migration failed", error);
@@ -350,7 +354,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       applySnapshot(snapshot);
     } catch (error) {
       console.error(error);
-      toast.error("לא הצלחנו לטעון את הנתונים מהשרת");
+      toast.error(t().data.store.loadFailed);
       set({ hydrated: true });
     } finally {
       set({ syncing: false });
@@ -406,7 +410,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       ),
     }));
     push(api(`/api/tasks/${id}`, "PATCH", patch));
-    toast("נדחה למחר");
+    toast(t().data.store.postponed);
   },
   setTasksDate: (ids, date) => {
     const wanted = new Set(ids);
@@ -444,7 +448,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       ),
     }));
     for (const id of ids) push(api(`/api/tasks/${id}`, "PATCH", patch));
-    toast.success(`${ids.length} משימות סומנו כבוצעו`);
+    toast.success(t().data.store.tasksDone(ids.length));
   },
   deleteTasks: (ids) => {
     const wanted = new Set(ids);
@@ -455,7 +459,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (removed.length === 0) return;
     set((s) => ({ tasks: s.tasks.filter((t) => !wanted.has(t.id)) }));
     offerUndo(
-      `${removed.length} משימות נמחקו`,
+      t().data.store.tasksDeleted(removed.length),
       Promise.all(ids.map((id) => api(`/api/tasks/${id}`, "DELETE"))),
       () =>
         set((s) => {
@@ -488,7 +492,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const task = tasks[index];
     set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
     offerUndo(
-      "המשימה נמחקה",
+      t().data.store.taskDeleted,
       api(`/api/tasks/${id}`, "DELETE"),
       () => set((s) => ({ tasks: insertAt(s.tasks, index, task) })),
       () => api("/api/tasks", "POST", task),
@@ -583,7 +587,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
       routines: s.routines.map((r) => (r.id === id ? { ...r, paused } : r)),
     }));
     push(api(`/api/routines/${id}`, "PATCH", { paused }));
-    toast(paused ? "הושהתה — לא תופיע עד שתחודש" : "חודשה");
+    toast(
+      paused ? t().data.store.routinePaused : t().data.store.routineResumed,
+    );
   },
   deleteRoutine: (id) => {
     const routines = get().routines;
@@ -592,7 +598,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const routine = routines[index];
     set((s) => ({ routines: s.routines.filter((r) => r.id !== id) }));
     offerUndo(
-      "המשימה הקבועה נמחקה",
+      t().data.store.routineDeleted,
       api(`/api/routines/${id}`, "DELETE"),
       () => set((s) => ({ routines: insertAt(s.routines, index, routine) })),
       () => api("/api/routines", "POST", routine),
@@ -623,7 +629,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const event = events[index];
     set((s) => ({ events: s.events.filter((e) => e.id !== id) }));
     offerUndo(
-      "האירוע נמחק",
+      t().data.store.eventDeleted,
       api(`/api/events/${id}`, "DELETE"),
       () => set((s) => ({ events: insertAt(s.events, index, event) })),
       () => api("/api/events", "POST", event),
@@ -655,13 +661,18 @@ export const useAppStore = create<AppState>()((set, get) => ({
       until: series.until,
       exceptions: series.exceptions ?? [],
     };
-    toast(scope === "this" ? "המופע נמחק" : "המופעים מכאן והלאה נמחקו", {
-      duration: UNDO_MS,
-      action: {
-        label: "בטל",
-        onClick: () => get().updateEvent(series.id, restore),
+    toast(
+      scope === "this"
+        ? t().data.store.occurrenceDeleted
+        : t().data.store.occurrencesDeleted,
+      {
+        duration: UNDO_MS,
+        action: {
+          label: t().data.store.undo,
+          onClick: () => get().updateEvent(series.id, restore),
+        },
       },
-    });
+    );
   },
 
   setCalendarPref: (calendarId, pref) => {
@@ -702,10 +713,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
       transactions: created,
     });
     push(saving);
-    toast.success(`${created.length} תנועות יובאו`, {
+    toast.success(t().data.store.transactionsImported(created.length), {
       duration: UNDO_MS,
       action: {
-        label: "בטל",
+        label: t().data.store.undo,
         onClick: () => {
           set((s) => ({
             transactions: s.transactions.filter((t) => !ids.has(t.id)),
@@ -746,7 +757,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const transaction = transactions[index];
     set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }));
     offerUndo(
-      "התנועה נמחקה",
+      t().data.store.transactionDeleted,
       api(`/api/transactions/${id}`, "DELETE"),
       () =>
         set((s) => ({
@@ -775,7 +786,9 @@ export const useAppStore = create<AppState>()((set, get) => ({
       ),
     }));
     offerUndo(
-      scope === "this" ? "החודש הוסר מהסדרה" : "הסדרה הופסקה מהחודש הזה",
+      scope === "this"
+        ? t().data.store.monthRemoved
+        : t().data.store.seriesStopped,
       api(`/api/transactions/${id}`, "PATCH", plan.patch),
       () =>
         set((s) => ({
@@ -824,7 +837,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
     const note = notes[index];
     set((s) => ({ notes: s.notes.filter((n) => n.id !== id) }));
     offerUndo(
-      "ההערה נמחקה",
+      t().data.store.noteDeleted,
       api(`/api/notes/${id}`, "DELETE"),
       () => set((s) => ({ notes: insertAt(s.notes, index, note) })),
       () => api("/api/notes", "POST", note),
@@ -909,7 +922,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       }));
     setItems((items) => items.filter((i) => i.id !== itemId));
     offerUndo(
-      `״${item.text}״ הוסר`,
+      t().data.store.itemRemoved(item.text),
       api(`/api/checklists/${listId}/items/${itemId}`, "DELETE"),
       () => setItems((items) => insertAt(items, index, item)),
       () =>
@@ -940,7 +953,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       ),
     }));
     push(api(`/api/checklists/${listId}`, "PATCH", { resetDone: true }));
-    toast.success(`״${before.title}״ מוכנה מחדש`);
+    toast.success(t().data.store.listReset(before.title));
   },
   toggleChecklistPin: (listId) => {
     const list = get().checklists.find((l) => l.id === listId);

@@ -20,6 +20,7 @@ import {
   installUpdateOnExit,
   type FoundUpdate,
 } from "@/lib/desktop-updates";
+import { t } from "@/lib/i18n";
 
 // A while after opening, then once a day (DESKTOP.md 6.3).
 const FIRST_CHECK_MS = 20_000;
@@ -66,6 +67,7 @@ export function UpdatePrompt() {
 
   const open = !!found && answered !== found.version;
   const answer = () => useUpdate.setState({ answered: found?.version ?? null });
+  const m = t().common.updates;
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && answer()}>
@@ -73,10 +75,8 @@ export function UpdatePrompt() {
         {found && (
           <>
             <DialogHeader>
-              <DialogTitle>יש גרסה חדשה — {found.version}</DialogTitle>
-              <DialogDescription>
-                לפני העדכון נשמר גיבוי של הנתונים. האפליקציה תיסגר ותיפתח מחדש.
-              </DialogDescription>
+              <DialogTitle>{m.title(found.version)}</DialogTitle>
+              <DialogDescription>{m.description}</DialogDescription>
             </DialogHeader>
             {found.notes && (
               <p className="max-h-48 overflow-y-auto whitespace-pre-line text-sm text-muted-foreground">
@@ -85,18 +85,18 @@ export function UpdatePrompt() {
             )}
             <DialogFooter>
               <Button variant="ghost" onClick={answer}>
-                לא עכשיו
+                {m.later}
               </Button>
               <Button
                 variant="outline"
                 onClick={() =>
                   installUpdateOnExit().then(() => {
                     answer();
-                    toast.success("העדכון יותקן ביציאה מהמגש");
+                    toast.success(m.willInstallOnExit);
                   })
                 }
               >
-                ביציאה
+                {m.onExit}
               </Button>
               <Button
                 disabled={busy}
@@ -104,13 +104,11 @@ export function UpdatePrompt() {
                   setBusy(true);
                   installUpdateNow().catch((error) => {
                     setBusy(false);
-                    toast.error(
-                      typeof error === "string" ? error : "העדכון נכשל",
-                    );
+                    toast.error(typeof error === "string" ? error : m.failed);
                   });
                 }}
               >
-                {busy ? "מעדכן…" : "לעדכן עכשיו"}
+                {busy ? m.updating : m.updateNow}
               </Button>
             </DialogFooter>
           </>

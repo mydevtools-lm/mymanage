@@ -3,7 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { Db, SqlValue, Statement } from "./db-adapter";
 import { localDateKey, localMonthKey, newId } from "./keys";
-import { BASE_SCHEMA, DEFAULT_CATEGORIES, MIGRATIONS } from "./schema";
+import { BASE_SCHEMA, defaultCategories, MIGRATIONS } from "./schema";
 import { useDevicePrefs } from "./device-prefs";
 
 /**
@@ -52,7 +52,7 @@ export async function openLocalDb() {
     ))!;
     if (n === 0) {
       await tauriDb.batch(
-        DEFAULT_CATEGORIES.map(([name, color, kind]) => ({
+        defaultCategories().map(([name, color, kind]) => ({
           sql: "INSERT INTO categories (id, name, color, kind) VALUES (?, ?, ?, ?)",
           params: [newId(), name, color, kind],
         })),

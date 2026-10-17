@@ -1,7 +1,6 @@
 "use client";
 
 import { format } from "date-fns";
-import { he } from "date-fns/locale";
 import { Lock, MapPin, Pencil, Plus, Repeat, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +17,7 @@ import { useEventActions } from "./event-actions";
 import { COLOR_STYLES } from "@/lib/colors";
 import { useIsDesktop } from "@/lib/use-media";
 import { cn } from "@/lib/utils";
+import { dateLocale, t } from "@/lib/i18n";
 import type { CalendarEvent, Task } from "@/lib/types";
 import type { DayData } from "./use-calendar-data";
 import { googleTint } from "./chips";
@@ -46,6 +46,7 @@ export function DayPanel({
   const { remove: removeEvent } = useEventActions();
   const isDesktop = useIsDesktop();
   const { events, google, tasks } = data;
+  const m = t().calendar;
 
   return (
     <Sheet open={!!dayKey} onOpenChange={(o) => !o && onClose()}>
@@ -67,28 +68,26 @@ export function DayPanel({
                 />
               )}
               <SheetTitle>
-                {format(new Date(dayKey + "T00:00"), "EEEE, d בMMMM yyyy", {
-                  locale: he,
+                {format(new Date(dayKey + "T00:00"), t().common.dates.long, {
+                  locale: dateLocale(),
                 })}
               </SheetTitle>
               <SheetDescription>
-                {events.length} אירועים
-                {google.length > 0 && ` · ${google.length} מגוגל`} ·{" "}
-                {tasks.length} משימות
+                {m.day.counts(events.length, google.length, tasks.length)}
               </SheetDescription>
             </SheetHeader>
 
             <div className="flex flex-col gap-5 overflow-y-auto px-4 pb-4">
               <section className="grid gap-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">אירועים</h3>
+                  <h3 className="text-sm font-semibold">{m.day.events}</h3>
                   <Button size="sm" variant="outline" onClick={onNewEvent}>
-                    <Plus /> אירוע
+                    <Plus /> {m.day.addEvent}
                   </Button>
                 </div>
                 {events.length === 0 && (
                   <p className="text-sm text-muted-foreground">
-                    אין אירועים ביום זה.
+                    {m.day.noEvents}
                   </p>
                 )}
                 {events.map((e) => (
@@ -105,13 +104,13 @@ export function DayPanel({
                         {e.repeat && (
                           <Repeat
                             className="size-3.5 text-muted-foreground"
-                            aria-label="אירוע חוזר"
+                            aria-label={m.recurringEvent}
                           />
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground tabular-nums">
                         {e.allDay || !e.startTime ? (
-                          "כל היום"
+                          m.allDay
                         ) : (
                           <TimeRange start={e.startTime} end={e.endTime} />
                         )}
@@ -130,12 +129,12 @@ export function DayPanel({
                     <RowActions
                       actions={[
                         {
-                          label: "עריכה",
+                          label: t().common.edit,
                           icon: Pencil,
                           onSelect: () => onEditEvent(e),
                         },
                         {
-                          label: "מחיקה",
+                          label: t().common.delete,
                           icon: Trash2,
                           destructive: true,
                           onSelect: () => void removeEvent(e),
@@ -149,9 +148,11 @@ export function DayPanel({
               {google.length > 0 && (
                 <section className="grid gap-2">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold">גוגל יומן</h3>
+                    <h3 className="text-sm font-semibold">
+                      {m.day.googleCalendar}
+                    </h3>
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <Lock className="size-3" /> קריאה בלבד
+                      <Lock className="size-3" /> {m.day.readOnly}
                     </span>
                   </div>
                   {google.map((e) => (
@@ -166,7 +167,7 @@ export function DayPanel({
                       <div className="font-medium">{e.title}</div>
                       <div className="text-xs text-muted-foreground tabular-nums">
                         {e.allDay || !e.startTime ? (
-                          "כל היום"
+                          m.allDay
                         ) : (
                           <TimeRange start={e.startTime} end={e.endTime} />
                         )}
@@ -188,14 +189,14 @@ export function DayPanel({
 
               <section className="grid gap-2">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">משימות</h3>
+                  <h3 className="text-sm font-semibold">{m.day.tasks}</h3>
                   <Button size="sm" variant="outline" onClick={onNewTask}>
-                    <Plus /> משימה
+                    <Plus /> {m.day.addTask}
                   </Button>
                 </div>
                 {tasks.length === 0 && (
                   <p className="text-sm text-muted-foreground">
-                    אין משימות ליום זה.
+                    {m.day.noTasks}
                   </p>
                 )}
                 {tasks.map((t) => (

@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useQuickAdd } from "@/components/quick-add";
+import { t } from "@/lib/i18n";
 
 // What "N" creates depends on where you are.
 const NEW_BY_ROUTE: Record<string, "task" | "event" | "transaction" | "item"> =
@@ -21,14 +22,17 @@ const NEW_BY_ROUTE: Record<string, "task" | "event" | "transaction" | "item"> =
     "/notes": "item",
   };
 
-const SHORTCUTS = [
-  { keys: "Ctrl K", what: "חיפוש בכל המערכת, והוספה במשפט" },
-  { keys: "N", what: "חדש — משימה, אירוע, תנועה או פריט, לפי המסך" },
-  { keys: "/", what: "מעבר לחיפוש במסך" },
-  { keys: "T", what: "מעבר למסך ״היום״" },
-  { keys: "?", what: "הרשימה הזו" },
-  { keys: "Esc", what: "סגירת חלון" },
-];
+function shortcuts() {
+  const m = t().common.shortcuts;
+  return [
+    { keys: "Ctrl K", what: m.search },
+    { keys: "N", what: m.new },
+    { keys: "/", what: m.focusSearch },
+    { keys: "T", what: m.today },
+    { keys: "?", what: m.help },
+    { keys: "Esc", what: m.close },
+  ];
+}
 
 function isTyping(target: EventTarget | null) {
   const el = target as HTMLElement | null;
@@ -89,13 +93,13 @@ export function Shortcuts() {
     <Dialog open={help} onOpenChange={setHelp}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>קיצורי מקלדת</DialogTitle>
+          <DialogTitle>{t().common.shortcuts.title}</DialogTitle>
           <DialogDescription>
-            עובדים גם כשהמקלדת בעברית. לא פעילים בזמן הקלדה בשדה.
+            {t().common.shortcuts.description}
           </DialogDescription>
         </DialogHeader>
         <dl className="grid gap-2">
-          {SHORTCUTS.map(({ keys, what }) => (
+          {shortcuts().map(({ keys, what }) => (
             <div key={keys} className="flex items-center gap-3">
               <dt>
                 <kbd className="inline-flex min-w-8 justify-center rounded-md border bg-muted px-2 py-0.5 font-mono text-sm">

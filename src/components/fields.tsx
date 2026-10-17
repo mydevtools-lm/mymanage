@@ -13,6 +13,7 @@ import { COLOR_KEYS, COLOR_STYLES } from "@/lib/colors";
 import type { CategoryKind, ColorKey } from "@/lib/types";
 import { ColorDot } from "./shared";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 export interface Option {
   value: string;
@@ -63,7 +64,7 @@ export function CategorySelect({
   onChange,
   includeAll,
   className,
-  label = "קטגוריה",
+  label = t().common.fields.category,
 }: {
   kind: CategoryKind;
   value: string;
@@ -73,8 +74,9 @@ export function CategorySelect({
   label?: string;
 }) {
   const categories = useCategories(kind);
+  const m = t().common.fields;
   const options: Option[] = [
-    { value: NONE, label: includeAll ? "כל הקטגוריות" : "ללא קטגוריה" },
+    { value: NONE, label: includeAll ? m.allCategories : m.noCategory },
     ...categories.map((c) => ({
       value: c.id,
       label: (

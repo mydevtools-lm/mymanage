@@ -37,7 +37,7 @@ import {
   EmptyState,
   Hydrated,
   PageHeader,
-  PRIORITY_LABELS,
+  priorityLabels,
 } from "@/components/shared";
 import { TaskDialog } from "@/components/tasks/task-dialog";
 import { TaskRow } from "@/components/tasks/task-row";
@@ -46,19 +46,23 @@ import { RoutineList } from "@/components/tasks/routine-list";
 import { useAppStore } from "@/lib/store";
 import { dayTargets, groupDropDate, groupTasksByWhen } from "@/lib/task-groups";
 import { toast } from "sonner";
-import { toDateKey, todayKey } from "@/lib/format";
+import { formatDate, toDateKey, todayKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 import type { Priority, Routine, Task } from "@/lib/types";
 
 const ALL = "__all";
 
-const PRIORITY_OPTIONS = [
-  { value: ALL, label: "כל העדיפויות" },
-  ...(Object.keys(PRIORITY_LABELS) as Priority[]).map((p) => ({
-    value: p,
-    label: PRIORITY_LABELS[p],
-  })),
-];
+function priorityOptions() {
+  const labels = priorityLabels();
+  return [
+    { value: ALL, label: t().tasks.allPriorities },
+    ...(Object.keys(labels) as Priority[]).map((p) => ({
+      value: p,
+      label: labels[p],
+    })),
+  ];
+}
 
 function BulkDateDialog({
   open,
@@ -81,6 +85,7 @@ function BulkDateDialog({
     onPick(date);
     onOpenChange(false);
   };
+  const { common, tasks: text } = t();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -93,28 +98,28 @@ function BulkDateDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>{title ?? `תאריך ל־${count} משימות`}</DialogTitle>
+            <DialogTitle>{title ?? text.move.dateForCount(count)}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-3 gap-2">
             <Button type="button" variant="outline" onClick={() => pick(today)}>
-              היום
+              {common.today}
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => pick(tomorrow)}
             >
-              מחר
+              {common.tomorrow}
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => pick(undefined)}
             >
-              בלי תאריך
+              {common.noDate}
             </Button>
           </div>
-          <Field label="או תאריך אחר" htmlFor="bulk-date">
+          <Field label={text.move.otherDate} htmlFor="bulk-date">
             <Input
               id="bulk-date"
               type="date"
@@ -128,10 +133,10 @@ function BulkDateDialog({
               variant="outline"
               onClick={() => onOpenChange(false)}
             >
-              ביטול
+              {common.cancel}
             </Button>
             <Button type="submit" disabled={!custom}>
-              קביעה
+              {text.move.set}
             </Button>
           </DialogFooter>
         </form>
@@ -167,6 +172,8 @@ export default function TasksPage() {
   const [dateFor, setDateFor] = useState<Task | null>(null);
 
   const today = todayKey();
+  const { common, tasks: text } = t();
+  const priorityChoices = priorityOptions();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -207,9 +214,8 @@ export default function TasksPage() {
     filtered.length > 0 && filtered.every((t) => selected.has(t.id));
 
   const targets = useMemo(() => dayTargets(today), [today]);
-  const dayName = (date: string | undefined) =>
-    targets.find((t) => t.date === date)?.label ??
-    (date ? date.split("-").reverse().join(".") : "בלי תאריך");
+  const dayName = (date: string) =>
+    targets.find((t) => t.date === date)?.label ?? formatDate(date);
 
   /** Move one task to a day, keeping its time — as dragging in the calendar
    *  does — with an undo. No date clears the time too. */
@@ -218,15 +224,20 @@ export default function TasksPage() {
     const before = { dueDate: task.dueDate, dueTime: task.dueTime };
     if (date) updateTask(task.id, { dueDate: date });
     else setTasksDate([task.id], undefined);
-    toast(`״${task.title}״ הועברה ל${dayName(date)}`, {
-      action: {
-        label: "ביטול",
-        onClick: () =>
-          before.dueDate
-            ? updateTask(task.id, before)
-            : setTasksDate([task.id], undefined),
+    toast(
+      date
+        ? text.move.movedTo(task.title, dayName(date))
+        : text.move.unscheduled(task.title),
+      {
+        action: {
+          label: common.undo,
+          onClick: () =>
+            before.dueDate
+              ? updateTask(task.id, before)
+              : setTasksDate([task.id], undefined),
+        },
       },
-    });
+    );
   };
 
   const endDrag = () => {
@@ -265,8 +276,8 @@ export default function TasksPage() {
     <button
       type="button"
       draggable
-      aria-label={`העברת ״${task.title}״ ליום אחר`}
-      title="גרירה ליום אחר, או לחיצה לבחירת תאריך"
+      aria-label={text.move.handleLabel(task.title)}
+      title={text.move.handleHint}
       className="flex size-7 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground/60 transition-colors active:cursor-grabbing can-hover:hover:text-foreground"
       onClick={() => setDateFor(task)}
       onDragStart={(e) => {
@@ -290,8 +301,8 @@ export default function TasksPage() {
         className="md:w-36"
         value={priority}
         onChange={setPriority}
-        options={PRIORITY_OPTIONS}
-        label="עדיפות"
+        options={priorityChoices}
+        label={text.priority}
       />
       <CategorySelect
         kind="task"
@@ -306,8 +317,8 @@ export default function TasksPage() {
   return (
     <>
       <PageHeader
-        title="משימות"
-        description={`${activeCount} פעילות${archivedCount ? ` · ${archivedCount} בארכיון` : ""}`}
+        title={text.title}
+        description={`${text.activeCount(activeCount)}${archivedCount ? ` · ${text.archivedCount(archivedCount)}` : ""}`}
         actions={
           <Button
             onClick={() => {
@@ -318,7 +329,7 @@ export default function TasksPage() {
             }}
           >
             <Plus />
-            {view === "routines" ? "משימה קבועה" : "משימה חדשה"}
+            {view === "routines" ? text.newRoutine : text.newTask}
           </Button>
         }
       />
@@ -333,14 +344,16 @@ export default function TasksPage() {
             }}
           >
             <TabsList>
-              <TabsTrigger value="active">פעילות</TabsTrigger>
+              <TabsTrigger value="active">{text.tabs.active}</TabsTrigger>
               <TabsTrigger value="routines">
                 <Repeat />
-                קבועות{routineCount > 0 && ` (${routineCount})`}
+                {text.tabs.routines}
+                {routineCount > 0 && ` (${routineCount})`}
               </TabsTrigger>
               <TabsTrigger value="archive">
                 <Archive />
-                ארכיון{archivedCount > 0 && ` (${archivedCount})`}
+                {text.tabs.archive}
+                {archivedCount > 0 && ` (${archivedCount})`}
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -352,7 +365,7 @@ export default function TasksPage() {
                 <Input
                   className="ps-8"
                   data-search
-                  placeholder="חיפוש..."
+                  placeholder={common.searchPlaceholder}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                 />
@@ -366,7 +379,7 @@ export default function TasksPage() {
                 onClick={() => setFiltersOpen(true)}
               >
                 <SlidersHorizontal />
-                סינון
+                {text.filter}
                 {filterCount > 0 && (
                   <span className="rounded-full bg-primary px-1.5 text-xs text-primary-foreground">
                     {filterCount}
@@ -382,7 +395,7 @@ export default function TasksPage() {
                 }
               >
                 <ListChecks />
-                {selecting ? "סיום בחירה" : "בחירה"}
+                {selecting ? text.doneSelecting : text.select}
               </Button>
             </>
           )}
@@ -407,16 +420,12 @@ export default function TasksPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={CheckSquare}
-            title="אין משימות להצגה"
-            hint={
-              activeCount === 0
-                ? "מה הדבר הראשון שצריך לעשות?"
-                : "נסה לשנות את הסינון"
-            }
+            title={text.noTasksToShow}
+            hint={activeCount === 0 ? text.firstThing : text.tryOtherFilters}
             action={
               activeCount === 0
                 ? {
-                    label: "משימה חדשה",
+                    label: text.newTask,
                     onClick: () => {
                       setEditing(null);
                       setDialogOpen(true);
@@ -439,13 +448,13 @@ export default function TasksPage() {
                   )
                 }
               >
-                {allVisibleSelected ? "ביטול הבחירה" : "בחירת הכול"}
+                {allVisibleSelected ? text.clearSelection : text.selectAll}
               </button>
             )}
             {dragging && (
               <div
                 role="group"
-                aria-label="העברה ליום"
+                aria-label={text.move.dropZones}
                 className="sticky top-2 z-30 flex flex-wrap gap-1.5 rounded-xl border bg-popover p-2 shadow-lg"
               >
                 {targets.map((t) => (
@@ -472,7 +481,7 @@ export default function TasksPage() {
                       "border-solid border-primary bg-primary text-primary-foreground",
                   )}
                 >
-                  תאריך אחר…
+                  {text.move.anotherDate}
                 </div>
               </div>
             )}
@@ -536,7 +545,7 @@ export default function TasksPage() {
           <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 px-4 md:bottom-4 md:ps-60 sidebar-collapsed:md:ps-20">
             <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-2 rounded-xl border bg-popover p-2 shadow-lg">
               <span className="px-2 text-sm font-medium">
-                {selected.size} נבחרו
+                {text.selectedCount(selected.size)}
               </span>
               <div className="ms-auto flex flex-wrap gap-1">
                 <Button
@@ -545,7 +554,7 @@ export default function TasksPage() {
                   disabled={selected.size === 0}
                   onClick={() => setDateDialog(true)}
                 >
-                  <CalendarDays /> תאריך
+                  <CalendarDays /> {text.date}
                 </Button>
                 <Button
                   size="sm"
@@ -556,7 +565,7 @@ export default function TasksPage() {
                     stopSelecting();
                   }}
                 >
-                  <CheckCheck /> בוצע
+                  <CheckCheck /> {common.done}
                 </Button>
                 <Button
                   size="sm"
@@ -568,12 +577,12 @@ export default function TasksPage() {
                     stopSelecting();
                   }}
                 >
-                  <Trash2 /> מחיקה
+                  <Trash2 /> {common.delete}
                 </Button>
                 <Button
                   size="icon-sm"
                   variant="ghost"
-                  aria-label="סיום בחירה"
+                  aria-label={text.doneSelecting}
                   onClick={stopSelecting}
                 >
                   <X />
@@ -590,18 +599,18 @@ export default function TasksPage() {
           className="rounded-t-2xl pb-[env(safe-area-inset-bottom)]"
         >
           <SheetHeader>
-            <SheetTitle>סינון משימות</SheetTitle>
+            <SheetTitle>{text.filterTasks}</SheetTitle>
           </SheetHeader>
           <div className="grid gap-3 px-4 pb-4">
-            <Field label="עדיפות">
+            <Field label={text.priority}>
               <SimpleSelect
                 value={priority}
                 onChange={setPriority}
-                options={PRIORITY_OPTIONS}
-                label="עדיפות"
+                options={priorityChoices}
+                label={text.priority}
               />
             </Field>
-            <Field label="קטגוריה">
+            <Field label={text.category}>
               <CategorySelect
                 kind="task"
                 includeAll
@@ -618,10 +627,10 @@ export default function TasksPage() {
                   setCategoryId(NONE);
                 }}
               >
-                ניקוי
+                {text.clear}
               </Button>
               <Button className="flex-1" onClick={() => setFiltersOpen(false)}>
-                הצגה
+                {text.show}
               </Button>
             </div>
           </div>
@@ -642,7 +651,7 @@ export default function TasksPage() {
         open={!!dateFor}
         onOpenChange={(open) => !open && setDateFor(null)}
         count={1}
-        title={dateFor ? `העברת ״${dateFor.title}״` : undefined}
+        title={dateFor ? text.move.dialogTitle(dateFor.title) : undefined}
         onPick={(date) => {
           if (dateFor) moveTo(dateFor, date);
         }}

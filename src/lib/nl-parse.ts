@@ -1,5 +1,6 @@
 import { addDays, parseISO } from "date-fns";
 import { toDateKey } from "./format";
+import { parseEnglish } from "./nl-parse-en";
 
 /**
  * Free Hebrew → things to add. "ביום שני חממה ואחרי זה ארוחת צהריים
@@ -211,4 +212,12 @@ export function parseHebrew(text: string, today: string): Proposal[] {
     });
   }
   return proposals;
+}
+
+/** Hebrew letters → the Hebrew reader; anything else → the English one. By
+ *  the sentence, not the interface: a Hebrew sentence works in English too. */
+export function parseSentence(text: string, today: string): Proposal[] {
+  return /[\u0590-\u05FF]/.test(text)
+    ? parseHebrew(text, today)
+    : parseEnglish(text, today);
 }

@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { addDays, format, parseISO } from "date-fns";
-import { he } from "date-fns/locale";
 import {
   CalendarDays,
   CalendarPlus,
@@ -39,6 +38,7 @@ import { useGoogleEvents } from "@/lib/use-google-events";
 import { buildDayAgenda, dayProgress } from "@/lib/agenda";
 import { formatDate, toDateKey, todayKey } from "@/lib/format";
 import { greeting } from "@/lib/greeting";
+import { dateLocale, t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { expandEvents } from "@/lib/event-series";
 import type { CalendarEvent, Task } from "@/lib/types";
@@ -91,6 +91,7 @@ export default function TodayPage() {
     setDate((d) => toDateKey(addDays(parseISO(d), delta)));
   const moveToToday = (task: Task) => updateTask(task.id, { dueDate: today });
 
+  const { common, today: text } = t();
   const nothingPlanned =
     agenda.allDay.length === 0 &&
     agenda.timeline.length === 0 &&
@@ -99,7 +100,7 @@ export default function TodayPage() {
   return (
     <>
       <PageHeader
-        title="היום"
+        title={common.today}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -108,7 +109,7 @@ export default function TodayPage() {
                 setTaskDialog(true);
               }}
             >
-              <Plus /> משימה
+              <Plus /> {text.addTask}
             </Button>
             <Button
               variant="secondary"
@@ -117,13 +118,13 @@ export default function TodayPage() {
                 setEventDialog(true);
               }}
             >
-              <CalendarDays /> אירוע
+              <CalendarDays /> {text.addEvent}
             </Button>
             <Button variant="secondary" onClick={() => setTxDialog(true)}>
-              <Wallet /> תנועה
+              <Wallet /> {text.addTransaction}
             </Button>
             <Button variant="ghost" onClick={() => useBrief.getState().open()}>
-              <Sunrise /> תדריך
+              <Sunrise /> {text.brief}
             </Button>
           </div>
         }
@@ -135,7 +136,7 @@ export default function TodayPage() {
         <p className="-mt-4 mb-5 text-sm text-muted-foreground">
           {greeting()}
           {userName ? `, ${userName}` : ""} ·{" "}
-          {format(new Date(), "EEEE, d בMMMM yyyy", { locale: he })}
+          {format(new Date(), common.dates.long, { locale: dateLocale() })}
         </p>
 
         <DaySwipe onNext={() => shiftDay(1)} onPrevious={() => shiftDay(-1)}>
@@ -145,17 +146,17 @@ export default function TodayPage() {
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">
-                  {isToday ? "מה יש היום" : `מה יש ב־${formatDate(date)}`}
+                  {isToday ? text.whatsOnToday : text.whatsOn(formatDate(date))}
                 </CardTitle>
                 <CardDescription>
                   {progress.total === 0
-                    ? "אין משימות ליום הזה"
-                    : `${progress.done} מתוך ${progress.total} משימות בוצעו`}
+                    ? text.noTasksForDay
+                    : text.tasksDone(progress.done, progress.total)}
                 </CardDescription>
                 {progress.total > 0 && progress.done === progress.total && (
                   <CardAction>
                     <span className="flex items-center gap-1.5 text-sm text-income">
-                      <CheckCircle2 className="size-4" /> הכול בוצע
+                      <CheckCircle2 className="size-4" /> {text.allDone}
                     </span>
                   </CardAction>
                 )}
@@ -165,7 +166,7 @@ export default function TodayPage() {
                     aria-valuemin={0}
                     aria-valuemax={progress.total}
                     aria-valuenow={progress.done}
-                    aria-label="התקדמות היום"
+                    aria-label={text.dayProgress}
                     className="col-span-full mt-2 h-1.5 overflow-hidden rounded-full bg-muted"
                   >
                     <div
@@ -190,14 +191,14 @@ export default function TodayPage() {
                   <div className="grid gap-2">
                     {agenda.timeline.length > 0 && (
                       <h3 className="text-sm font-medium text-muted-foreground">
-                        במהלך היום
+                        {text.duringTheDay}
                       </h3>
                     )}
                     {agenda.untimedTasks.length > 1 ? (
                       <SortableList
                         items={agenda.untimedTasks}
                         onReorder={reorderTasks}
-                        handleLabel="גרירה לשינוי סדר המשימות"
+                        handleLabel={text.reorderTasks}
                         renderItem={(task, handle) => (
                           <TaskRow
                             task={task}
@@ -223,8 +224,8 @@ export default function TodayPage() {
                 {nothingPlanned && (
                   <p className="py-4 text-center text-sm text-muted-foreground">
                     {agenda.doneCount > 0
-                      ? "כל מה שתוכנן ליום הזה בוצע."
-                      : "שום דבר לא מתוזמן ליום הזה."}
+                      ? text.allPlannedDone
+                      : text.nothingScheduled}
                   </p>
                 )}
               </CardContent>
@@ -234,10 +235,10 @@ export default function TodayPage() {
               <Card className="border-destructive/30">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base text-destructive">
-                    נגררו מימים קודמים
+                    {text.carriedOver}
                   </CardTitle>
                   <CardDescription>
-                    {agenda.carriedOver.length} משימות שמועדן עבר ולא סומנו
+                    {text.carriedOverHint(agenda.carriedOver.length)}
                   </CardDescription>
                   <CardAction>
                     <Button
@@ -245,7 +246,7 @@ export default function TodayPage() {
                       variant="outline"
                       onClick={() => agenda.carriedOver.forEach(moveToToday)}
                     >
-                      <CalendarPlus /> הכול להיום
+                      <CalendarPlus /> {text.allToToday}
                     </Button>
                   </CardAction>
                 </CardHeader>
@@ -262,12 +263,12 @@ export default function TodayPage() {
                             variant="ghost"
                             onClick={() => moveToToday(task)}
                           >
-                            להיום
+                            {text.toToday}
                           </Button>
                         }
                       />
                       <span className="-mt-0.5 px-3 text-xs text-muted-foreground">
-                        מועד מקורי: {formatDate(task.dueDate!)}
+                        {text.originalDate(formatDate(task.dueDate!))}
                       </span>
                     </div>
                   ))}
@@ -284,7 +285,7 @@ export default function TodayPage() {
                   className="flex items-center gap-2 px-4 text-start"
                 >
                   <Inbox className="size-4 text-muted-foreground" />
-                  <span className="font-medium">בלי תאריך</span>
+                  <span className="font-medium">{common.noDate}</span>
                   <span className="text-sm text-muted-foreground">
                     ({agenda.undated.length})
                   </span>
@@ -308,7 +309,7 @@ export default function TodayPage() {
                             variant="ghost"
                             onClick={() => moveToToday(task)}
                           >
-                            להיום
+                            {text.toToday}
                           </Button>
                         }
                       />

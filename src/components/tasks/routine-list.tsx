@@ -8,13 +8,16 @@ import { describeRepeat, nextOccurrence } from "@/lib/routines";
 import { addDays } from "date-fns";
 import { formatDate, toDateKey, todayKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 import type { Routine } from "@/lib/types";
 
 function whenNext(routine: Routine, today: string) {
+  const { common, tasks } = t();
   const next = nextOccurrence(routine, today);
-  if (!next) return routine.paused ? "מושהית" : "אין מועד קרוב";
-  if (next === today) return "היום";
-  if (next === toDateKey(addDays(new Date(), 1))) return "מחר";
+  if (!next)
+    return routine.paused ? tasks.routines.paused : tasks.routines.nothingSoon;
+  if (next === today) return common.today;
+  if (next === toDateKey(addDays(new Date(), 1))) return common.tomorrow;
   return formatDate(next);
 }
 
@@ -31,6 +34,7 @@ function RoutineRow({
     s.categories.find((c) => c.id === routine.categoryId),
   );
   const today = todayKey();
+  const { common, tasks: text } = t();
 
   return (
     <div
@@ -51,7 +55,7 @@ function RoutineRow({
           {routine.dueTime && (
             <span className="tabular-nums">· {routine.dueTime}</span>
           )}
-          <span>· הבאה: {whenNext(routine, today)}</span>
+          <span>{text.routines.next(whenNext(routine, today))}</span>
         </div>
       </button>
       <div className="hidden shrink-0 items-center gap-2 sm:flex">
@@ -61,23 +65,23 @@ function RoutineRow({
       <RowActions
         actions={[
           {
-            label: "עריכה",
+            label: common.edit,
             icon: Pencil,
             onSelect: () => onEdit(routine),
           },
           routine.paused
             ? {
-                label: "חידוש",
+                label: text.routines.resume,
                 icon: Play,
                 onSelect: () => togglePause(routine.id),
               }
             : {
-                label: "השהיה",
+                label: text.routines.pause,
                 icon: Pause,
                 onSelect: () => togglePause(routine.id),
               },
           {
-            label: "מחיקה",
+            label: common.delete,
             icon: Trash2,
             destructive: true,
             onSelect: () => deleteRoutine(routine.id),
@@ -97,24 +101,22 @@ export function RoutineList({
   onNew: () => void;
 }) {
   const routines = useAppStore((s) => s.routines);
+  const text = t().tasks;
 
   if (routines.length === 0) {
     return (
       <EmptyState
         icon={Repeat}
-        title="אין משימות קבועות"
-        hint="תרופות, אימון, מיילים — מגדירים פעם אחת, ומופיעות לבד כל יום"
-        action={{ label: "משימה קבועה", onClick: onNew }}
+        title={text.routines.empty}
+        hint={text.routines.emptyHint}
+        action={{ label: text.newRoutine, onClick: onNew }}
       />
     );
   }
 
   return (
     <div className="grid gap-2">
-      <p className="text-sm text-muted-foreground">
-        כל משימה כאן מופיעה לבד ביום שלה. סימון מעביר לארכיון רק את העותק של
-        אותו יום.
-      </p>
+      <p className="text-sm text-muted-foreground">{text.routines.intro}</p>
       {routines.map((r) => (
         <RoutineRow key={r.id} routine={r} onEdit={onEdit} />
       ))}

@@ -5,6 +5,7 @@ import { useSeriesPrompt } from "@/components/series-prompt";
 import { useAppStore } from "@/lib/store";
 import type { EventFields } from "@/lib/event-series";
 import type { CalendarEvent } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 /**
  * Save and delete for an event as it appears on screen. A one-off event is
@@ -22,12 +23,12 @@ export function useEventActions() {
     const store = useAppStore.getState();
     if (!event) {
       store.addEvent(fields as Parameters<typeof store.addEvent>[0]);
-      toast.success("האירוע נוסף");
+      toast.success(t().calendar.toast.added);
       return true;
     }
     if (!isRecurring(event)) {
       store.updateEvent(event.id, fields);
-      toast.success("האירוע עודכן");
+      toast.success(t().calendar.toast.updated);
       return true;
     }
     const scope = await ask({
@@ -37,7 +38,7 @@ export function useEventActions() {
     });
     if (!scope) return false;
     store.editEventInSeries(event, scope, fields);
-    toast.success("האירוע עודכן");
+    toast.success(t().calendar.toast.updated);
     return true;
   }
 

@@ -1,5 +1,34 @@
 import { addDays, format, parseISO } from "date-fns";
 import type { CalendarEvent, Category, Note, Task, Transaction } from "./types";
+import { getLocale, type Locale } from "./i18n";
+import { DEFAULT_CATEGORY_SET } from "./schema";
+
+/** The sample's words — data, written in the language chosen at the time. */
+const WORDS = {
+  en: {
+    bill: "Pay the electricity bill",
+    gift: "Buy a birthday present",
+    plumber: "Call the plumber",
+    lunch: "Lunch with Dana",
+    yoga: "Yoga class",
+    salary: "Salary",
+    groceries: "Groceries",
+    trip: "Holiday ideas",
+    tripBody:
+      "The north in autumn · look at cabins · book by the end of the month",
+  },
+  he: {
+    bill: "לשלם חשבון חשמל",
+    gift: "לקנות מתנה ליום הולדת",
+    plumber: "להתקשר לאינסטלטור",
+    lunch: "ארוחת צהריים עם דנה",
+    yoga: "חוג יוגה",
+    salary: "משכורת",
+    groceries: "סופר",
+    trip: "רעיונות לחופשה",
+    tripBody: "צפון בסתיו · לבדוק צימרים · להזמין עד סוף החודש",
+  },
+};
 
 /**
  * What a first run can start with instead of an empty screen (DESKTOP.md
@@ -19,24 +48,34 @@ export interface SampleData {
 }
 
 /** A few days of an ordinary week around `today` (yyyy-MM-dd). */
-export function sampleData(today: string, categories: Category[]): SampleData {
+export function sampleData(
+  today: string,
+  categories: Category[],
+  locale: Locale = getLocale(),
+): SampleData {
   const day = (n: number) => format(addDays(parseISO(today), n), "yyyy-MM-dd");
-  // By name among the default categories; renamed or deleted ones leave
-  // the row without a category, as a new row would be.
-  const category = (name: string) =>
-    categories.find((c) => c.kind === "finance" && c.name === name)?.id;
+  const w = WORDS[locale];
+  // A default category by its name in either language; renamed or deleted
+  // ones leave the row without a category, as a new row would be.
+  const category = (en: string) => {
+    const names = DEFAULT_CATEGORY_SET.find((c) => c.en === en);
+    return categories.find(
+      (c) =>
+        c.kind === "finance" && (c.name === names?.en || c.name === names?.he),
+    )?.id;
+  };
   const id = (name: string) => `${SAMPLE_PREFIX}${name}`;
 
   return {
     tasks: [
-      { id: id("task-1"), title: "לשלם חשבון חשמל", dueDate: today, priority: "high" },
-      { id: id("task-2"), title: "לקנות מתנה ליום הולדת", dueDate: day(2), priority: "normal" },
-      { id: id("task-3"), title: "להתקשר לאינסטלטור", priority: "low" },
+      { id: id("task-1"), title: w.bill, dueDate: today, priority: "high" },
+      { id: id("task-2"), title: w.gift, dueDate: day(2), priority: "normal" },
+      { id: id("task-3"), title: w.plumber, priority: "low" },
     ],
     events: [
       {
         id: id("event-1"),
-        title: "ארוחת צהריים עם דנה",
+        title: w.lunch,
         date: today,
         startTime: "13:00",
         endTime: "14:00",
@@ -45,7 +84,7 @@ export function sampleData(today: string, categories: Category[]): SampleData {
       },
       {
         id: id("event-2"),
-        title: "חוג יוגה",
+        title: w.yoga,
         date: day(1),
         startTime: "18:30",
         endTime: "19:30",
@@ -58,24 +97,24 @@ export function sampleData(today: string, categories: Category[]): SampleData {
         id: id("transaction-1"),
         type: "income",
         amount: 12000,
-        description: "משכורת",
+        description: w.salary,
         date: today,
-        categoryId: category("משכורת"),
+        categoryId: category("Salary"),
       },
       {
         id: id("transaction-2"),
         type: "expense",
         amount: 240,
-        description: "סופר",
+        description: w.groceries,
         date: today,
-        categoryId: category("אוכל"),
+        categoryId: category("Food"),
       },
     ],
     notes: [
       {
         id: id("note-1"),
-        title: "רעיונות לחופשה",
-        body: "צפון בסתיו · לבדוק צימרים · להזמין עד סוף החודש",
+        title: w.trip,
+        body: w.tripBody,
       },
     ],
   };

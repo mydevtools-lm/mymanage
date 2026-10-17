@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useAppStore } from "@/lib/store";
 import { budgetStatus, getMonthTransactions } from "@/lib/finance";
 import { formatCurrency, toMonthKey } from "@/lib/format";
+import { t } from "@/lib/i18n";
 
 /**
  * Speaks up once when this month's spending in a category crosses its
@@ -27,12 +28,16 @@ export function BudgetWatch() {
     );
     const now = new Set(lines.filter((l) => l.over).map((l) => l.categoryId));
     if (over.current) {
+      const m = t().finance.budgetWatch;
       for (const line of lines) {
         if (!line.over || over.current.has(line.categoryId)) continue;
         const name =
-          categories.find((c) => c.id === line.categoryId)?.name ?? "קטגוריה";
-        toast.warning(`חריגה מהתקציב של ${name}`, {
-          description: `${formatCurrency(line.spent)} מתוך ${formatCurrency(line.budget)} החודש`,
+          categories.find((c) => c.id === line.categoryId)?.name ?? m.category;
+        toast.warning(m.over(name), {
+          description: m.detail(
+            formatCurrency(line.spent),
+            formatCurrency(line.budget),
+          ),
         });
       }
     }

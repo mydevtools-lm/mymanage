@@ -2,7 +2,7 @@ import "server-only";
 import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, readdirSync, rmSync, existsSync } from "node:fs";
 import path from "node:path";
-import { BASE_SCHEMA, DEFAULT_CATEGORIES, MIGRATIONS } from "./schema";
+import { BASE_SCHEMA, defaultCategories, MIGRATIONS } from "./schema";
 import { localDateKey, localMonthKey, newId } from "./keys";
 
 export { SCHEMA_VERSION } from "./schema";
@@ -57,7 +57,7 @@ export function seedDefaults(db: DatabaseSync = getDb()) {
     const insert = db.prepare(
       "INSERT INTO categories (id, name, color, kind) VALUES (?, ?, ?, ?)",
     );
-    for (const [name, color, kind] of DEFAULT_CATEGORIES) {
+    for (const [name, color, kind] of defaultCategories()) {
       insert.run(newId(), name, color, kind);
     }
   }

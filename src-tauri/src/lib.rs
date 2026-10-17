@@ -1,5 +1,6 @@
 mod backup;
 mod db;
+mod lang;
 mod services;
 mod shell;
 mod updates;
@@ -18,7 +19,9 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default()
         // First: a second launch hands over to the running one and exits.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| shell::show(app)))
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            shell::show(app)
+        }))
         // Size and place are remembered; whether it was showing is not —
         // that is the tray's and autostart's call.
         .plugin(
@@ -70,6 +73,7 @@ pub fn run() {
             services::calendar_fetch,
             services::assist_parse,
             shell::shell_set_close_to_tray,
+            shell::shell_set_language,
             shell::shell_in_front,
             shell::shell_data_dir,
             shell::shell_open_data_dir,
@@ -84,5 +88,7 @@ pub fn run() {
     if updates {
         builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     }
-    builder.run(context).expect("error while building tauri application");
+    builder
+        .run(context)
+        .expect("error while building tauri application");
 }

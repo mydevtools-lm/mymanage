@@ -1,16 +1,16 @@
-name: בקשה
-description: רעיון לשיפור או יכולת חדשה
+name: Feature request
+description: An idea for an improvement or a new capability
 labels: [enhancement]
 body:
   - type: textarea
     id: need
     attributes:
-      label: מה חסר
-      description: מה רצית לעשות ולא הצלחת, או מה מסורבל היום.
+      label: What's missing
+      description: What you wanted to do and couldn't, or what's awkward today.
     validations:
       required: true
   - type: textarea
     id: idea
     attributes:
-      label: הצעה
-      description: איך זה יכול לעבוד. לא חובה.
+      label: Suggestion
+      description: How it could work. Optional.

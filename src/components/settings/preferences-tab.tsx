@@ -24,24 +24,35 @@ import { useAppStore } from "@/lib/store";
 import type { CurrencyCode } from "@/lib/types";
 import { useIsTauri } from "@/lib/platform";
 import { DesktopSettings } from "./desktop-settings";
+import { LOCALES, t, useLocale, type Locale } from "@/lib/i18n";
+import { switchLanguage } from "@/lib/language";
 
-const WEEK_STARTS = [
-  { value: "0", label: "ראשון" },
-  { value: "1", label: "שני" },
-  { value: "6", label: "שבת" },
-];
+const weekStarts = () => {
+  const m = t().settings.preferences.weekStarts;
+  return [
+    { value: "0", label: m.sunday },
+    { value: "1", label: m.monday },
+    { value: "6", label: m.saturday },
+  ];
+};
 
-const CURRENCIES = [
-  { value: "ILS", label: "שקל (₪)" },
-  { value: "USD", label: "דולר ($)" },
-  { value: "EUR", label: "אירו (€)" },
-];
+const currencies = () => {
+  const m = t().settings.preferences.currencies;
+  return [
+    { value: "ILS", label: m.ils },
+    { value: "USD", label: m.usd },
+    { value: "EUR", label: m.eur },
+  ];
+};
 
-const THEMES = [
-  { value: "light", label: "בהיר" },
-  { value: "dark", label: "כהה" },
-  { value: "system", label: "לפי המכשיר" },
-];
+const themes = () => {
+  const m = t().settings.preferences.themes;
+  return [
+    { value: "light", label: m.light },
+    { value: "dark", label: m.dark },
+    { value: "system", label: m.system },
+  ];
+};
 
 export function PreferencesTab() {
   const prefs = useAppStore((s) => s.settings.prefs) ?? {};
@@ -50,6 +61,8 @@ export function PreferencesTab() {
   const offer = useInstall((s) => s.offer);
   const installed = useInstall((s) => s.installed);
   const desktop = useIsTauri();
+  const locale = useLocale();
+  const m = t().settings.preferences;
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
@@ -57,14 +70,12 @@ export function PreferencesTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <SlidersHorizontal className="size-4" />
-            העדפות
+            {m.title}
           </CardTitle>
-          <CardDescription>
-            נשמרות עם הנתונים, ותקפות בכל מכשיר.
-          </CardDescription>
+          <CardDescription>{m.hint}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <Field label="איך לקרוא לך" htmlFor="pref-user-name">
+          <Field label={m.userName} htmlFor="pref-user-name">
             <Input
               id="pref-user-name"
               defaultValue={prefs.userName ?? ""}
@@ -75,26 +86,26 @@ export function PreferencesTab() {
               }}
             />
           </Field>
-          <Field label="השבוע מתחיל ביום">
+          <Field label={m.weekStart}>
             <SimpleSelect
-              label="השבוע מתחיל ביום"
+              label={m.weekStart}
               value={String(prefs.weekStart ?? 0)}
-              options={WEEK_STARTS}
+              options={weekStarts()}
               onChange={(v) => setPrefs({ weekStart: Number(v) as 0 | 1 | 6 })}
             />
           </Field>
-          <Field label="מטבע">
+          <Field label={m.currency}>
             <SimpleSelect
-              label="מטבע"
+              label={m.currency}
               value={prefs.currency ?? "ILS"}
-              options={CURRENCIES}
+              options={currencies()}
               onChange={(v) => {
                 setPrefs({ currency: v as CurrencyCode });
-                toast.success("המטבע עודכן");
+                toast.success(m.currencyUpdated);
               }}
             />
           </Field>
-          <Field label="תזכורת ברירת מחדל למשימה או אירוע עם שעה">
+          <Field label={m.defaultReminder}>
             <ReminderField
               value={prefs.defaultReminder}
               onChange={(v) => setPrefs({ defaultReminder: v })}
@@ -108,16 +119,24 @@ export function PreferencesTab() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Palette className="size-4" />
-              מראה
+              {m.appearance}
             </CardTitle>
-            <CardDescription>במכשיר הזה.</CardDescription>
+            <CardDescription>{m.thisDevice}</CardDescription>
           </CardHeader>
-          <CardContent>
-            <Field label="ערכת צבעים">
+          <CardContent className="grid gap-4">
+            <Field label={t().common.language.label}>
               <SimpleSelect
-                label="ערכת צבעים"
+                label={t().common.language.label}
+                value={locale}
+                options={LOCALES}
+                onChange={(v) => switchLanguage(v as Locale)}
+              />
+            </Field>
+            <Field label={m.theme}>
+              <SimpleSelect
+                label={m.theme}
                 value={theme ?? "light"}
-                options={THEMES}
+                options={themes()}
                 onChange={setTheme}
               />
             </Field>
@@ -131,35 +150,29 @@ export function PreferencesTab() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <MonitorSmartphone className="size-4" />
-                התקנה כאפליקציה
+                {m.installTitle}
               </CardTitle>
-              <CardDescription>
-                אייקון במסך הבית ובשולחן העבודה, וחלון משלה בלי שורת כתובת.
-              </CardDescription>
+              <CardDescription>{m.installHint}</CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3 text-sm">
               {installed ? (
-                <p>המערכת מותקנת ופתוחה כאפליקציה.</p>
+                <p>{m.installed}</p>
               ) : offer ? (
                 <Button
                   className="justify-self-start"
                   onClick={() => void install()}
                 >
                   <Download />
-                  התקנה
+                  {m.install}
                 </Button>
               ) : (
                 <ul className="grid list-disc gap-1 ps-5 text-muted-foreground">
-                  <li>
-                    כרום במחשב או באנדרואיד: סמל ההתקנה בשורת הכתובת, או התפריט
-                    ״התקנת האפליקציה״.
-                  </li>
-                  <li>אייפון (ספארי): כפתור השיתוף, ואז ״הוספה למסך הבית״.</li>
+                  <li>{m.installChrome}</li>
+                  <li>{m.installIphone}</li>
                 </ul>
               )}
               <p className="text-xs text-muted-foreground">
-                בטלפון זה יעבוד אחרי שהמערכת תתארח ברשת (החלטה 2 בתוכנית) — היום
-                היא רצה רק על המחשב הזה.
+                {m.installPhoneNote}
               </p>
             </CardContent>
           </Card>

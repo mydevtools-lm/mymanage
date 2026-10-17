@@ -14,11 +14,13 @@ import { Button } from "@/components/ui/button";
 import { APP_NAME, REPO_URL } from "@/lib/app-info";
 import { appAbout, type About } from "@/lib/desktop-updates";
 import { useUpdate } from "@/components/update-prompt";
+import { t } from "@/lib/i18n";
 
 /** Settings › about, in the desktop app: the version, updates, the code. */
 export function AboutTab() {
   const [about, setAbout] = useState<About | null>(null);
   const [checking, setChecking] = useState(false);
+  const m = t().settings.about;
 
   useEffect(() => {
     appAbout().then(setAbout, () => {});
@@ -30,11 +32,9 @@ export function AboutTab() {
       const found = await useUpdate.getState().check();
       // A found update opens the update dialog (UpdatePrompt).
       if (found) useUpdate.setState({ answered: null });
-      else toast.success("זו הגרסה האחרונה");
+      else toast.success(m.upToDate);
     } catch (error) {
-      toast.error(
-        typeof error === "string" ? error : "הבדיקה נכשלה — אין חיבור?",
-      );
+      toast.error(typeof error === "string" ? error : m.checkFailed);
     } finally {
       setChecking(false);
     }
@@ -49,15 +49,13 @@ export function AboutTab() {
             {APP_NAME}
           </CardTitle>
           <CardDescription>
-            {about ? `גרסה ${about.version}` : "…"}
+            {about ? m.version(about.version) : "…"}
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 text-sm">
           {about?.updates ? (
             <div className="flex items-center justify-between gap-3">
-              <span>
-                עדכונים נבדקים בפתיחה ופעם ביום, ומותקנים רק אחרי שאישרת.
-              </span>
+              <span>{m.updatesHint}</span>
               <Button
                 size="sm"
                 variant="outline"
@@ -65,19 +63,16 @@ export function AboutTab() {
                 onClick={check}
               >
                 <RefreshCw className={checking ? "animate-spin" : undefined} />
-                בדיקת עדכונים
+                {m.checkUpdates}
               </Button>
             </div>
           ) : (
             about && (
-              <p className="text-muted-foreground">
-                הבנייה הזו לא מתעדכנת לבד — היא לא נבנתה בשחרור הרשמי. גרסאות
-                חדשות בעמוד הגרסאות במאגר.
-              </p>
+              <p className="text-muted-foreground">{m.unofficialBuild}</p>
             )
           )}
           <p>
-            קוד פתוח ברישיון MIT:{" "}
+            {m.openSource}{" "}
             <a
               href={REPO_URL}
               className="inline-block text-primary underline underline-offset-4"

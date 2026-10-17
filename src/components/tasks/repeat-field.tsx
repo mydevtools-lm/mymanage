@@ -2,19 +2,23 @@
 
 import { Input } from "@/components/ui/input";
 import { SimpleSelect } from "@/components/fields";
-import { WEEKDAY_SHORT } from "@/lib/routines";
+import { weekdayShort } from "@/lib/routines";
+import { t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { Repeat } from "@/lib/types";
 
 const NEVER = "never";
 
-const KIND_OPTIONS = [
-  { value: NEVER, label: "לא חוזרת" },
-  { value: "daily", label: "כל יום" },
-  { value: "weekly", label: "בימים קבועים בשבוע" },
-  { value: "monthly", label: "פעם בחודש" },
-  { value: "yearly", label: "פעם בשנה" },
-];
+function kindOptions() {
+  const text = t().tasks.repeat;
+  return [
+    { value: NEVER, label: text.never },
+    { value: "daily", label: text.daily },
+    { value: "weekly", label: text.weekly },
+    { value: "monthly", label: text.monthly },
+    { value: "yearly", label: text.yearly },
+  ];
+}
 
 function weekdayOf(date: string) {
   const [y, m, d] = date.split("-").map(Number);
@@ -37,6 +41,8 @@ export function RepeatField({
   allowNever?: boolean;
 }) {
   const kind = value?.kind ?? NEVER;
+  const text = t().tasks;
+  const options = kindOptions();
 
   function setKind(next: string) {
     if (next === NEVER) onChange(null);
@@ -63,16 +69,18 @@ export function RepeatField({
         value={kind}
         onChange={setKind}
         options={
-          allowNever
-            ? KIND_OPTIONS
-            : KIND_OPTIONS.filter((o) => o.value !== NEVER)
+          allowNever ? options : options.filter((o) => o.value !== NEVER)
         }
-        label="חזרה"
+        label={text.dialog.repeat}
       />
 
       {value?.kind === "weekly" && (
-        <div role="group" aria-label="ימים בשבוע" className="flex gap-1">
-          {WEEKDAY_SHORT.map((label, day) => {
+        <div
+          role="group"
+          aria-label={text.repeat.daysOfWeek}
+          className="flex gap-1"
+        >
+          {weekdayShort().map((label, day) => {
             const on = value.days.includes(day);
             return (
               <button
@@ -96,7 +104,7 @@ export function RepeatField({
 
       {value?.kind === "monthly" && (
         <label className="flex items-center gap-2 text-sm">
-          ביום
+          {text.repeat.monthlyBefore}
           <Input
             type="number"
             min={1}
@@ -109,7 +117,7 @@ export function RepeatField({
               if (day) onChange({ kind: "monthly", day });
             }}
           />
-          בחודש
+          {text.repeat.monthlyAfter}
         </label>
       )}
     </div>

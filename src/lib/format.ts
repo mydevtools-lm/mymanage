@@ -24,6 +24,18 @@ export function formatCurrency(amount: number) {
   return formatter.format(amount);
 }
 
+/** The currency's sign alone — ₪, $, € — for a field's adornment. */
+export function currencySymbol() {
+  return (
+    new Intl.NumberFormat(intlLocale(), {
+      style: "currency",
+      currency: currencyCode,
+    })
+      .formatToParts(0)
+      .find((part) => part.type === "currency")?.value ?? currencyCode
+  );
+}
+
 export function toDateKey(date: Date) {
   return format(date, "yyyy-MM-dd");
 }

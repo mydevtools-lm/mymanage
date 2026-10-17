@@ -9,7 +9,7 @@ import { dueReminders, upcomingBills } from "@/lib/brief";
 import { formatCurrency, todayKey } from "@/lib/format";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "@/lib/platform";
-import { dirOf, getLocale } from "@/lib/i18n";
+import { dirOf, getLocale, t } from "@/lib/i18n";
 import { desktopNotify } from "@/lib/desktop-notify";
 
 const CHECK_MS = 30_000;
@@ -91,15 +91,17 @@ export function ReminderWatch() {
         for (const bill of upcomingBills(transactions, today)) {
           const key = `bill:${bill.id}@${bill.date}`;
           if (done.has(key)) continue;
+          const m = t().common;
           const when =
             bill.daysLeft === 0
-              ? "היום"
+              ? m.today
               : bill.daysLeft === 1
-                ? "מחר"
-                : `בעוד ${bill.daysLeft} ימים`;
+                ? m.tomorrow
+                : m.reminders.inDays(bill.daysLeft);
           const text = `${formatCurrency(bill.amount)} · ${when}`;
-          toast(`חשבון קבוע: ${bill.description}`, { description: text });
-          notify(`חשבון קבוע: ${bill.description}`, text, key);
+          const title = m.reminders.recurringBill(bill.description);
+          toast(title, { description: text });
+          notify(title, text, key);
           shown.push(key);
         }
       }
