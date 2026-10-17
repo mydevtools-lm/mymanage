@@ -155,3 +155,52 @@ for (const theme of ["light", "dark"] as const) {
     expect(await seriousViolations(page, "[role=dialog]")).toEqual([]);
   });
 }
+
+test("a task is dragged to another day by its handle, undone, and moved by click", async ({
+  page,
+  request,
+}) => {
+  const title = "לגרור למחר";
+  await request.post("/api/tasks", {
+    data: { title, dueDate: today(), priority: "normal" },
+  });
+  await ready(page, "/tasks");
+  const handle = page.getByRole("button", {
+    name: `העברת ״${title}״ ליום אחר`,
+  });
+
+  // Dragging shows the days; dropping on "tomorrow" moves it there.
+  await handle.hover();
+  await page.mouse.down();
+  await page.mouse.move(400, 300, { steps: 5 });
+  const tomorrow = page.locator('[data-drop-day="tomorrow"]');
+  await expect(tomorrow).toBeVisible();
+  await tomorrow.hover();
+  await page.mouse.up();
+  await expect(
+    page.getByRole("region", { name: "מחר" }).getByText(title),
+  ).toBeVisible();
+
+  // The toast takes it back.
+  await page.getByRole("button", { name: "ביטול" }).click();
+  await expect(
+    page.getByRole("region", { name: "היום" }).getByText(title),
+  ).toBeVisible();
+
+  // A click on the handle picks a date instead — here, none.
+  await handle.click();
+  const dialog = page.getByRole("dialog", { name: `העברת ״${title}״` });
+  await dialog.getByRole("button", { name: "בלי תאריך" }).click();
+  await expect(
+    page.getByRole("region", { name: "בלי תאריך" }).getByText(title),
+  ).toBeVisible();
+  await expect
+    .poll(async () => {
+      const tasks = (await (await request.get("/api/tasks")).json()) as {
+        title: string;
+        dueDate?: string | null;
+      }[];
+      return tasks.find((t) => t.title === title)?.dueDate ?? null;
+    })
+    .toBeNull();
+});

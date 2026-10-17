@@ -7,6 +7,7 @@ import {
   CalendarDays,
   CheckCheck,
   CheckSquare,
+  GripVertical,
   ListChecks,
   Plus,
   Repeat,
@@ -43,7 +44,8 @@ import { TaskRow } from "@/components/tasks/task-row";
 import { ArchiveList } from "@/components/tasks/archive-list";
 import { RoutineList } from "@/components/tasks/routine-list";
 import { useAppStore } from "@/lib/store";
-import { groupTasksByWhen } from "@/lib/task-groups";
+import { dayTargets, groupDropDate, groupTasksByWhen } from "@/lib/task-groups";
+import { toast } from "sonner";
 import { toDateKey, todayKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Priority, Routine, Task } from "@/lib/types";
@@ -62,11 +64,14 @@ function BulkDateDialog({
   open,
   onOpenChange,
   count,
+  title,
   onPick,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   count: number;
+  /** Instead of "date for N tasks" — for a single task. */
+  title?: string;
   onPick: (date: string | undefined) => void;
 }) {
   const [custom, setCustom] = useState("");
@@ -88,7 +93,7 @@ function BulkDateDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>תאריך ל־{count} משימות</DialogTitle>
+            <DialogTitle>{title ?? `תאריך ל־${count} משימות`}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-3 gap-2">
             <Button type="button" variant="outline" onClick={() => pick(today)}>
@@ -140,6 +145,7 @@ export default function TasksPage() {
   const setTasksDate = useAppStore((s) => s.setTasksDate);
   const completeTasks = useAppStore((s) => s.completeTasks);
   const deleteTasks = useAppStore((s) => s.deleteTasks);
+  const updateTask = useAppStore((s) => s.updateTask);
 
   const [view, setView] = useState("active");
   const [priority, setPriority] = useState(ALL);
@@ -154,6 +160,11 @@ export default function TasksPage() {
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [dateDialog, setDateDialog] = useState(false);
+  // Dragging a task to another day (by its handle), and the one task whose
+  // date is being picked — from a click on the handle or "another date".
+  const [dragging, setDragging] = useState<Task | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+  const [dateFor, setDateFor] = useState<Task | null>(null);
 
   const today = todayKey();
 
@@ -194,6 +205,84 @@ export default function TasksPage() {
   const selectedIds = [...selected];
   const allVisibleSelected =
     filtered.length > 0 && filtered.every((t) => selected.has(t.id));
+
+  const targets = useMemo(() => dayTargets(today), [today]);
+  const dayName = (date: string | undefined) =>
+    targets.find((t) => t.date === date)?.label ??
+    (date ? date.split("-").reverse().join(".") : "בלי תאריך");
+
+  /** Move one task to a day, keeping its time — as dragging in the calendar
+   *  does — with an undo. No date clears the time too. */
+  const moveTo = (task: Task, date: string | undefined) => {
+    if (date === task.dueDate) return;
+    const before = { dueDate: task.dueDate, dueTime: task.dueTime };
+    if (date) updateTask(task.id, { dueDate: date });
+    else setTasksDate([task.id], undefined);
+    toast(`״${task.title}״ הועברה ל${dayName(date)}`, {
+      action: {
+        label: "ביטול",
+        onClick: () =>
+          before.dueDate
+            ? updateTask(task.id, before)
+            : setTasksDate([task.id], undefined),
+      },
+    });
+  };
+
+  const endDrag = () => {
+    setDragging(null);
+    setOver(null);
+  };
+
+  /** Where a dragged task may land. `date` undefined = no date; `pick`
+   *  opens the date dialog instead. */
+  const dropZone = (
+    key: string,
+    target: { date: string | undefined } | "pick",
+  ) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!dragging) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (over !== key) setOver(key);
+    },
+    onDragLeave: (e: React.DragEvent) => {
+      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+        setOver((o) => (o === key ? null : o));
+      }
+    },
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      const task = dragging;
+      endDrag();
+      if (!task) return;
+      if (target === "pick") setDateFor(task);
+      else moveTo(task, target.date);
+    },
+  });
+
+  const dragHandle = (task: Task) => (
+    <button
+      type="button"
+      draggable
+      aria-label={`העברת ״${task.title}״ ליום אחר`}
+      title="גרירה ליום אחר, או לחיצה לבחירת תאריך"
+      className="flex size-7 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground/60 transition-colors active:cursor-grabbing can-hover:hover:text-foreground"
+      onClick={() => setDateFor(task)}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", task.id);
+        const row = e.currentTarget.closest("[data-task-row]");
+        if (row) e.dataTransfer.setDragImage(row, 24, 20);
+        // After the drag has begun: changing the page inside dragstart can
+        // cancel the drag.
+        setTimeout(() => setDragging(task), 0);
+      }}
+      onDragEnd={endDrag}
+    >
+      <GripVertical className="size-4" />
+    </button>
+  );
 
   const filters = (
     <>
@@ -353,42 +442,92 @@ export default function TasksPage() {
                 {allVisibleSelected ? "ביטול הבחירה" : "בחירת הכול"}
               </button>
             )}
-            {groups.map(({ group, label, tasks: groupTasks }) => (
-              <section key={group} className="grid gap-2">
-                <h2
+            {dragging && (
+              <div
+                role="group"
+                aria-label="העברה ליום"
+                className="sticky top-2 z-30 flex flex-wrap gap-1.5 rounded-xl border bg-popover p-2 shadow-lg"
+              >
+                {targets.map((t) => (
+                  <div
+                    key={t.key}
+                    data-drop-day={t.key}
+                    {...dropZone(t.key, { date: t.date })}
+                    className={cn(
+                      "rounded-lg border border-dashed px-3 py-1.5 text-sm transition-colors",
+                      t.date === dragging.dueDate && "opacity-50",
+                      over === t.key &&
+                        "border-solid border-primary bg-primary text-primary-foreground",
+                    )}
+                  >
+                    {t.label}
+                  </div>
+                ))}
+                <div
+                  data-drop-day="pick"
+                  {...dropZone("pick", "pick")}
                   className={cn(
-                    "flex items-center gap-2 text-sm font-semibold",
-                    group === "overdue"
-                      ? "text-destructive"
-                      : "text-muted-foreground",
+                    "rounded-lg border border-dashed px-3 py-1.5 text-sm transition-colors",
+                    over === "pick" &&
+                      "border-solid border-primary bg-primary text-primary-foreground",
                   )}
                 >
-                  {label}
-                  <span className="font-normal">({groupTasks.length})</span>
-                </h2>
-                {groupTasks.map((t) => (
-                  <TaskRow
-                    key={t.id}
-                    task={t}
-                    inlineEdit
-                    hideDate={group === "today"}
-                    onEdit={(task) => {
-                      setEditing(task);
-                      setEditingRoutine(null);
-                      setDialogOpen(true);
-                    }}
-                    selection={
-                      selecting
-                        ? {
-                            selected: selected.has(t.id),
-                            onToggle: () => toggle(t.id),
-                          }
-                        : undefined
-                    }
-                  />
-                ))}
-              </section>
-            ))}
+                  תאריך אחר…
+                </div>
+              </div>
+            )}
+            {groups.map(({ group, label, tasks: groupTasks }) => {
+              const drop = groupDropDate(group, today);
+              return (
+                <section
+                  key={group}
+                  aria-label={label}
+                  {...(drop ? dropZone(`group-${group}`, drop) : {})}
+                  className={cn(
+                    "grid gap-2 rounded-lg transition-colors",
+                    dragging &&
+                      drop &&
+                      "outline-1 outline-dashed outline-offset-4 outline-primary/40",
+                    over === `group-${group}` && "bg-primary/5 outline-primary",
+                  )}
+                >
+                  <h2
+                    className={cn(
+                      "flex items-center gap-2 text-sm font-semibold",
+                      group === "overdue"
+                        ? "text-destructive"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {label}
+                    <span className="font-normal">({groupTasks.length})</span>
+                  </h2>
+                  {groupTasks.map((t) => (
+                    <div key={t.id} data-task-row>
+                      <TaskRow
+                        task={t}
+                        inlineEdit
+                        hideDate={group === "today"}
+                        handle={selecting ? undefined : dragHandle(t)}
+                        onEdit={(task) => {
+                          setEditing(task);
+                          setEditingRoutine(null);
+                          setDialogOpen(true);
+                        }}
+                        selection={
+                          selecting
+                            ? {
+                                selected: selected.has(t.id),
+                                onToggle: () => toggle(t.id),
+                              }
+                            : undefined
+                        }
+                      />
+                    </div>
+                  ))}
+                </section>
+              );
+            })}
           </div>
         )}
 
@@ -496,6 +635,16 @@ export default function TasksPage() {
         onPick={(date) => {
           setTasksDate(selectedIds, date);
           stopSelecting();
+        }}
+      />
+
+      <BulkDateDialog
+        open={!!dateFor}
+        onOpenChange={(open) => !open && setDateFor(null)}
+        count={1}
+        title={dateFor ? `העברת ״${dateFor.title}״` : undefined}
+        onPick={(date) => {
+          if (dateFor) moveTo(dateFor, date);
         }}
       />
 
