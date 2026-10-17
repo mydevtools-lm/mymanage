@@ -13,7 +13,7 @@ test.use({
         localStorage: [
           {
             name: "lior-device",
-            value: JSON.stringify({ autoBrief: false, fired: {} }),
+            value: JSON.stringify({ autoBrief: false, language: "he", fired: {} }),
           },
         ],
       },

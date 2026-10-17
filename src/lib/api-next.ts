@@ -1,6 +1,7 @@
 import "server-only";
 import "./node-db";
 import { runRoute } from "./api-routes";
+import { isLocale, setLocale } from "./i18n";
 
 /**
  * Turns an api-routes.ts entry into Next route handlers. Each route file is
@@ -21,6 +22,9 @@ async function readJson(request: Request): Promise<unknown> {
 
 function handler(method: Method, pattern: string) {
   return async (request: Request, context?: Context) => {
+    // One person, one browser: setting the language per request is enough.
+    const locale = request.headers.get("x-locale");
+    if (isLocale(locale)) setLocale(locale);
     const params = (await context?.params) ?? {};
     const body = method === "GET" ? undefined : await readJson(request);
     const { status, body: answer } = await runRoute(

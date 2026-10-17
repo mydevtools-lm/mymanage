@@ -29,6 +29,7 @@ import {
   type EventFields,
   type EventPlan,
 } from "./event-series";
+import { getLocale, t } from "./i18n";
 
 /**
  * Client-side mirror of the SQLite database.
@@ -185,12 +186,16 @@ async function api(
   }
   const response = await fetch(url, {
     method,
-    headers: body ? { "Content-Type": "application/json" } : undefined,
+    // The server answers (and words its errors) in the screen's language.
+    headers: {
+      "x-locale": getLocale(),
+      ...(body ? { "Content-Type": "application/json" } : {}),
+    },
     body: body ? toJsonBody(body) : undefined,
   });
   if (!response.ok) {
     const detail = await response.json().catch(() => null);
-    throw new Error(detail?.error ?? `שגיאת שרת (${response.status})`);
+    throw new Error(detail?.error ?? t().common.serverError(response.status));
   }
   return response.json();
 }

@@ -25,7 +25,7 @@ export function DayPicker({
         aria-label="יום קודם"
         onClick={() => onChange(toDateKey(addDays(parsed, -1)))}
       >
-        <ChevronRight />
+        <ChevronRight className="ltr:rotate-180" />
       </Button>
       <Button
         variant="outline"
@@ -33,7 +33,7 @@ export function DayPicker({
         aria-label="יום הבא"
         onClick={() => onChange(toDateKey(addDays(parsed, 1)))}
       >
-        <ChevronLeft />
+        <ChevronLeft className="ltr:rotate-180" />
       </Button>
       {date !== today && (
         <Button variant="ghost" onClick={() => onChange(today)}>

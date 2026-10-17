@@ -16,6 +16,8 @@ import { BriefDialog } from "@/components/brief-dialog";
 import { ReminderWatch } from "@/components/reminder-watch";
 import { Pwa } from "@/components/pwa";
 import { APP_NAME } from "@/lib/app-info";
+import { LOCALE_SCRIPT } from "@/lib/i18n";
+import { SkipLink } from "@/components/layout/skip-link";
 import { Onboarding, SampleBanner } from "@/components/onboarding";
 import { DesktopShell } from "@/components/desktop-shell";
 import { UpdatePrompt } from "@/components/update-prompt";
@@ -27,7 +29,7 @@ const heebo = Heebo({
 
 export const metadata: Metadata = {
   title: APP_NAME,
-  description: "היום, משימות, יומן, כספים, הערות ורשימות — במקום אחד",
+  description: "Today, tasks, calendar, money, notes and lists — in one place",
 };
 
 export const viewport: Viewport = {
@@ -53,22 +55,18 @@ export default function RootLayout({
 }) {
   return (
     <html
-      lang="he"
-      dir="rtl"
+      lang="en"
+      dir="ltr"
       className={`${heebo.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <body className="min-h-full">
         {/* A plain script: it runs once from the HTML. next/script injected it
             a second time at runtime, which the desktop app's CSP blocks. */}
+        <script dangerouslySetInnerHTML={{ __html: LOCALE_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: sidebarScript }} />
         <Providers>
-          <a
-            href="#main"
-            className="sr-only z-50 rounded-md bg-primary px-4 py-2 text-primary-foreground focus:not-sr-only focus:fixed focus:top-3 focus:start-3"
-          >
-            דלג לתוכן
-          </a>
+          <SkipLink />
           <div className="flex min-h-screen">
             <Sidebar />
             <div className="flex min-w-0 flex-1 flex-col">

@@ -62,7 +62,7 @@ function Report() {
           nativeButton={false}
           render={<Link href={back} />}
         >
-          <ArrowRight />
+          <ArrowRight className="ltr:rotate-180" />
           חזרה לכספים
         </Button>
         <Button onClick={() => window.print()}>

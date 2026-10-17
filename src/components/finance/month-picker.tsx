@@ -42,7 +42,7 @@ export function MonthPicker({
         disabled={month <= minMonth}
         onClick={() => onChange(shiftMonth(month, -1))}
       >
-        <ChevronRight />
+        <ChevronRight className="ltr:rotate-180" />
       </Button>
       <Button
         variant="outline"
@@ -50,7 +50,7 @@ export function MonthPicker({
         aria-label="חודש הבא"
         onClick={() => onChange(shiftMonth(month, 1))}
       >
-        <ChevronLeft />
+        <ChevronLeft className="ltr:rotate-180" />
       </Button>
 
       <Popover
@@ -75,7 +75,7 @@ export function MonthPicker({
               disabled={year <= minYear}
               onClick={() => setYear((y) => y - 1)}
             >
-              <ChevronRight />
+              <ChevronRight className="ltr:rotate-180" />
             </Button>
             <span className="font-semibold tabular-nums">{year}</span>
             <Button
@@ -84,7 +84,7 @@ export function MonthPicker({
               aria-label="שנה הבאה"
               onClick={() => setYear((y) => y + 1)}
             >
-              <ChevronLeft />
+              <ChevronLeft className="ltr:rotate-180" />
             </Button>
           </div>
           <div className="grid grid-cols-3 gap-1">

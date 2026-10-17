@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { MAIN_NAV, isActive } from "./nav";
+import { mainNav, isActive } from "./nav";
+import { t } from "@/lib/i18n";
 
 /** Phone navigation: the same five screens as the sidebar, at thumb reach. */
 export function BottomTabs() {
@@ -11,11 +12,11 @@ export function BottomTabs() {
 
   return (
     <nav
-      aria-label="ניווט ראשי"
+      aria-label={t().common.nav.mainNavigation}
       className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden print:hidden"
     >
       <ul className="grid grid-cols-5">
-        {MAIN_NAV.map(({ href, label, shortLabel, icon: Icon }) => {
+        {mainNav().map(({ href, label, shortLabel, icon: Icon }) => {
           const active = isActive(pathname, href);
           return (
             <li key={href}>

@@ -9,6 +9,7 @@ import { dueReminders, upcomingBills } from "@/lib/brief";
 import { formatCurrency, todayKey } from "@/lib/format";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "@/lib/platform";
+import { dirOf, getLocale } from "@/lib/i18n";
 import { desktopNotify } from "@/lib/desktop-notify";
 
 const CHECK_MS = 30_000;
@@ -37,8 +38,8 @@ function notify(title: string, body: string, tag: string) {
   const options = {
     body,
     tag,
-    lang: "he",
-    dir: "rtl" as const,
+    lang: getLocale(),
+    dir: dirOf(getLocale()),
     icon: "/icons/icon-192.png",
   };
   // Phones allow notifications only through the service worker.

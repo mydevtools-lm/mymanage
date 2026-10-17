@@ -181,7 +181,7 @@ export default function CalendarPage() {
             aria-label="הקודם"
             onClick={() => shift(-1)}
           >
-            <ChevronRight />
+            <ChevronRight className="ltr:rotate-180" />
           </Button>
           <Button
             variant="outline"
@@ -189,7 +189,7 @@ export default function CalendarPage() {
             aria-label="הבא"
             onClick={() => shift(1)}
           >
-            <ChevronLeft />
+            <ChevronLeft className="ltr:rotate-180" />
           </Button>
           <Button variant="ghost" onClick={() => setCursor(new Date())}>
             היום

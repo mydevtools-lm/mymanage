@@ -33,6 +33,8 @@ export default defineConfig({
               value: JSON.stringify({
                 autoBrief: false,
                 onboarded: true,
+                // The tests read the Hebrew texts; English has its own.
+                language: "he",
                 fired: {},
               }),
             },

@@ -56,7 +56,7 @@ export function YearView({
           aria-label="השנה הקודמת"
           onClick={() => onYearChange(year - 1)}
         >
-          <ChevronRight />
+          <ChevronRight className="ltr:rotate-180" />
         </Button>
         <Button
           variant="outline"
@@ -64,7 +64,7 @@ export function YearView({
           aria-label="השנה הבאה"
           onClick={() => onYearChange(year + 1)}
         >
-          <ChevronLeft />
+          <ChevronLeft className="ltr:rotate-180" />
         </Button>
         <h2 className="text-lg font-semibold tabular-nums">{year}</h2>
       </div>
