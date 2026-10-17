@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from "react";
 import { enUS, he as heDates } from "date-fns/locale";
 import { MESSAGES, type Messages } from "./messages";
 
@@ -48,9 +47,17 @@ export function chosenLocale(): Locale | null {
   }
 }
 
+/** The browser mode's server before a page says otherwise (`x-locale`) —
+ *  `LIOR_LOCALE` lets the tests seed a Hebrew database. */
+function serverLocale(): Locale {
+  const value =
+    typeof process === "undefined" ? undefined : process.env.LIOR_LOCALE;
+  return isLocale(value) ? value : DEFAULT_LOCALE;
+}
+
 let current: Locale =
   typeof window === "undefined"
-    ? DEFAULT_LOCALE
+    ? serverLocale()
     : (chosenLocale() ?? systemLocale());
 const listeners = new Set<() => void>();
 
@@ -74,15 +81,13 @@ export function setLocale(next: Locale) {
   for (const listener of listeners) listener();
 }
 
-export function useLocale(): Locale {
-  return useSyncExternalStore(
-    (listener) => {
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    getLocale,
-    () => DEFAULT_LOCALE,
-  );
+/** Calls `listener` whenever the language changes; returns the unsubscribe.
+ *  Components use `useLocale()` (use-locale.ts). */
+export function subscribeLocale(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 /** The messages of the current language. */

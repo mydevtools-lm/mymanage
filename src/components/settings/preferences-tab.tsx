@@ -24,7 +24,8 @@ import { useAppStore } from "@/lib/store";
 import type { CurrencyCode } from "@/lib/types";
 import { useIsTauri } from "@/lib/platform";
 import { DesktopSettings } from "./desktop-settings";
-import { LOCALES, t, useLocale, type Locale } from "@/lib/i18n";
+import { LOCALES, t, type Locale } from "@/lib/i18n";
+import { useLocale } from "@/lib/i18n/use-locale";
 import { switchLanguage } from "@/lib/language";
 
 const weekStarts = () => {
