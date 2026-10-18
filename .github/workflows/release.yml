@@ -46,7 +46,7 @@ jobs:
             } }
           } | ConvertTo-Json -Depth 5 | Set-Content src-tauri/tauri.updater.conf.json -Encoding utf8
           "args=--config src-tauri/tauri.updater.conf.json" >> $env:GITHUB_OUTPUT
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
