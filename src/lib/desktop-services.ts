@@ -3,7 +3,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { claudeRequest, proposalsFrom } from "./assist-request";
 import { parseEvents, type ExternalEvent } from "./ical-parse";
-import { parseHebrew, type Proposal } from "./nl-parse";
+import { parseSentence, type Proposal } from "./nl-parse";
+import { t } from "./i18n";
 
 /**
  * Google Calendar and Claude in the desktop app. The secrets sit encrypted
@@ -37,7 +38,7 @@ export const SECRETS_CHANGED = "desktop-secrets-changed";
 
 /** The name a calendar shows when settings give none, as on the server. */
 export const defaultCalendarName = (id: string) =>
-  id === "1" ? "גוגל יומן" : `יומן ${id}`;
+  t().data.calendars.defaultName(id);
 
 // Google regenerates a feed slowly; the server caches for ten minutes too.
 const FEED_TTL = 10 * 60_000;
@@ -98,9 +99,9 @@ export async function desktopCalendars(
     events,
     error:
       failed.length === calendars.length
-        ? "לא הצלחנו לקרוא את היומן מגוגל. בדוק את הכתובת בהגדרות › חיבורים"
+        ? t().data.calendars.allFailedSettings
         : failed.length
-          ? `לא הצלחנו לקרוא את: ${failed.map((c) => c.name).join(", ")}`
+          ? t().data.calendars.someFailed(failed.map((c) => c.name))
           : undefined,
   };
 }
@@ -123,5 +124,5 @@ export async function desktopParse(
       console.error("Claude parse failed:", error);
     }
   }
-  return { source: "local", proposals: parseHebrew(text, today) };
+  return { source: "local", proposals: parseSentence(text, today) };
 }

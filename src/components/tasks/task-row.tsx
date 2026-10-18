@@ -17,19 +17,21 @@ import { SwipeRow } from "@/components/swipe-row";
 import { useAppStore } from "@/lib/store";
 import { formatDate, todayKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 import type { Task } from "@/lib/types";
 
 /** Title that turns into a text field on click; Enter saves, Esc cancels. */
 function EditableTitle({ task }: { task: Task }) {
   const updateTask = useAppStore((s) => s.updateTask);
   const [draft, setDraft] = useState<string | null>(null);
+  const text = t().tasks.row;
 
   if (draft === null) {
     return (
       <button
         type="button"
         onClick={() => setDraft(task.title)}
-        title="לחץ לעריכת הכותרת"
+        title={text.clickToEdit}
         className={cn(
           "block max-w-full truncate text-start font-medium",
           task.completed && "line-through",
@@ -50,7 +52,7 @@ function EditableTitle({ task }: { task: Task }) {
     <input
       autoFocus
       value={draft}
-      aria-label="כותרת המשימה"
+      aria-label={text.titleLabel}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={save}
       onKeyDown={(e) => {
@@ -109,17 +111,20 @@ export function TaskRow({
   const overdue =
     !task.completed && !!task.dueDate && task.dueDate < todayKey();
 
+  const { common } = t();
+  const text = t().tasks.row;
+
   const actions: RowAction[] = [
     ...(onEdit
-      ? [{ label: "עריכה", icon: Pencil, onSelect: () => onEdit(task) }]
+      ? [{ label: common.edit, icon: Pencil, onSelect: () => onEdit(task) }]
       : []),
     {
-      label: "דחה למחר",
+      label: text.pushToTomorrow,
       icon: SunMedium,
       onSelect: () => snoozeTask(task.id),
     },
     {
-      label: "מחיקה",
+      label: common.delete,
       icon: Trash2,
       destructive: true,
       onSelect: () => deleteTask(task.id),
@@ -152,16 +157,16 @@ export function TaskRow({
       {task.routineId && (
         <span
           className="flex items-center text-muted-foreground"
-          title="משימה קבועה"
+          title={text.routine}
         >
-          <Repeat className="size-3.5" aria-label="משימה קבועה" />
+          <Repeat className="size-3.5" aria-label={text.routine} />
         </span>
       )}
       {steps.length > 0 && (
         <button
           type="button"
           aria-expanded={stepsOpen}
-          aria-label={`תת־משימות: ${stepsDone} מתוך ${steps.length}`}
+          aria-label={text.subtasksProgress(stepsDone, steps.length)}
           disabled={!!selection}
           onClick={(e) => {
             e.stopPropagation();
@@ -218,7 +223,7 @@ export function TaskRow({
       <div
         role="checkbox"
         aria-checked={selection.selected}
-        aria-label={`בחירת ${task.title}`}
+        aria-label={text.select(task.title)}
         tabIndex={0}
         onClick={selection.onToggle}
         onKeyDown={(e) => {
@@ -253,13 +258,13 @@ export function TaskRow({
   return (
     <SwipeRow
       right={{
-        label: "בוצע",
+        label: common.done,
         icon: Check,
         onSwipe: () => toggleTask(task.id),
         className: "bg-income",
       }}
       left={{
-        label: "מחר",
+        label: common.tomorrow,
         icon: SunMedium,
         onSwipe: () => snoozeTask(task.id),
         className: "bg-sky-500",
@@ -276,7 +281,7 @@ export function TaskRow({
           <Checkbox
             checked={task.completed}
             onCheckedChange={() => toggleTask(task.id)}
-            aria-label={`סימון ${task.title}`}
+            aria-label={text.checkOff(task.title)}
             className="size-5"
           />
           {body}

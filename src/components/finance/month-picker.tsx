@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { format, parseISO } from "date-fns";
-import { he } from "date-fns/locale";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +12,7 @@ import {
 import { formatMonth } from "@/lib/format";
 import { shiftMonth } from "@/lib/finance";
 import { cn } from "@/lib/utils";
+import { dateLocale, t } from "@/lib/i18n";
 
 /**
  * Arrows for the next/previous month, and the month name opens a year grid
@@ -32,25 +32,26 @@ export function MonthPicker({
   const [open, setOpen] = useState(false);
   const [year, setYear] = useState(Number(month.slice(0, 4)));
   const minYear = Number(minMonth.slice(0, 4));
+  const m = t().finance.monthPicker;
 
   return (
     <div className="flex items-center gap-2">
       <Button
         variant="outline"
         size="icon"
-        aria-label="חודש קודם"
+        aria-label={m.previousMonth}
         disabled={month <= minMonth}
         onClick={() => onChange(shiftMonth(month, -1))}
       >
-        <ChevronRight />
+        <ChevronRight className="ltr:rotate-180" />
       </Button>
       <Button
         variant="outline"
         size="icon"
-        aria-label="חודש הבא"
+        aria-label={m.nextMonth}
         onClick={() => onChange(shiftMonth(month, 1))}
       >
-        <ChevronLeft />
+        <ChevronLeft className="ltr:rotate-180" />
       </Button>
 
       <Popover
@@ -71,20 +72,20 @@ export function MonthPicker({
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label="שנה קודמת"
+              aria-label={m.previousYear}
               disabled={year <= minYear}
               onClick={() => setYear((y) => y - 1)}
             >
-              <ChevronRight />
+              <ChevronRight className="ltr:rotate-180" />
             </Button>
             <span className="font-semibold tabular-nums">{year}</span>
             <Button
               variant="ghost"
               size="icon-sm"
-              aria-label="שנה הבאה"
+              aria-label={m.nextYear}
               onClick={() => setYear((y) => y + 1)}
             >
-              <ChevronLeft />
+              <ChevronLeft className="ltr:rotate-180" />
             </Button>
           </div>
           <div className="grid grid-cols-3 gap-1">
@@ -107,7 +108,9 @@ export function MonthPicker({
                     setOpen(false);
                   }}
                 >
-                  {format(parseISO(`${key}-01`), "MMM", { locale: he })}
+                  {format(parseISO(`${key}-01`), "MMM", {
+                    locale: dateLocale(),
+                  })}
                 </Button>
               );
             })}
@@ -121,7 +124,7 @@ export function MonthPicker({
                 setOpen(false);
               }}
             >
-              לחודש הנוכחי
+              {m.currentMonth}
             </Button>
           )}
         </PopoverContent>

@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/shared";
 import { RowActions } from "@/components/row-actions";
 import { useAppStore } from "@/lib/store";
 import { formatDate, localDayOf, todayKey } from "@/lib/format";
+import { t } from "@/lib/i18n";
 import type { Task } from "@/lib/types";
 
 /** Finished tasks, grouped by the day they were ticked off, newest first. */
@@ -41,13 +42,14 @@ export function ArchiveList() {
   }, [tasks, query]);
 
   const total = tasks.filter((t) => t.archivedAt).length;
+  const { common, tasks: text } = t();
 
   if (total === 0) {
     return (
       <EmptyState
         icon={Archive}
-        title="הארכיון ריק"
-        hint="משימה שתסמן כבוצעה תגיע לכאן"
+        title={text.archive.empty}
+        hint={text.archive.emptyHint}
       />
     );
   }
@@ -59,14 +61,16 @@ export function ArchiveList() {
         <Input
           className="ps-8"
           data-search
-          placeholder="חיפוש בארכיון..."
+          placeholder={text.archive.search}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
 
       {groups.length === 0 && (
-        <p className="text-sm text-muted-foreground">לא נמצאו משימות.</p>
+        <p className="text-sm text-muted-foreground">
+          {text.archive.noneFound}
+        </p>
       )}
 
       {groups.map(([day, dayTasks]) => (
@@ -74,10 +78,12 @@ export function ArchiveList() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">
               {day === todayKey()
-                ? "היום"
-                : formatDate(day, "EEEE, d בMMMM yyyy")}
+                ? common.today
+                : formatDate(day, common.dates.long)}
             </CardTitle>
-            <CardDescription>{dayTasks.length} משימות הושלמו</CardDescription>
+            <CardDescription>
+              {text.archive.completedCount(dayTasks.length)}
+            </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-1">
             {dayTasks.map((task) => (
@@ -92,12 +98,12 @@ export function ArchiveList() {
                 <RowActions
                   actions={[
                     {
-                      label: "החזרה לרשימה",
+                      label: text.archive.restore,
                       icon: RotateCcw,
                       onSelect: () => restoreTask(task.id),
                     },
                     {
-                      label: "מחיקה",
+                      label: common.delete,
                       icon: Trash2,
                       destructive: true,
                       onSelect: () => deleteTask(task.id),

@@ -18,6 +18,8 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     locale: "he-IL",
+    // Requests from the tests themselves, too, get Hebrew answers.
+    extraHTTPHeaders: { "x-locale": "he" },
     timezoneId: "Asia/Jerusalem",
     trace: "retain-on-failure",
     // The morning brief and the first-run questions open by themselves on a
@@ -33,6 +35,8 @@ export default defineConfig({
               value: JSON.stringify({
                 autoBrief: false,
                 onboarded: true,
+                // The tests read the Hebrew texts; English has its own.
+                language: "he",
                 fired: {},
               }),
             },
@@ -62,6 +66,8 @@ export default defineConfig({
         GOOGLE_CALENDAR_NAME_2: "עבודה",
         // Never the real Claude API from tests: the local reader answers.
         ANTHROPIC_API_KEY: "",
+        // The database starts with the Hebrew default categories.
+        LIOR_LOCALE: "he",
       },
     },
   ],

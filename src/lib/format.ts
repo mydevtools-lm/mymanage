@@ -1,23 +1,39 @@
 import { format, parseISO, isValid } from "date-fns";
-import { he } from "date-fns/locale";
+import { dateLocale, intlLocale, t } from "./i18n";
 
-function currencyFormat(code: string) {
-  return new Intl.NumberFormat("he-IL", {
-    style: "currency",
-    currency: code,
-    maximumFractionDigits: 0,
-  });
-}
-
-let currency = currencyFormat("ILS");
+let currencyCode = "ILS";
+const formatters = new Map<string, Intl.NumberFormat>();
 
 /** Set from the preferences when they load or change. */
 export function setCurrency(code: string) {
-  currency = currencyFormat(code);
+  currencyCode = code;
 }
 
+/** In the currency from the preferences, written the current language's way. */
 export function formatCurrency(amount: number) {
-  return currency.format(amount);
+  const tag = `${intlLocale()}|${currencyCode}`;
+  let formatter = formatters.get(tag);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(intlLocale(), {
+      style: "currency",
+      currency: currencyCode,
+      maximumFractionDigits: 0,
+    });
+    formatters.set(tag, formatter);
+  }
+  return formatter.format(amount);
+}
+
+/** The currency's sign alone — ₪, $, € — for a field's adornment. */
+export function currencySymbol() {
+  return (
+    new Intl.NumberFormat(intlLocale(), {
+      style: "currency",
+      currency: currencyCode,
+    })
+      .formatToParts(0)
+      .find((part) => part.type === "currency")?.value ?? currencyCode
+  );
 }
 
 export function toDateKey(date: Date) {
@@ -33,12 +49,18 @@ export function parseDateKey(key: string) {
   return isValid(d) ? d : new Date();
 }
 
-export function formatDate(key: string, pattern = "d בMMM yyyy") {
-  return format(parseDateKey(key), pattern, { locale: he });
+/** A day as the screens show it — "14 Oct 2026" / "14 באוק׳ 2026" unless a
+ *  pattern is given. */
+export function formatDate(key: string, pattern?: string) {
+  return format(parseDateKey(key), pattern ?? t().common.dates.short, {
+    locale: dateLocale(),
+  });
 }
 
 export function formatMonth(monthKey: string) {
-  return format(parseISO(`${monthKey}-01`), "MMMM yyyy", { locale: he });
+  return format(parseISO(`${monthKey}-01`), "MMMM yyyy", {
+    locale: dateLocale(),
+  });
 }
 
 /**

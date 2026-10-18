@@ -1,5 +1,6 @@
 import { claudeConfigured, readProposals } from "@/lib/assist";
 import { badRequest, handle, readJson } from "@/lib/api-helpers";
+import { applyRequestLocale, t } from "@/lib/i18n";
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -10,10 +11,11 @@ export async function GET() {
 
 /** Body: { text, today } → { source, proposals }. Saves nothing. */
 export async function POST(request: Request) {
+  applyRequestLocale(request);
   const body = await readJson<{ text?: unknown; today?: unknown }>(request);
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   const today = typeof body?.today === "string" ? body.today : "";
-  if (!text || text.length > 2000) return badRequest("צריך טקסט");
-  if (!DATE.test(today)) return badRequest("תאריך לא תקין");
+  if (!text || text.length > 2000) return badRequest(t().data.api.textRequired);
+  if (!DATE.test(today)) return badRequest(t().data.api.badDate);
   return handle(() => readProposals(text, today));
 }

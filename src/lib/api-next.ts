@@ -1,6 +1,7 @@
 import "server-only";
 import "./node-db";
 import { runRoute } from "./api-routes";
+import { applyRequestLocale } from "./i18n";
 
 /**
  * Turns an api-routes.ts entry into Next route handlers. Each route file is
@@ -21,6 +22,7 @@ async function readJson(request: Request): Promise<unknown> {
 
 function handler(method: Method, pattern: string) {
   return async (request: Request, context?: Context) => {
+    applyRequestLocale(request);
     const params = (await context?.params) ?? {};
     const body = method === "GET" ? undefined : await readJson(request);
     const { status, body: answer } = await runRoute(

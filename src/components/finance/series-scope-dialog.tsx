@@ -11,28 +11,16 @@ import {
 import { formatMonth } from "@/lib/format";
 import type { SeriesScope } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { SCOPE_LABELS } from "./transaction-dialog";
+import { t } from "@/lib/i18n";
+import { scopeLabels } from "./transaction-dialog";
 
 const OPTIONS: {
   scope: SeriesScope;
   icon: typeof Repeat;
-  hint: (month: string) => string;
 }[] = [
-  {
-    scope: "this",
-    icon: CalendarX2,
-    hint: (m) => `רק ב${formatMonth(m)}. שאר החודשים לא משתנים.`,
-  },
-  {
-    scope: "following",
-    icon: CalendarRange,
-    hint: (m) => `מ${formatMonth(m)} והלאה. החודשים שלפני נשארים כמו שהם.`,
-  },
-  {
-    scope: "all",
-    icon: Repeat,
-    hint: () => "כל החודשים של הסדרה, גם אלה שכבר עברו.",
-  },
+  { scope: "this", icon: CalendarX2 },
+  { scope: "following", icon: CalendarRange },
+  { scope: "all", icon: Repeat },
 ];
 
 /**
@@ -55,19 +43,22 @@ export function SeriesScopeDialog({
   month: string;
   onPick: (scope: SeriesScope) => void;
 }) {
+  const m = t().finance.scope;
+  const labels = scopeLabels();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {action === "delete" ? "מחיקת" : "עריכת"} ״{description}״
+            {action === "delete"
+              ? m.deleteTitle(description)
+              : m.editTitle(description)}
           </DialogTitle>
-          <DialogDescription>
-            זו תנועה חוזרת. על אילו חודשים זה חל?
-          </DialogDescription>
+          <DialogDescription>{m.question}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-2">
-          {OPTIONS.map(({ scope, icon: Icon, hint }) => (
+          {OPTIONS.map(({ scope, icon: Icon }) => (
             <button
               key={scope}
               type="button"
@@ -84,9 +75,9 @@ export function SeriesScopeDialog({
             >
               <Icon className="mt-0.5 size-5 shrink-0" />
               <span className="grid gap-0.5">
-                <span className="font-medium">{SCOPE_LABELS[scope]}</span>
+                <span className="font-medium">{labels[scope]}</span>
                 <span className="text-xs text-muted-foreground">
-                  {hint(month)}
+                  {m.hint[scope](formatMonth(month))}
                 </span>
               </span>
             </button>

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 /**
  * Drag to reorder, by a handle, with mouse or finger. Arrow keys on the
@@ -13,7 +14,7 @@ export function SortableList<T extends { id: string }>({
   items,
   onReorder,
   renderItem,
-  handleLabel = "גרירה לשינוי הסדר",
+  handleLabel = t().common.sortable.handle,
 }: {
   items: T[];
   onReorder: (ids: string[]) => void;
@@ -60,7 +61,11 @@ export function SortableList<T extends { id: string }>({
           <button
             type="button"
             data-drag-handle
-            aria-label={`${handleLabel} — מקום ${index + 1} מתוך ${shown.length}`}
+            aria-label={t().common.sortable.position(
+              handleLabel,
+              index + 1,
+              shown.length,
+            )}
             className="flex size-7 shrink-0 cursor-grab touch-none items-center justify-center rounded text-muted-foreground/60 transition-colors active:cursor-grabbing can-hover:hover:text-foreground"
             onPointerDown={(e) => {
               // Capture keeps the moves coming even when the finger leaves

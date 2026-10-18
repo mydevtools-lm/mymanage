@@ -6,6 +6,8 @@ import type {
   Task,
   Transaction,
 } from "./types";
+import { formatCurrency } from "./format";
+import { t } from "./i18n";
 
 /**
  * One search over everything: tasks, routines, events, transactions, notes,
@@ -63,10 +65,6 @@ export function matchScore(query: string, text: string) {
   return 40;
 }
 
-function amountText(amount: number) {
-  return `₪${amount.toLocaleString("he-IL")}`;
-}
-
 /** Digits in the query also find amounts: "450" finds ₪4,500. */
 function amountMatches(query: string, amount: number) {
   const digits = query.replace(/[^\d]/g, "");
@@ -80,6 +78,7 @@ export function searchAll(
   limit = 30,
 ): SearchResult[] {
   if (!normalize(query)) return [];
+  const labels = t().data.search;
   const results: SearchResult[] = [];
   const add = (
     r: Omit<SearchResult, "score">,
@@ -100,7 +99,7 @@ export function searchAll(
         kind: "task",
         id: t.id,
         title: t.title,
-        detail: t.archivedAt ? "בארכיון" : t.dueDate,
+        detail: t.archivedAt ? labels.archived : t.dueDate,
         date: t.dueDate,
       },
       t.title,
@@ -110,7 +109,7 @@ export function searchAll(
   }
   for (const r of data.routines ?? []) {
     add(
-      { kind: "routine", id: r.id, title: r.title, detail: "משימה קבועה" },
+      { kind: "routine", id: r.id, title: r.title, detail: labels.routine },
       r.title,
       r.description,
     );
@@ -128,7 +127,7 @@ export function searchAll(
       kind: "transaction" as const,
       id: t.id,
       title: t.description,
-      detail: `${t.type === "income" ? "+" : "−"}${amountText(t.amount)} · ${t.date}`,
+      detail: `${t.type === "income" ? "+" : "−"}${formatCurrency(t.amount)} · ${t.date}`,
       date: t.date,
     };
     if (amountMatches(query, t.amount)) results.push({ ...base, score: 50 });
@@ -140,7 +139,7 @@ export function searchAll(
         kind: "note",
         id: n.id,
         title: n.title || n.body.slice(0, 40),
-        detail: "הערה",
+        detail: labels.note,
       },
       n.title,
       n.body,
@@ -158,7 +157,7 @@ export function searchAll(
         kind: "list",
         id: l.id,
         title: l.title,
-        detail: hit ? `ברשימה: ${hit.text}` : `${l.items.length} פריטים`,
+        detail: hit ? labels.inList(hit.text) : labels.items(l.items.length),
         score,
       });
     }

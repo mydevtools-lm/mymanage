@@ -6,9 +6,9 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: APP_NAME,
     short_name: APP_SHORT_NAME,
-    description: "משימות, יומן, כספים ורשימות — במקום אחד",
-    lang: "he",
-    dir: "rtl",
+    description: "Tasks, calendar, money and lists — in one place",
+    lang: "en",
+    dir: "ltr",
     start_url: "/",
     scope: "/",
     display: "standalone",
@@ -25,10 +25,10 @@ export default function manifest(): MetadataRoute.Manifest {
       },
     ],
     shortcuts: [
-      { name: "משימה חדשה", url: "/?new=task" },
-      { name: "הוספה במשפט", url: "/?new=sentence" },
-      { name: "יומן", url: "/calendar" },
-      { name: "כספים", url: "/finance" },
+      { name: "New task", url: "/?new=task" },
+      { name: "Add in a sentence", url: "/?new=sentence" },
+      { name: "Calendar", url: "/calendar" },
+      { name: "Money", url: "/finance" },
     ],
   };
 }

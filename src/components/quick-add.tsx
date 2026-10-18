@@ -34,6 +34,7 @@ import { TransactionDialog } from "@/components/finance/transaction-dialog";
 import { useAppStore } from "@/lib/store";
 import { todayKey } from "@/lib/format";
 import type { CalendarEvent, Routine, Task, Transaction } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 type Kind = "task" | "event" | "transaction" | "item";
 
@@ -73,27 +74,30 @@ function ListItemForm({ onDone }: { onDone: () => void }) {
   const addChecklist = useAppStore((s) => s.addChecklist);
   const addChecklistItem = useAppStore((s) => s.addChecklistItem);
   const [listId, setListId] = useState(checklists[0]?.id ?? NEW_LIST);
-  const [newTitle, setNewTitle] = useState("קניות");
+  const [newTitle, setNewTitle] = useState(
+    () => t().common.quickAdd.defaultListName,
+  );
   const [text, setText] = useState("");
+  const m = t().common.quickAdd;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const item = text.trim();
     if (!item) {
-      toast.error("מה להוסיף?");
+      toast.error(m.whatToAdd);
       return;
     }
     if (listId === NEW_LIST) {
       if (!newTitle.trim()) {
-        toast.error("צריך שם לרשימה");
+        toast.error(m.listNameRequired);
         return;
       }
       addChecklist(newTitle.trim(), [item]);
-      toast.success(`נוסף לרשימה ״${newTitle.trim()}״`);
+      toast.success(m.addedToNewList(newTitle.trim()));
     } else {
       addChecklistItem(listId, item);
       const title = checklists.find((l) => l.id === listId)?.title;
-      toast.success(`נוסף ל״${title}״`);
+      toast.success(m.addedTo(title));
     }
     onDone();
   }
@@ -101,21 +105,21 @@ function ListItemForm({ onDone }: { onDone: () => void }) {
   return (
     <form onSubmit={submit} className="grid gap-4">
       <DialogHeader>
-        <DialogTitle>פריט לרשימה</DialogTitle>
+        <DialogTitle>{m.listItemTitle}</DialogTitle>
       </DialogHeader>
-      <Field label="רשימה">
+      <Field label={m.list}>
         <SimpleSelect
           value={listId}
-          label="רשימה"
+          label={m.list}
           onChange={setListId}
           options={[
             ...checklists.map((l) => ({ value: l.id, label: l.title })),
-            { value: NEW_LIST, label: "+ רשימה חדשה" },
+            { value: NEW_LIST, label: m.newList },
           ]}
         />
       </Field>
       {listId === NEW_LIST && (
-        <Field label="שם הרשימה החדשה" htmlFor="qa-list-title">
+        <Field label={m.newListName} htmlFor="qa-list-title">
           <Input
             id="qa-list-title"
             value={newTitle}
@@ -123,20 +127,20 @@ function ListItemForm({ onDone }: { onDone: () => void }) {
           />
         </Field>
       )}
-      <Field label="פריט" htmlFor="qa-item">
+      <Field label={m.item} htmlFor="qa-item">
         <Input
           id="qa-item"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="למשל: חלב"
+          placeholder={m.itemPlaceholder}
           autoFocus
         />
       </Field>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onDone}>
-          ביטול
+          {t().common.cancel}
         </Button>
-        <Button type="submit">הוספה</Button>
+        <Button type="submit">{t().common.add}</Button>
       </DialogFooter>
     </form>
   );
@@ -179,12 +183,15 @@ export function GlobalQuickAdd() {
   );
 }
 
-const OPTIONS: { kind: Kind; label: string; icon: typeof Plus }[] = [
-  { kind: "task", label: "משימה", icon: CheckSquare },
-  { kind: "event", label: "אירוע", icon: CalendarDays },
-  { kind: "transaction", label: "תנועה כספית", icon: Wallet },
-  { kind: "item", label: "פריט לרשימה", icon: ListChecks },
-];
+function options(): { kind: Kind; label: string; icon: typeof Plus }[] {
+  const m = t().common.quickAdd;
+  return [
+    { kind: "task", label: m.task, icon: CheckSquare },
+    { kind: "event", label: m.event, icon: CalendarDays },
+    { kind: "transaction", label: m.transaction, icon: Wallet },
+    { kind: "item", label: m.listItemTitle, icon: ListChecks },
+  ];
+}
 
 /** Floating "+" on phones, above the bottom tab bar. */
 export function QuickAddFab() {
@@ -195,7 +202,7 @@ export function QuickAddFab() {
       <DropdownMenuTrigger
         render={
           <Button
-            aria-label="הוספה מהירה"
+            aria-label={t().common.quickAdd.quickAdd}
             className="fixed end-4 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-40 size-14 rounded-full shadow-lg md:hidden print:hidden [&_svg:not([class*='size-'])]:size-6"
           />
         }
@@ -203,7 +210,7 @@ export function QuickAddFab() {
         <Plus />
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="end" className="min-w-48">
-        {OPTIONS.map(({ kind, label, icon: Icon }) => (
+        {options().map(({ kind, label, icon: Icon }) => (
           <DropdownMenuItem
             key={kind}
             onClick={() => open(kind)}
@@ -218,7 +225,7 @@ export function QuickAddFab() {
           className="py-2.5 text-base"
         >
           <Sparkles />
-          במשפט אחד
+          {t().common.quickAdd.inASentence}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

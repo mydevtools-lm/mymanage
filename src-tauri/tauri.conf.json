@@ -62,8 +62,8 @@
       "nsis": {
         "installMode": "currentUser",
         "languages": [
-          "Hebrew",
-          "English"
+          "English",
+          "Hebrew"
         ],
         "displayLanguageSelector": false,
         "installerIcon": "icons/icon.ico",

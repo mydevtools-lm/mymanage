@@ -18,12 +18,16 @@ import { APP_NAME } from "@/lib/app-info";
 import { useDevicePrefs } from "@/lib/device-prefs";
 import { isSample } from "@/lib/sample-data";
 import { useAppStore } from "@/lib/store";
+import { chosenLocale, getLocale, LOCALES, t, type Locale } from "@/lib/i18n";
+import { switchLanguage } from "@/lib/language";
+import { cn } from "@/lib/utils";
 
-type Step = "name" | "start" | "backup";
+type Step = "language" | "name" | "start" | "backup";
 
 /**
- * The first run (DESKTOP.md 6.1): a name for the greeting, an empty start or
- * sample data, and a pointer to the backup import. Shown once per device,
+ * The first run (DESKTOP.md 6.1): the language (Windows' by default), a name
+ * for the greeting, an empty start or sample data, and a pointer to the
+ * backup import. Shown once per device,
  * and not at all when the data already has a name — an imported backup, or
  * the same data opened on a second device.
  */
@@ -46,7 +50,9 @@ export function Onboarding() {
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => !next && useDevicePrefs.getState().markOnboarded()}
+      onOpenChange={(next) =>
+        !next && useDevicePrefs.getState().markOnboarded()
+      }
     >
       <DialogContent className="sm:max-w-md">
         {open && <Questions />}
@@ -68,10 +74,46 @@ function Questions() {
         s.checklists.length ===
       0,
   );
-  const [step, setStep] = useState<Step>("name");
+  // Choosing a language renders the app again, and these questions with it:
+  // once one is chosen, they go on from the name.
+  const [step, setStep] = useState<Step>(chosenLocale() ? "name" : "language");
+  const m = t().onboarding;
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const finish = () => useDevicePrefs.getState().markOnboarded();
+
+  if (step === "language") {
+    const current = getLocale();
+    const choose = (locale: Locale) => {
+      // Either way the default categories take the chosen language. Already
+      // showing: just go on. Otherwise the app re-renders in the new
+      // language, and these questions continue from the name.
+      switchLanguage(locale);
+      if (locale === current) setStep("name");
+    };
+    return (
+      <div className="grid gap-4">
+        <DialogHeader>
+          <DialogTitle>{m.languageTitle}</DialogTitle>
+          <DialogDescription>{m.languageHint}</DialogDescription>
+        </DialogHeader>
+        <div className="grid grid-cols-2 gap-2">
+          {LOCALES.map(({ value, label }) => (
+            <Button
+              key={value}
+              lang={value}
+              variant={value === current ? "default" : "outline"}
+              className={cn("h-12 text-base")}
+              autoFocus={value === current}
+              onClick={() => choose(value)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (step === "name") {
     return (
@@ -86,11 +128,11 @@ function Questions() {
         }}
       >
         <DialogHeader>
-          <DialogTitle>ברוכים הבאים ל‑{APP_NAME}</DialogTitle>
-          <DialogDescription>שלוש שאלות קצרות, ואפשר להתחיל.</DialogDescription>
+          <DialogTitle>{m.welcome(APP_NAME)}</DialogTitle>
+          <DialogDescription>{m.threeQuestions}</DialogDescription>
         </DialogHeader>
         <div className="grid gap-1.5">
-          <Label htmlFor="onboarding-name">איך לקרוא לך?</Label>
+          <Label htmlFor="onboarding-name">{m.nameLabel}</Label>
           <Input
             id="onboarding-name"
             autoFocus
@@ -101,10 +143,10 @@ function Questions() {
         </div>
         <DialogFooter>
           <Button type="button" variant="ghost" onClick={finish}>
-            אחר כך
+            {m.later}
           </Button>
           <Button type="submit" disabled={!name.trim()}>
-            המשך
+            {m.next}
           </Button>
         </DialogFooter>
       </form>
@@ -115,15 +157,12 @@ function Questions() {
     return (
       <div className="grid gap-4">
         <DialogHeader>
-          <DialogTitle>להתחיל ריק או עם נתוני דוגמה?</DialogTitle>
-          <DialogDescription>
-            הדוגמה היא כמה משימות, אירועים ותנועות כדי לראות איך הכול נראה.
-            אפשר למחוק אותה בלחיצה אחת.
-          </DialogDescription>
+          <DialogTitle>{m.startTitle}</DialogTitle>
+          <DialogDescription>{m.startHint}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={() => setStep("backup")}>
-            להתחיל ריק
+            {m.startEmpty}
           </Button>
           <Button
             disabled={busy}
@@ -133,12 +172,12 @@ function Questions() {
                 await addSampleData();
                 finish();
               } catch {
-                toast.error("לא הצלחנו להוסיף את נתוני הדוגמה");
+                toast.error(m.sampleFailed);
                 setBusy(false);
               }
             }}
           >
-            עם נתוני דוגמה
+            {m.withSample}
           </Button>
         </DialogFooter>
       </div>
@@ -148,10 +187,8 @@ function Questions() {
   return (
     <div className="grid gap-4">
       <DialogHeader>
-        <DialogTitle>יש לך גיבוי?</DialogTitle>
-        <DialogDescription>
-          קובץ JSON שהורד מהגדרות › גיבוי נטען משם, ומחליף את מה שכאן.
-        </DialogDescription>
+        <DialogTitle>{m.backupTitle}</DialogTitle>
+        <DialogDescription>{m.backupHint}</DialogDescription>
       </DialogHeader>
       <DialogFooter>
         <Button
@@ -161,9 +198,9 @@ function Questions() {
             router.push("/settings?tab=backup");
           }}
         >
-          לייבוא גיבוי
+          {m.importBackup}
         </Button>
-        <Button onClick={finish}>אין, מתחילים</Button>
+        <Button onClick={finish}>{m.noBackup}</Button>
       </DialogFooter>
     </div>
   );
@@ -180,20 +217,21 @@ export function SampleBanner() {
   );
   const removeSampleData = useAppStore((s) => s.removeSampleData);
   if (!hasSample) return null;
+  const m = t().onboarding;
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed px-4 py-2 text-sm print:hidden">
-      <span>מוצגים נתוני דוגמה.</span>
+      <span>{m.sampleShown}</span>
       <Button
         size="sm"
         variant="outline"
         onClick={() =>
           removeSampleData().then(
-            () => toast.success("נתוני הדוגמה נמחקו"),
-            () => toast.error("המחיקה נכשלה"),
+            () => toast.success(m.sampleRemoved),
+            () => toast.error(m.removeFailed),
           )
         }
       >
-        למחוק את הדוגמה
+        {m.removeSample}
       </Button>
     </div>
   );

@@ -8,6 +8,7 @@ import { COLOR_STYLES } from "@/lib/colors";
 import type { AllDayItem, TimelineItem } from "@/lib/agenda";
 import type { CalendarEvent, Task } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 import { googleChip, googleTint } from "@/components/calendar/chips";
 
 function nowKey() {
@@ -41,7 +42,7 @@ export function AllDayStrip({
         ) : (
           <span
             key={item.key}
-            title="מגוגל יומן — קריאה בלבד"
+            title={t().today.timeline.readOnlyGoogle}
             className={cn(
               "flex items-center gap-1.5 rounded-full px-3 py-1 text-sm",
               googleChip(item.event.color),
@@ -86,7 +87,7 @@ export function DayTimeline({
 
   const nowLine = (
     <li
-      aria-label={`עכשיו, ${now}`}
+      aria-label={t().today.timeline.now(now ?? "")}
       className="flex items-center gap-3 py-1 text-xs font-medium text-rose-700 dark:text-rose-300"
     >
       <span className="w-12 shrink-0 text-end tabular-nums">{now}</span>
@@ -152,7 +153,7 @@ export function DayTimeline({
                     {item.event.title}
                     <Lock
                       className="size-3 text-muted-foreground"
-                      aria-label="מגוגל יומן — קריאה בלבד"
+                      aria-label={t().today.timeline.readOnlyGoogle}
                     />
                   </div>
                   <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">

@@ -67,7 +67,7 @@ test.describe("on the first visit of the day", () => {
           localStorage: [
             {
               name: "lior-device",
-              value: JSON.stringify({ onboarded: true, fired: {} }),
+              value: JSON.stringify({ onboarded: true, language: "he", fired: {} }),
             },
           ],
         },

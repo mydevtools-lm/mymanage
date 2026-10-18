@@ -10,11 +10,13 @@ import { ListsTab } from "@/components/notes/lists-tab";
 import { NotesTab } from "@/components/notes/notes-tab";
 import { useAppStore } from "@/lib/store";
 import { listMatches } from "@/lib/list-text";
+import { t } from "@/lib/i18n";
 
 export default function NotesPage() {
   const checklists = useAppStore((s) => s.checklists);
   const notes = useAppStore((s) => s.notes);
   const [query, setQuery] = useState("");
+  const m = t().notes.page;
 
   // With a search running, each tab says how many hits it holds, so a match
   // in the other tab isn't missed.
@@ -29,14 +31,14 @@ export default function NotesPage() {
 
   return (
     <>
-      <PageHeader title="הערות ורשימות" />
+      <PageHeader title={m.title} />
       <Hydrated>
         <div className="relative mb-4 max-w-md">
           <Search className="absolute top-1/2 start-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="ps-8 pe-8"
             data-search
-            placeholder="חיפוש ברשימות ובהערות..."
+            placeholder={m.searchPlaceholder}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
@@ -44,7 +46,7 @@ export default function NotesPage() {
             <Button
               variant="ghost"
               size="icon-xs"
-              aria-label="ניקוי החיפוש"
+              aria-label={m.clearSearch}
               className="absolute top-1/2 end-1.5 -translate-y-1/2"
               onClick={() => setQuery("")}
             >
@@ -56,12 +58,12 @@ export default function NotesPage() {
           tabs={[
             {
               value: "lists",
-              label: listHits === null ? "רשימות" : `רשימות (${listHits})`,
+              label: listHits === null ? m.listsTab : m.listsTabHits(listHits),
               content: <ListsTab query={query} />,
             },
             {
               value: "notes",
-              label: noteHits === null ? "הערות" : `הערות (${noteHits})`,
+              label: noteHits === null ? m.notesTab : m.notesTabHits(noteHits),
               content: <NotesTab query={query} />,
             },
           ]}

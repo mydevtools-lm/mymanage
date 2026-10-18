@@ -11,6 +11,7 @@ import type {
   TransactionException,
 } from "./types";
 import { toMonthKey } from "./format";
+import { t } from "./i18n";
 
 export interface MonthTransaction extends Transaction {
   /** True when this row is a projected instance of a recurring transaction. */
@@ -311,17 +312,18 @@ function csvCell(value: string | number) {
  */
 export function transactionsToCsv(rows: Transaction[], categories: Category[]) {
   const names = new Map(categories.map((c) => [c.id, c.name]));
+  const csv = t().finance.csv;
   const lines = [
-    ["תאריך", "תיאור", "קטגוריה", "סוג", "סכום", "חוזרת", "הערות"],
+    csv.headers,
     ...[...rows]
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((r) => [
         r.date,
         r.description,
         (r.categoryId && names.get(r.categoryId)) || "",
-        r.type === "income" ? "הכנסה" : "הוצאה",
+        r.type === "income" ? csv.income : csv.expense,
         (r.type === "income" ? r.amount : -r.amount).toFixed(2),
-        r.recurring ? "כן" : "",
+        r.recurring ? csv.recurring : "",
         r.notes ?? "",
       ]),
   ];

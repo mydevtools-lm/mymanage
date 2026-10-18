@@ -2,13 +2,14 @@
 //! instance, a tray icon, closing to the tray, and starting hidden when
 //! Windows launches it at sign-in.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use crate::lang::{set_hebrew, tr};
 use std::sync::Mutex;
-use tauri_plugin_notification::NotificationExt;
-use tauri_plugin_opener::OpenerExt;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Runtime, State, Window, WindowEvent};
+use tauri_plugin_notification::NotificationExt;
+use tauri_plugin_opener::OpenerExt;
 
 /// The argument autostart passes, so a sign-in launch stays in the tray.
 pub const MINIMIZED: &str = "--minimized";
@@ -60,12 +61,23 @@ pub fn show<R: Runtime>(app: &AppHandle<R>) {
     }
 }
 
-pub fn tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "פתיחה", true, None::<&str>)?;
-    let add = MenuItem::with_id(app, "quick-add", "משימה חדשה", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "יציאה", true, None::<&str>)?;
+/// The tray menu, in the current language.
+fn tray_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
+    let open = MenuItem::with_id(app, "open", tr("Open", "פתיחה"), true, None::<&str>)?;
+    let add = MenuItem::with_id(
+        app,
+        "quick-add",
+        tr("New task", "משימה חדשה"),
+        true,
+        None::<&str>,
+    )?;
+    let quit = MenuItem::with_id(app, "quit", tr("Quit", "יציאה"), true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&open, &add, &separator, &quit])?;
+    Menu::with_items(app, &[&open, &add, &separator, &quit])
+}
+
+pub fn tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
+    let menu = tray_menu(app)?;
 
     let mut builder = TrayIconBuilder::with_id("main")
         .tooltip(app.package_info().name.clone())
@@ -83,7 +95,12 @@ pub fn tray<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
                 show(tray.app_handle());
             }
         });
@@ -103,6 +120,17 @@ pub fn on_window_event<R: Runtime>(window: &Window<R>, event: &WindowEvent) {
             let _ = window.hide();
         }
     }
+}
+
+/// The page's language, for the tray menu and Rust's own messages.
+#[tauri::command]
+pub fn shell_set_language<R: Runtime>(app: AppHandle<R>, locale: String) -> Result<(), String> {
+    set_hebrew(locale == "he");
+    if let Some(tray) = app.tray_by_id("main") {
+        let menu = tray_menu(&app).map_err(|e| e.to_string())?;
+        tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -135,7 +163,9 @@ pub fn shell_data_dir<R: Runtime>(app: AppHandle<R>) -> Result<String, String> {
 #[tauri::command]
 pub fn shell_open_data_dir<R: Runtime>(app: AppHandle<R>) -> Result<(), String> {
     let dir = shell_data_dir(app.clone())?;
-    app.opener().open_path(dir, None::<&str>).map_err(|e| e.to_string())
+    app.opener()
+        .open_path(dir, None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 /// A Windows notification. Through Rust rather than the plugin's page API, so
@@ -150,7 +180,12 @@ pub fn shell_notify<R: Runtime>(
     if quiet.record(format!("notify: {title}")) {
         return Ok(());
     }
-    app.notification().builder().title(title).body(body).show().map_err(|e| e.to_string())
+    app.notification()
+        .builder()
+        .title(title)
+        .body(body)
+        .show()
+        .map_err(|e| e.to_string())
 }
 
 /// Only web addresses leave the app, to the default browser.
@@ -165,18 +200,27 @@ pub fn shell_open_url<R: Runtime>(
     url: String,
 ) -> Result<(), String> {
     if !web_address(&url) {
-        return Err("רק כתובות http ו-https נפתחות".into());
+        return Err(tr(
+            "Only http and https addresses open",
+            "רק כתובות http ו-https נפתחות",
+        ));
     }
     if quiet.record(format!("open: {url}")) {
         return Ok(());
     }
-    app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 /// What a quiet run recorded; empty on a normal launch.
 #[tauri::command]
 pub fn shell_quiet_calls(quiet: State<'_, Quiet>) -> Vec<String> {
-    quiet.0.as_ref().and_then(|c| c.lock().ok().map(|c| c.clone())).unwrap_or_default()
+    quiet
+        .0
+        .as_ref()
+        .and_then(|c| c.lock().ok().map(|c| c.clone()))
+        .unwrap_or_default()
 }
 
 #[cfg(test)]

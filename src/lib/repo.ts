@@ -1,6 +1,6 @@
 import { db, type SqlValue, type Statement } from "./db-adapter";
 import { localDateKey, localMonthKey, newId } from "./keys";
-import { DEFAULT_CATEGORIES } from "./schema";
+import { defaultCategories } from "./schema";
 import type {
   CalendarEvent,
   Category,
@@ -1192,7 +1192,7 @@ export async function replaceAll(snapshot: Partial<DataSnapshot>) {
  *  the month the books start. */
 export function seedStatements(): Statement[] {
   return [
-    ...DEFAULT_CATEGORIES.map(([name, color, kind]) =>
+    ...defaultCategories().map(([name, color, kind]) =>
       categoryInsert({
         id: newId(),
         name,

@@ -2,6 +2,7 @@ import { addDays, parseISO, subDays } from "date-fns";
 import { expandEvents } from "./event-series";
 import { getMonthTransactions, summarize } from "./finance";
 import { localDayOf, toDateKey } from "./format";
+import { t } from "./i18n";
 import type { CalendarEvent, Task, Transaction } from "./types";
 
 /**
@@ -144,12 +145,14 @@ function at(date: string, time: string) {
   return new Date(`${date}T${time}:00`).getTime();
 }
 
-function beforeText(minutes: number) {
-  if (minutes === 0) return "עכשיו";
-  if (minutes < 60) return `בעוד ${minutes} דקות`;
-  if (minutes === 60) return "בעוד שעה";
-  if (minutes === 1440) return "מחר";
-  return `בעוד ${Math.round(minutes / 60)} שעות`;
+/** The reminder's text: the time, and how long before it the reminder is. */
+function reminderBody(time: string, minutes: number) {
+  const text = t().today.reminders;
+  if (minutes === 0) return text.now(time);
+  if (minutes < 60) return text.inMinutes(time, minutes);
+  if (minutes === 60) return text.inAnHour(time);
+  if (minutes === 1440) return text.tomorrow(time);
+  return text.inHours(time, Math.round(minutes / 60));
 }
 
 /**
@@ -179,7 +182,7 @@ export function dueReminders(
     due.push({
       key,
       title,
-      body: `${time} · ${beforeText(minutes)}`,
+      body: reminderBody(time, minutes),
       at: moment,
     });
   };

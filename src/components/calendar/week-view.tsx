@@ -2,13 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { addDays, format, parseISO } from "date-fns";
-import { he } from "date-fns/locale";
 import { Lock } from "lucide-react";
 import { COLOR_STYLES } from "@/lib/colors";
 import { TimeRange } from "@/components/time-range";
 import { toDateKey, todayKey } from "@/lib/format";
 import { layoutDay, type Timed } from "@/lib/week-layout";
 import { cn } from "@/lib/utils";
+import { dateLocale, dirOf, getLocale, t } from "@/lib/i18n";
 import type { CalendarEvent, Task } from "@/lib/types";
 import type { ExternalEvent } from "@/lib/use-google-events";
 import type { DayData } from "./use-calendar-data";
@@ -125,6 +125,9 @@ export function WeekView({
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const today = todayKey();
+  const m = t().calendar;
+  // Right to left, a later day sits further left; left to right, further right.
+  const forward = dirOf(getLocale()) === "rtl" ? -1 : 1;
 
   // Dragging a block with the mouse moves it: up and down by 15 minutes,
   // sideways by whole days. Touch keeps scrolling; the dialog edits there.
@@ -147,8 +150,7 @@ export function WeekView({
     const width = firstColumn.current?.getBoundingClientRect().width || 1;
     return {
       minutes: Math.round(dy / PX_PER_MIN / SNAP_MIN) * SNAP_MIN,
-      // Right to left: a later day sits further left.
-      days: Math.round(-dx / width),
+      days: Math.round((forward * dx) / width),
       width,
     };
   }
@@ -242,7 +244,7 @@ export function WeekView({
             className="flex flex-col items-center py-1.5 text-xs transition-colors can-hover:hover:bg-accent/60"
           >
             <span className="text-muted-foreground">
-              {format(date, "EEEEEE", { locale: he })}
+              {format(date, "EEEEEE", { locale: dateLocale() })}
             </span>
             <span
               className={cn(
@@ -260,7 +262,7 @@ export function WeekView({
       {hasStrip && (
         <div className="grid grid-cols-[3rem_repeat(7,minmax(0,1fr))] border-b">
           <div className="px-1 py-1 text-end text-[10px] text-muted-foreground">
-            כל היום
+            {m.allDay}
           </div>
           {columns.map(({ key, allDay, untimedTasks }) => (
             <div
@@ -343,7 +345,9 @@ export function WeekView({
                 <button
                   key={h}
                   type="button"
-                  aria-label={`אירוע חדש ב־${String(h).padStart(2, "0")}:00`}
+                  aria-label={m.weekView.newEventAt(
+                    `${String(h).padStart(2, "0")}:00`,
+                  )}
                   onClick={() => onCreateAt(key, h)}
                   className="absolute inset-x-0 border-t border-border/60 transition-colors can-hover:hover:bg-accent/40"
                   style={{ top: h * HOUR_PX, height: HOUR_PX }}
@@ -367,7 +371,7 @@ export function WeekView({
                   insetInlineStart: `calc(${(lane / lanes) * 100}% + 2px)`,
                   width: `calc(${100 / lanes}% - 4px)`,
                   transform: dragging
-                    ? `translate(${-dragging.days * dragging.width}px, ${dragging.minutes * PX_PER_MIN}px)`
+                    ? `translate(${forward * dragging.days * dragging.width}px, ${dragging.minutes * PX_PER_MIN}px)`
                     : undefined,
                 };
                 const label =
@@ -378,7 +382,7 @@ export function WeekView({
                   return (
                     <div
                       key={item.key}
-                      title={`${when} ${label} — מגוגל, קריאה בלבד`}
+                      title={m.weekView.googleTitle(when, label)}
                       className={cn(
                         "absolute z-20 overflow-hidden rounded-md px-1 py-0.5 text-[11px] leading-4",
                         googleChip(item.event.color),

@@ -1,19 +1,22 @@
 import { addDays, format, parseISO } from "date-fns";
-import { he } from "date-fns/locale";
 import { toDateKey } from "./format";
+import { dateLocale, t } from "./i18n";
 import type { Priority, Task } from "./types";
 
 export type WhenGroup =
   "overdue" | "today" | "tomorrow" | "week" | "later" | "undated";
 
-export const GROUP_LABELS: Record<WhenGroup, string> = {
-  overdue: "באיחור",
-  today: "היום",
-  tomorrow: "מחר",
-  week: "בשבוע הקרוב",
-  later: "בהמשך",
-  undated: "בלי תאריך",
-};
+export function groupLabels(): Record<WhenGroup, string> {
+  const { common, tasks } = t();
+  return {
+    overdue: tasks.groups.overdue,
+    today: common.today,
+    tomorrow: common.tomorrow,
+    week: tasks.groups.week,
+    later: tasks.groups.later,
+    undated: common.noDate,
+  };
+}
 
 const ORDER: WhenGroup[] = [
   "overdue",
@@ -76,9 +79,10 @@ export function groupTasksByWhen(tasks: Task[], today: string) {
     list.push(task);
     buckets.set(group, list);
   }
+  const labels = groupLabels();
   return ORDER.filter((g) => buckets.has(g)).map((group) => ({
     group,
-    label: GROUP_LABELS[group],
+    label: labels[group],
     tasks: buckets.get(group)!.sort(compare),
   }));
 }
@@ -97,11 +101,12 @@ export interface DayTarget {
  */
 export function dayTargets(today: string): DayTarget[] {
   const base = parseISO(today);
+  const labels = groupLabels();
   const days: DayTarget[] = [
-    { key: "today", label: GROUP_LABELS.today, date: today },
+    { key: "today", label: labels.today, date: today },
     {
       key: "tomorrow",
-      label: GROUP_LABELS.tomorrow,
+      label: labels.tomorrow,
       date: toDateKey(addDays(base, 1)),
     },
   ];
@@ -109,11 +114,13 @@ export function dayTargets(today: string): DayTarget[] {
     const day = addDays(base, n);
     days.push({
       key: `day-${n}`,
-      label: format(day, "EEE d.M", { locale: he }),
+      label: format(day, t().common.dates.weekdayDayMonth, {
+        locale: dateLocale(),
+      }),
       date: toDateKey(day),
     });
   }
-  days.push({ key: "undated", label: GROUP_LABELS.undated, date: undefined });
+  days.push({ key: "undated", label: labels.undated, date: undefined });
   return days;
 }
 

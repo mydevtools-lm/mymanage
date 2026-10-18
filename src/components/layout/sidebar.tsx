@@ -14,14 +14,15 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { usePalette } from "@/components/command-palette";
 import {
-  MAIN_NAV,
-  SETTINGS_NAV,
+  mainNav,
+  settingsNav,
   SIDEBAR_KEY,
   isActive,
   type NavItem,
 } from "./nav";
 import { APP_NAME } from "@/lib/app-info";
 import { useAppStore } from "@/lib/store";
+import { t } from "@/lib/i18n";
 
 // Collapsed state is a data attribute on <html>, set by an inline script in
 // the layout before hydration. Styling keys off it with the
@@ -63,6 +64,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { resolvedTheme, setTheme } = useTheme();
   const userName = useAppStore((s) => s.settings.prefs?.userName);
+  const nav = t().common.nav;
 
   return (
     <aside className="sticky top-0 hidden print:hidden h-screen w-56 shrink-0 flex-col border-e border-sidebar-border bg-sidebar text-sidebar-foreground transition-[width] duration-200 md:flex sidebar-collapsed:w-16">
@@ -76,20 +78,20 @@ export function Sidebar() {
           </div>
         )}
         <div className="hidden text-lg font-bold text-sidebar-primary sidebar-collapsed:block">
-          נ
+          {nav.initial}
         </div>
       </div>
 
       <div className="px-3 pb-3 sidebar-collapsed:px-2">
         <Button
           variant="outline"
-          title="חיפוש בכל המערכת (Ctrl+K)"
+          title={nav.searchEverything}
           className="w-full justify-start gap-2 text-muted-foreground sidebar-collapsed:justify-center"
           onClick={() => usePalette.getState().setOpen(true)}
         >
           <Search className="size-4" />
           <span className="flex-1 text-start sidebar-collapsed:sr-only">
-            חיפוש
+            {t().common.search}
           </span>
           <kbd className="rounded border bg-muted px-1 text-[10px] sidebar-collapsed:hidden">
             Ctrl K
@@ -98,40 +100,44 @@ export function Sidebar() {
       </div>
 
       <nav
-        aria-label="ניווט ראשי"
+        aria-label={nav.mainNavigation}
         className="flex flex-1 flex-col gap-1 px-3 sidebar-collapsed:px-2"
       >
-        {MAIN_NAV.map((item) => (
+        {mainNav().map((item) => (
           <NavLink key={item.href} item={item} pathname={pathname} />
         ))}
       </nav>
 
       <div className="grid gap-1 border-t border-sidebar-border p-3 sidebar-collapsed:p-2">
-        <NavLink item={SETTINGS_NAV} pathname={pathname} />
+        <NavLink item={settingsNav()} pathname={pathname} />
         <Button
           variant="ghost"
-          title={resolvedTheme === "dark" ? "מצב בהיר" : "מצב כהה"}
+          title={resolvedTheme === "dark" ? nav.lightMode : nav.darkMode}
           className="w-full justify-start gap-3 sidebar-collapsed:justify-center"
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
         >
           <Sun className="size-4 dark:hidden" />
           <Moon className="hidden size-4 dark:block" />
           <span className="sidebar-collapsed:sr-only">
-            <span className="dark:hidden">מצב כהה</span>
-            <span className="hidden dark:inline">מצב בהיר</span>
+            <span className="dark:hidden">{nav.darkMode}</span>
+            <span className="hidden dark:inline">{nav.lightMode}</span>
           </span>
         </Button>
         <Button
           variant="ghost"
-          title="כיווץ והרחבה של הסרגל"
+          title={nav.sidebarToggle}
           className="w-full justify-start gap-3 text-muted-foreground sidebar-collapsed:justify-center"
           onClick={toggleCollapsed}
         >
           <PanelRightClose className="size-4 sidebar-collapsed:hidden" />
           <PanelRightOpen className="hidden size-4 sidebar-collapsed:block" />
           <span className="sidebar-collapsed:sr-only">
-            <span className="sidebar-collapsed:hidden">כיווץ הסרגל</span>
-            <span className="hidden sidebar-collapsed:inline">הרחבת הסרגל</span>
+            <span className="sidebar-collapsed:hidden">
+              {nav.collapseSidebar}
+            </span>
+            <span className="hidden sidebar-collapsed:inline">
+              {nav.expandSidebar}
+            </span>
           </span>
         </Button>
       </div>

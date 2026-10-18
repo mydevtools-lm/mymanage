@@ -5,6 +5,7 @@ import { format, isSameMonth } from "date-fns";
 import { COLOR_STYLES } from "@/lib/colors";
 import { toDateKey, todayKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { dateLocale, t } from "@/lib/i18n";
 import type { CalendarEvent, Task } from "@/lib/types";
 import type { DayData } from "./use-calendar-data";
 import {
@@ -14,7 +15,6 @@ import {
   TASK_CHIP_OPEN,
 } from "./chips";
 
-export const WEEKDAYS = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 const PER_CELL = 3;
 
 type Dragged =
@@ -42,19 +42,18 @@ export function MonthView({
   const today = todayKey();
   const dragged = useRef<Dragged | null>(null);
   const [over, setOver] = useState<string | null>(null);
+  const m = t().calendar;
+  const locale = dateLocale();
 
   return (
     <div className="overflow-hidden rounded-xl border bg-card">
       <div className="grid grid-cols-7 border-b bg-muted/50 text-center text-xs font-medium text-muted-foreground">
         {/* Headers follow the grid: the first column is its first day. */}
-        {days
-          .slice(0, 7)
-          .map((date) => WEEKDAYS[date.getDay()])
-          .map((d) => (
-            <div key={d} className="py-2">
-              {d}
-            </div>
-          ))}
+        {days.slice(0, 7).map((date) => (
+          <div key={date.getDay()} className="py-2">
+            {format(date, "EEEEEE", { locale })}
+          </div>
+        ))}
       </div>
       <div className="grid grid-cols-7">
         {days.map((date) => {
@@ -120,7 +119,10 @@ export function MonthView({
                   onMoveTask?.(item.task, key);
                 }
               }}
-              aria-label={`${format(date, "d.M")} — ${chips.length} פריטים`}
+              aria-label={m.monthView.cellLabel(
+                format(date, m.dates.cell, { locale }),
+                chips.length,
+              )}
               className={cn(
                 "flex min-h-20 flex-col items-stretch gap-1 border-b border-e p-1 text-start transition-colors nth-[7n]:border-e-0 can-hover:hover:bg-accent/40 md:min-h-28 md:p-1.5",
                 !inMonth && "bg-muted/30 text-muted-foreground",
@@ -181,7 +183,7 @@ export function MonthView({
                 ))}
                 {more > 0 && (
                   <span className="px-1 text-[11px] font-medium text-primary">
-                    +{more} נוספים
+                    {m.monthView.more(more)}
                   </span>
                 )}
               </div>

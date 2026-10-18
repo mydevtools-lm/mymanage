@@ -21,6 +21,7 @@ import {
   type SecretStatus,
 } from "@/lib/desktop-services";
 import { useAppStore } from "@/lib/store";
+import { t } from "@/lib/i18n";
 
 /**
  * Settings › connections in the desktop app. The iCal addresses and the
@@ -44,7 +45,9 @@ async function save(name: Parameters<typeof setSecret>[0], value: string) {
     await setSecret(name, value);
     return true;
   } catch (error) {
-    toast.error(typeof error === "string" ? error : "השמירה נכשלה");
+    toast.error(
+      typeof error === "string" ? error : t().settings.connections.saveFailed,
+    );
     return false;
   }
 }
@@ -61,10 +64,11 @@ export function DesktopCalendarControls({
   const setPref = useAppStore((s) => s.setCalendarPref);
   const [draft, setDraft] = useState(name);
   const inputId = `calendar-name-${id}`;
+  const m = t().settings.connections;
 
   return (
     <div className="flex items-end gap-2">
-      <Field label="שם לתצוגה" htmlFor={inputId} className="flex-1">
+      <Field label={m.displayName} htmlFor={inputId} className="flex-1">
         <Input
           id={inputId}
           value={draft}
@@ -78,11 +82,11 @@ export function DesktopCalendarControls({
         variant="outline"
         onClick={async () => {
           if (await save(`calendar-${Number(id)}`, "")) {
-            toast.success(`${name} נותק`);
+            toast.success(m.disconnected(name));
           }
         }}
       >
-        ניתוק
+        {m.disconnect}
       </Button>
     </div>
   );
@@ -93,6 +97,7 @@ export function DesktopCalendarForm({ connected }: { connected: string[] }) {
   const setPref = useAppStore((s) => s.setCalendarPref);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
+  const m = t().settings.connections;
   const free = [1, 2, 3, 4, 5, 6, 7, 8, 9].find(
     (n) => !connected.includes(String(n)),
   );
@@ -107,13 +112,13 @@ export function DesktopCalendarForm({ connected }: { connected: string[] }) {
         if (name.trim()) setPref(String(free), { name: name.trim() });
         setName("");
         setUrl("");
-        toast.success("היומן חובר");
+        toast.success(m.calendarConnected);
       }}
     >
       <div className="text-sm font-medium">
-        {connected.length ? "יומן נוסף" : "חיבור יומן"}
+        {connected.length ? m.anotherCalendar : m.connectCalendar}
       </div>
-      <Field label="כתובת סודית בפורמט iCal" htmlFor="calendar-url">
+      <Field label={m.secretAddress} htmlFor="calendar-url">
         <Input
           id="calendar-url"
           type="password"
@@ -124,18 +129,20 @@ export function DesktopCalendarForm({ connected }: { connected: string[] }) {
           onChange={(e) => setUrl(e.target.value)}
         />
       </Field>
-      <Field label="שם לתצוגה (רשות)" htmlFor="calendar-new-name">
+      <Field label={m.displayNameOptional} htmlFor="calendar-new-name">
         <Input
           id="calendar-new-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
       </Field>
-      <p className="text-xs text-muted-foreground">
-        בגוגל יומן → הגדרות היומן → ״שילוב יומן״ → ״כתובת סודית בפורמט iCal״.
-      </p>
-      <Button type="submit" disabled={!url.trim()} className="justify-self-start">
-        חיבור
+      <p className="text-xs text-muted-foreground">{m.desktopSteps}</p>
+      <Button
+        type="submit"
+        disabled={!url.trim()}
+        className="justify-self-start"
+      >
+        {m.connect}
       </Button>
     </form>
   );
@@ -144,6 +151,7 @@ export function DesktopCalendarForm({ connected }: { connected: string[] }) {
 export function ClaudeCard() {
   const status = useSecretStatus();
   const [key, setKey] = useState("");
+  const m = t().settings.connections;
 
   return (
     <Card>
@@ -154,18 +162,16 @@ export function ClaudeCard() {
               <Sparkles className="size-4" />
               Claude
             </CardTitle>
-            <CardDescription>
-              קורא את ״הוספה במשפט״. בלי מפתח — הכללים המקומיים
-            </CardDescription>
+            <CardDescription>{m.claudeHint}</CardDescription>
           </div>
           {status === null ? (
-            <Badge variant="secondary">בודק…</Badge>
+            <Badge variant="secondary">{m.checking}</Badge>
           ) : status.claude ? (
             <Badge className="bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-200">
-              מחובר
+              {m.connected}
             </Badge>
           ) : (
-            <Badge variant="outline">לא מחובר</Badge>
+            <Badge variant="outline">{m.notConnected}</Badge>
           )}
         </div>
       </CardHeader>
@@ -176,12 +182,12 @@ export function ClaudeCard() {
             e.preventDefault();
             if (await save("anthropic", key)) {
               setKey("");
-              toast.success("המפתח נשמר");
+              toast.success(m.keySaved);
             }
           }}
         >
           <Field
-            label={status?.claude ? "החלפת מפתח" : "מפתח API"}
+            label={status?.claude ? m.replaceKey : m.apiKey}
             htmlFor="claude-key"
             className="flex-1"
           >
@@ -197,7 +203,7 @@ export function ClaudeCard() {
           </Field>
           <Button type="submit" disabled={!key.trim()}>
             <KeyRound />
-            שמירה
+            {t().common.save}
           </Button>
         </form>
         {status?.claude && (
@@ -205,16 +211,15 @@ export function ClaudeCard() {
             variant="outline"
             className="justify-self-start"
             onClick={async () => {
-              if (await save("anthropic", "")) toast.success("המפתח הוסר");
+              if (await save("anthropic", "")) toast.success(m.keyRemoved);
             }}
           >
-            הסרת המפתח
+            {m.removeKey}
           </Button>
         )}
         <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <Lock className="mt-0.5 size-3 shrink-0" />
-          נשמר מוצפן במחשב הזה, למשתמש הזה ב‑Windows, ולא מוצג שוב. מפתח יוצרים ב‑
-          console.anthropic.com.
+          {m.keyStorage}
         </p>
       </CardContent>
     </Card>

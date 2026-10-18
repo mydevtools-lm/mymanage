@@ -30,6 +30,7 @@ import { morningBrief, weekSummary } from "@/lib/brief";
 import { formatCurrency, formatDate, todayKey } from "@/lib/format";
 import { greeting } from "@/lib/greeting";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 type View = "day" | "week";
 
@@ -67,7 +68,9 @@ function Section({
         {title}
       </h3>
       {empty ? (
-        <p className="text-sm text-muted-foreground">אין.</p>
+        <p className="text-sm text-muted-foreground">
+          {t().today.briefDialog.none}
+        </p>
       ) : (
         <ul className="grid gap-1 text-sm">{children}</ul>
       )}
@@ -94,24 +97,27 @@ function DayBrief() {
       ].sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? "")),
     [brief.events, google.events],
   );
+  const { common, today: area } = t();
+  const text = area.briefDialog;
+  const money = area.month;
 
   return (
     <div className="grid gap-4">
       <Section
         icon={CalendarDays}
-        title="אירועים היום"
+        title={text.eventsToday}
         empty={!dayEvents.length}
       >
         {dayEvents.map((e) => (
           <li key={e.id} className="flex items-center gap-2">
             <span className="w-12 shrink-0 text-muted-foreground tabular-nums">
-              {e.allDay || !e.startTime ? "כל היום" : e.startTime}
+              {e.allDay || !e.startTime ? text.allDay : e.startTime}
             </span>
             {e.title}
             {e.google && (
               <Lock
                 className="size-3 text-muted-foreground"
-                aria-label="מגוגל"
+                aria-label={text.fromGoogle}
               />
             )}
           </li>
@@ -119,7 +125,7 @@ function DayBrief() {
       </Section>
       <Section
         icon={CheckSquare}
-        title="משימות להיום"
+        title={text.tasksForToday}
         empty={!brief.tasks.length}
       >
         {brief.tasks.map((t) => (
@@ -134,7 +140,7 @@ function DayBrief() {
       {brief.carriedOver.length > 0 && (
         <Section
           icon={History}
-          title={`נגררו מימים קודמים (${brief.carriedOver.length})`}
+          title={text.carriedOver(brief.carriedOver.length)}
         >
           {brief.carriedOver.slice(0, 5).map((t) => (
             <li key={t.id} className="flex gap-2">
@@ -147,7 +153,7 @@ function DayBrief() {
         </Section>
       )}
       {brief.bills.length > 0 && (
-        <Section icon={Receipt} title="חשבונות קבועים בימים הקרובים">
+        <Section icon={Receipt} title={text.bills}>
           {brief.bills.map((b) => (
             <li
               key={`${b.id}-${b.date}`}
@@ -157,9 +163,9 @@ function DayBrief() {
                 {b.description}
                 <span className="ms-2 text-xs text-muted-foreground">
                   {b.daysLeft === 0
-                    ? "היום"
+                    ? common.today
                     : b.daysLeft === 1
-                      ? "מחר"
+                      ? common.tomorrow
                       : formatDate(b.date, "d.M")}
                 </span>
               </span>
@@ -170,21 +176,21 @@ function DayBrief() {
           ))}
         </Section>
       )}
-      <Section icon={Scale} title="החודש עד עכשיו">
+      <Section icon={Scale} title={text.monthSoFar}>
         <li className="flex justify-between">
-          <span className="text-muted-foreground">הכנסות</span>
+          <span className="text-muted-foreground">{money.income}</span>
           <span className="text-income tabular-nums">
             {formatCurrency(brief.month.income)}
           </span>
         </li>
         <li className="flex justify-between">
-          <span className="text-muted-foreground">הוצאות</span>
+          <span className="text-muted-foreground">{money.expenses}</span>
           <span className="text-expense tabular-nums">
             {formatCurrency(brief.month.expense)}
           </span>
         </li>
         <li className="flex justify-between font-medium">
-          <span>מאזן</span>
+          <span>{money.balance}</span>
           <span
             className={cn(
               "tabular-nums",
@@ -209,21 +215,22 @@ function WeekBrief() {
     [tasks, transactions, today, weekStart],
   );
   const change = week.expense - week.lastWeekExpense;
+  const text = t().today.briefDialog;
 
   return (
     <div className="grid gap-3">
       <p className="text-sm text-muted-foreground">
-        מ{formatDate(week.from, "EEEE, d.M")} עד היום.
+        {text.weekFrom(formatDate(week.from, "EEEE, d.M"))}
       </p>
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-lg border p-3">
-          <div className="text-xs text-muted-foreground">משימות שהושלמו</div>
+          <div className="text-xs text-muted-foreground">
+            {text.tasksCompleted}
+          </div>
           <div className="text-2xl font-semibold tabular-nums">{week.done}</div>
         </div>
         <div className="rounded-lg border p-3">
-          <div className="text-xs text-muted-foreground">
-            עבר מועדן ועדיין פתוחות
-          </div>
+          <div className="text-xs text-muted-foreground">{text.slipped}</div>
           <div
             className={cn(
               "text-2xl font-semibold tabular-nums",
@@ -235,7 +242,9 @@ function WeekBrief() {
         </div>
       </div>
       <div className="rounded-lg border p-3">
-        <div className="text-xs text-muted-foreground">הוצאות השבוע</div>
+        <div className="text-xs text-muted-foreground">
+          {text.spentThisWeek}
+        </div>
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-2xl font-semibold text-expense tabular-nums">
             {formatCurrency(week.expense)}
@@ -252,8 +261,10 @@ function WeekBrief() {
               <TrendingDown className="size-4" />
             )}
             {change === 0
-              ? "כמו בשבוע שעבר"
-              : `${formatCurrency(Math.abs(change))} ${change > 0 ? "יותר" : "פחות"} מאותם ימים בשבוע שעבר`}
+              ? text.sameAsLastWeek
+              : change > 0
+                ? text.moreThanLastWeek(formatCurrency(Math.abs(change)))
+                : text.lessThanLastWeek(formatCurrency(Math.abs(change)))}
           </span>
         </div>
       </div>
@@ -311,18 +322,22 @@ export function BriefDialog() {
             {greeting(new Date())}
           </DialogTitle>
           <DialogDescription>
-            {formatDate(todayKey(), "EEEE, d בMMMM")}
+            {formatDate(todayKey(), t().today.dates.weekdayDayMonthLong)}
           </DialogDescription>
         </DialogHeader>
         <Tabs value={tab} onValueChange={(v) => setTab(v as View)}>
           <TabsList className="w-full">
-            <TabsTrigger value="day">תדריך בוקר</TabsTrigger>
-            <TabsTrigger value="week">סיכום שבוע</TabsTrigger>
+            <TabsTrigger value="day">
+              {t().today.briefDialog.morningBrief}
+            </TabsTrigger>
+            <TabsTrigger value="week">
+              {t().today.briefDialog.weekSummary}
+            </TabsTrigger>
           </TabsList>
         </Tabs>
         {tab === "day" ? <DayBrief /> : <WeekBrief />}
         <DialogFooter>
-          <Button onClick={close}>סגירה</Button>
+          <Button onClick={close}>{t().common.close}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

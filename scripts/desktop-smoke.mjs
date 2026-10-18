@@ -5,8 +5,9 @@
 //   node scripts/desktop-smoke.mjs first-run          name, sample data, removal
 //   node scripts/desktop-smoke.mjs services           calendar, Claude, backups
 //   node scripts/desktop-smoke.mjs shell              tray, reminder, one instance
-//   node scripts/desktop-smoke.mjs screenshots        README pictures, sample data
-// first-run needs a fresh data folder; services connects a public calendar
+//   node scripts/desktop-smoke.mjs screenshots [he]   README pictures (English, or Hebrew)
+// Every phase but English screenshots runs the app in Hebrew.
+// first-run and screenshots need a fresh data folder; services connects a public calendar
 // and a fake Claude key, and removes both at the end.
 // The test app has its own identifier (src-tauri/tauri.test.conf.json), so it
 // keeps its data in its own folder and never touches the installed app's.
@@ -101,6 +102,13 @@ const warnings = [];
 const { browser, page } = await launch();
 page.on("console", (m) => { if (m.type() === "warning" || m.type() === "error") warnings.push(m.text()); });
 
+// The checks below read the Hebrew texts; the README's English pictures don't.
+const LANGUAGE = phase === "screenshots" && process.argv[3] !== "he" ? "en" : "he";
+await page.evaluate((language) => {
+  const device = JSON.parse(localStorage.getItem("lior-device") ?? "{}");
+  localStorage.setItem("lior-device", JSON.stringify({ ...device, language }));
+}, LANGUAGE);
+
 if (phase === "write") {
   await goto(page, "/tasks/");
   for (const title of ["ד0 נשארת", "ד0 מסומנת", "ד0 נמחקת"]) {
@@ -150,26 +158,36 @@ if (phase === "write") {
   console.log("write done");
 } else if (phase === "screenshots") {
   // The README's pictures: a fresh data folder, a sample name, sample data,
-  // light theme, the window's own size.
+  // light theme, the window's own size. English into docs/screenshots/,
+  // Hebrew into docs/screenshots/he/.
+  const words = {
+    en: { welcome: /Welcome/, name: "What should we call you?", who: "Dana", next: "Continue", sample: "With sample data", shown: "Showing sample data." },
+    he: { welcome: /ברוכים הבאים/, name: "איך לקרוא לך?", who: "דנה", next: "המשך", sample: "עם נתוני דוגמה", shown: "מוצגים נתוני דוגמה." },
+  }[LANGUAGE];
+  // The language through the first question, as a person picks it: that also
+  // renames the default categories the database was created with.
   await page.evaluate(() => {
     localStorage.setItem("lior-device", JSON.stringify({ autoBrief: false, fired: {} }));
     localStorage.setItem("theme", "light");
   });
   await goto(page, "/");
-  const dialog = page.getByRole("dialog", { name: /ברוכים הבאים/ });
+  const language = page.getByRole("dialog", { name: /Choose a language|בחירת שפה/ });
+  await language.waitFor({ timeout: 10000 });
+  await language.getByRole("button", { name: LANGUAGE === "he" ? "עברית" : "English" }).click();
+  const dialog = page.getByRole("dialog", { name: words.welcome });
   await dialog.waitFor({ timeout: 10000 });
-  await dialog.getByLabel("איך לקרוא לך?").fill("דנה");
-  await dialog.getByRole("button", { name: "המשך" }).click();
-  await page.getByRole("button", { name: "עם נתוני דוגמה" }).click();
-  await page.getByText("מוצגים נתוני דוגמה.").waitFor();
-  const out = fileURLToPath(new URL("../docs/screenshots/", import.meta.url));
+  await dialog.getByLabel(words.name).fill(words.who);
+  await dialog.getByRole("button", { name: words.next }).click();
+  await page.getByRole("button", { name: words.sample }).click();
+  await page.getByText(words.shown).waitFor();
+  const out = fileURLToPath(new URL(`../docs/screenshots/${LANGUAGE === "he" ? "he/" : ""}`, import.meta.url));
   const shots = { today: "/", tasks: "/tasks/", calendar: "/calendar/", finance: "/finance/", settings: "/settings/?tab=connections" };
   for (const [name, route] of Object.entries(shots)) {
     await goto(page, route);
     await page.waitForTimeout(800);
     await page.screenshot({ path: path.join(out, `${name}.png`) });
   }
-  console.log("screenshots:", Object.keys(shots).join(", "));
+  console.log(`screenshots (${LANGUAGE}):`, Object.keys(shots).join(", "));
 } else if (phase === "first-run") {
   const seen = {};
   // This device may have answered on an earlier run; forget that here (the

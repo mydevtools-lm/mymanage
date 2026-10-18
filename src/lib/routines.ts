@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import type { Repeat, Routine } from "./types";
 
 /**
@@ -5,7 +6,10 @@ import type { Repeat, Routine } from "./types";
  * Pure — shared by the server, which makes each day's copy, and the screens.
  */
 
-export const WEEKDAY_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
+/** Short weekday names, Sunday first (as Date.getDay() counts). */
+export function weekdayShort() {
+  return t().tasks.weekdayShort;
+}
 
 function parse(date: string) {
   const [y, m, d] = date.split("-").map(Number);
@@ -72,19 +76,21 @@ export function nextOccurrence(
 }
 
 export function describeRepeat(repeat: Repeat) {
+  const text = t().tasks.describe;
+  const weekdays = weekdayShort();
   switch (repeat.kind) {
     case "daily":
-      return "כל יום";
+      return text.everyDay;
     case "weekly": {
       const days = [...new Set(repeat.days)].sort();
-      if (days.length === 7) return "כל יום";
-      if (days.join() === "0,1,2,3,4") return "ימים א׳–ה׳";
-      if (days.length === 1) return `כל יום ${WEEKDAY_SHORT[days[0]]}`;
-      return `בימים ${days.map((d) => WEEKDAY_SHORT[d]).join(", ")}`;
+      if (days.length === 7) return text.everyDay;
+      if (days.join() === "0,1,2,3,4") return text.sundayToThursday;
+      if (days.length === 1) return text.everyWeekday(weekdays[days[0]]);
+      return text.onDays(days.map((d) => weekdays[d]).join(", "));
     }
     case "monthly":
-      return `ב־${repeat.day} בכל חודש`;
+      return text.monthly(repeat.day);
     case "yearly":
-      return "כל שנה";
+      return text.yearly;
   }
 }

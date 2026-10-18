@@ -1,5 +1,5 @@
 import { format, parseISO } from "date-fns";
-import { he } from "date-fns/locale";
+import { enUS } from "date-fns/locale";
 import type { Proposal } from "./nl-parse";
 
 /**
@@ -13,7 +13,7 @@ export const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
 const TOOL = {
   name: "propose_items",
   description:
-    "Items to add to a personal Hebrew planner, read from the user's sentence.",
+    "Items to add to a personal planner, read from the user's sentence (Hebrew or English).",
   input_schema: {
     type: "object",
     properties: {
@@ -25,7 +25,8 @@ const TOOL = {
             kind: { type: "string", enum: ["task", "event", "transaction"] },
             title: {
               type: "string",
-              description: "Short Hebrew title, without the date or time words",
+              description:
+                "Short title in the language the user wrote in, without the date or time words",
             },
             date: {
               type: "string",
@@ -38,7 +39,8 @@ const TOOL = {
             },
             amount: {
               type: "number",
-              description: "Shekels, for a transaction",
+              description:
+                "For a transaction: the number, in the currency the user means",
             },
             type: { type: "string", enum: ["income", "expense"] },
           },
@@ -51,16 +53,16 @@ const TOOL = {
 } as const;
 
 function systemPrompt(today: string) {
-  const day = format(parseISO(today), "EEEE, d בMMMM yyyy", { locale: he });
+  const day = format(parseISO(today), "EEEE, MMMM d, yyyy", { locale: enUS });
   return [
-    `Today is ${today} (${day}), Israel.`,
-    "Split the user's Hebrew text into separate items and call propose_items.",
+    `Today is ${today} (${day}).`,
+    "The user writes in Hebrew or English. Split the text into separate items and call propose_items.",
     "- event: something that happens at a time or on a day (meeting, lunch, a visit, a class).",
-    "- task: something to do (verbs like להתקשר, לקנות, לשלם, להחליף).",
+    "- task: something to do (verbs like call, buy, pay, replace — להתקשר, לקנות, לשלם, להחליף).",
     "- transaction: money spent or received; set amount and type.",
     "A day mentioned once applies to the items that follow it.",
     "A weekday means its next occurrence after today.",
-    "Titles stay in Hebrew and drop filler like 'אני הולך ל'.",
+    "Titles stay in the language the user wrote in, and drop filler like 'I'm going to' or 'אני הולך ל'.",
   ].join("\n");
 }
 
@@ -107,9 +109,12 @@ export function sanitizeProposals(raw: unknown): Proposal[] {
   });
 }
 
-
 /** The Messages API body: a forced call to propose_items. */
-export function claudeRequest(text: string, today: string, model = DEFAULT_MODEL) {
+export function claudeRequest(
+  text: string,
+  today: string,
+  model = DEFAULT_MODEL,
+) {
   return {
     model,
     max_tokens: 1024,

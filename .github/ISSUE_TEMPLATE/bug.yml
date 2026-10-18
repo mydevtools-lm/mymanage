@@ -1,26 +1,26 @@
-name: באג
-description: משהו לא עובד כמו שצריך
+name: Bug
+description: Something doesn't work as it should
 labels: [bug]
 body:
   - type: textarea
     id: what
     attributes:
-      label: מה קרה
-      description: מה עשית, מה ציפית שיקרה, ומה קרה בפועל. צילום מסך עוזר.
+      label: What happened
+      description: What you did, what you expected, and what actually happened. A screenshot helps.
     validations:
       required: true
   - type: textarea
     id: steps
     attributes:
-      label: איך משחזרים
+      label: How to reproduce
       placeholder: |
-        1. פותחים את …
-        2. לוחצים על …
+        1. Open …
+        2. Click …
   - type: input
     id: version
     attributes:
-      label: גרסה
-      description: הגדרות Windows › אפליקציות, ליד ״mymanage״ — או שם קובץ ההתקנה
+      label: Version
+      description: Settings › About in the app, or Windows Settings › Apps next to "mymanage", or the installer's file name
     validations:
       required: true
   - type: input
@@ -28,6 +28,11 @@ body:
     attributes:
       label: Windows
       placeholder: Windows 11 23H2
+  - type: input
+    id: language
+    attributes:
+      label: Interface language
+      placeholder: English / Hebrew
   - type: markdown
     attributes:
-      value: "**לא לצרף** קבצי מסד, גיבויים, כתובות יומן או מפתחות — הם פרטיים. בעיית אבטחה מדווחים לפי SECURITY.md."
+      value: "**Don't attach** database files, backups, calendar addresses or keys — they're private. Report security problems as described in SECURITY.md."

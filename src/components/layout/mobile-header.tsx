@@ -6,6 +6,7 @@ import { Moon, Search, Settings2, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePalette } from "@/components/command-palette";
 import { APP_NAME } from "@/lib/app-info";
+import { t } from "@/lib/i18n";
 
 /** Phone top bar. Settings live here because the tab bar holds five only. */
 export function MobileHeader() {
@@ -20,7 +21,7 @@ export function MobileHeader() {
         <Button
           variant="ghost"
           size="icon"
-          aria-label="חיפוש"
+          aria-label={t().common.search}
           onClick={() => usePalette.getState().setOpen(true)}
         >
           <Search />
@@ -28,7 +29,11 @@ export function MobileHeader() {
         <Button
           variant="ghost"
           size="icon"
-          aria-label={resolvedTheme === "dark" ? "מצב בהיר" : "מצב כהה"}
+          aria-label={
+            resolvedTheme === "dark"
+              ? t().common.nav.lightMode
+              : t().common.nav.darkMode
+          }
           onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
         >
           <Sun className="dark:hidden" />
@@ -37,7 +42,7 @@ export function MobileHeader() {
         <Button
           variant="ghost"
           size="icon"
-          aria-label="הגדרות"
+          aria-label={t().common.nav.settings}
           nativeButton={false}
           render={<Link href="/settings" />}
         >

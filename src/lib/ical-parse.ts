@@ -1,4 +1,5 @@
 import ICAL from "ical.js";
+import { t } from "./i18n";
 
 /**
  * Google Calendar's .ics feed → events in a date window, in this machine's
@@ -96,7 +97,7 @@ function buildEvent(
 
   return {
     id: `google:${calendarId}:${event.uid}:${idSuffix}`,
-    title: event.summary?.trim() || "(ללא כותרת)",
+    title: event.summary?.trim() || t().data.untitledEvent,
     date: dateKey(localStart),
     startTime: allDay ? undefined : timeKey(localStart),
     endTime: allDay ? undefined : timeKey(localEnd),

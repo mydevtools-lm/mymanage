@@ -12,6 +12,7 @@ import { formatDate, localDayOf } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useFocusTarget } from "./use-focus-target";
 import type { ColorKey, Note } from "@/lib/types";
+import { t } from "@/lib/i18n";
 
 /** Pinned first, then most recently edited. */
 function sortNotes(notes: Note[]) {
@@ -34,17 +35,18 @@ function ColorRow({
   value?: ColorKey;
   onChange: (color: ColorKey | undefined) => void;
 }) {
+  const m = t().notes.notes;
   return (
     <div
       className="flex flex-wrap items-center gap-1.5"
       role="radiogroup"
-      aria-label="צבע ההערה"
+      aria-label={m.colorLabel}
     >
       <button
         type="button"
         role="radio"
         aria-checked={!value}
-        aria-label="בלי צבע"
+        aria-label={m.noColor}
         onClick={() => onChange(undefined)}
         className={cn(
           "size-6 rounded-full border-2 border-dashed border-muted-foreground/40 bg-card",
@@ -93,6 +95,7 @@ function NoteCard({
   const [title, setTitle] = useState(note.title);
   const [body, setBody] = useState(note.body);
   const cardRef = useRef<HTMLDivElement>(null);
+  const m = t().notes.notes;
 
   const finish = () => {
     if (title !== note.title || body !== note.body) {
@@ -125,15 +128,15 @@ function NoteCard({
             autoFocus
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="כותרת"
-            aria-label="כותרת ההערה"
+            placeholder={m.titlePlaceholder}
+            aria-label={m.titleLabel}
             className="bg-transparent text-base font-semibold outline-none placeholder:text-muted-foreground/70"
           />
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="מה רוצים לזכור?"
-            aria-label="תוכן ההערה"
+            placeholder={m.bodyPlaceholder}
+            aria-label={m.bodyLabel}
             className="field-sizing-content min-h-24 resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground/70 md:text-sm"
           />
           <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-2">
@@ -142,7 +145,7 @@ function NoteCard({
               onChange={(color) => updateNote(note.id, { color })}
             />
             <Button size="sm" onClick={finish}>
-              <Check /> סיום
+              <Check /> {m.done}
             </Button>
           </div>
         </CardContent>
@@ -160,27 +163,27 @@ function NoteCard({
             type="button"
             onClick={onStartEdit}
             className="min-w-0 flex-1 text-start"
-            aria-label={`עריכת ${note.title || "הערה"}`}
+            aria-label={m.editNote(note.title || m.note)}
           >
             <h3 className="flex items-center gap-1.5 font-semibold">
               {note.pinned && (
                 <Pin
                   className="size-3.5 shrink-0 text-primary"
-                  aria-label="נעוצה"
+                  aria-label={m.pinned}
                 />
               )}
-              <span className="truncate">{note.title || "ללא כותרת"}</span>
+              <span className="truncate">{note.title || m.untitled}</span>
             </h3>
           </button>
           <RowActions
             actions={[
               {
-                label: note.pinned ? "ביטול נעיצה" : "נעיצה למעלה",
+                label: note.pinned ? m.unpin : m.pin,
                 icon: note.pinned ? PinOff : Pin,
                 onSelect: () => updateNote(note.id, { pinned: !note.pinned }),
               },
               {
-                label: "מחיקה",
+                label: m.delete,
                 icon: Trash2,
                 destructive: true,
                 onSelect: () => deleteNote(note.id),
@@ -190,11 +193,11 @@ function NoteCard({
         </div>
         <button type="button" onClick={onStartEdit} className="text-start">
           <p className="line-clamp-6 text-sm whitespace-pre-wrap text-muted-foreground">
-            {note.body || "לחץ כדי לכתוב"}
+            {note.body || m.emptyBody}
           </p>
         </button>
         <div className="text-xs text-muted-foreground/70">
-          עודכן {formatDate(localDayOf(note.updatedAt))}
+          {m.updated(formatDate(localDayOf(note.updatedAt)))}
         </div>
       </CardContent>
     </Card>
@@ -207,6 +210,7 @@ function DraftNote({ onClose }: { onClose: () => void }) {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const cardRef = useRef<HTMLDivElement>(null);
+  const m = t().notes.notes;
 
   const finish = () => {
     if (title.trim() || body.trim()) {
@@ -229,20 +233,20 @@ function DraftNote({ onClose }: { onClose: () => void }) {
           autoFocus
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="כותרת"
-          aria-label="כותרת ההערה החדשה"
+          placeholder={m.titlePlaceholder}
+          aria-label={m.newTitleLabel}
           className="bg-transparent text-base font-semibold outline-none placeholder:text-muted-foreground/70"
         />
         <textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="מה רוצים לזכור?"
-          aria-label="תוכן ההערה החדשה"
+          placeholder={m.bodyPlaceholder}
+          aria-label={m.newBodyLabel}
           className="field-sizing-content min-h-24 resize-none bg-transparent text-base outline-none placeholder:text-muted-foreground/70 md:text-sm"
         />
         <div className="flex justify-end border-t pt-2">
           <Button size="sm" onClick={finish}>
-            <Check /> שמירה
+            <Check /> {m.save}
           </Button>
         </div>
       </CardContent>
@@ -256,6 +260,7 @@ export function NotesTab({ query = "" }: { query?: string }) {
   const updateNote = useAppStore((s) => s.updateNote);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [drafting, setDrafting] = useState(false);
+  const m = t().notes.notes;
 
   const shown = sortNotes(notes).filter((n) => noteMatches(n, query));
 
@@ -264,10 +269,10 @@ export function NotesTab({ query = "" }: { query?: string }) {
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           {notes.length === 0
-            ? "רעיונות, רשימות, דברים לזכור"
+            ? m.intro
             : query
-              ? `${shown.length} מתוך ${notes.length} הערות`
-              : `${notes.length} הערות`}
+              ? m.countOf(shown.length, notes.length)
+              : m.count(notes.length)}
         </p>
         <Button
           onClick={() => {
@@ -275,16 +280,16 @@ export function NotesTab({ query = "" }: { query?: string }) {
             setDrafting(true);
           }}
         >
-          <Plus /> הערה חדשה
+          <Plus /> {m.newNote}
         </Button>
       </div>
 
       {notes.length === 0 && !drafting ? (
         <EmptyState
           icon={NotebookPen}
-          title="אין הערות"
-          hint="רעיונות, רשימות, דברים לזכור"
-          action={{ label: "הערה חדשה", onClick: () => setDrafting(true) }}
+          title={m.empty}
+          hint={m.intro}
+          action={{ label: m.newNote, onClick: () => setDrafting(true) }}
         />
       ) : (
         <div className="grid items-start gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -309,7 +314,7 @@ export function NotesTab({ query = "" }: { query?: string }) {
           ))}
           {query && shown.length === 0 && !drafting && (
             <p className="py-6 text-center text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
-              אין הערה שמתאימה לחיפוש.
+              {m.noMatch}
             </p>
           )}
         </div>

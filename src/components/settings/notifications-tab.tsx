@@ -16,6 +16,7 @@ import { useDevicePrefs } from "@/lib/device-prefs";
 import { useBrief } from "@/components/brief-dialog";
 import { isTauri, useIsTauri } from "@/lib/platform";
 import { desktopNotify } from "@/lib/desktop-notify";
+import { dirOf, getLocale, t } from "@/lib/i18n";
 
 type Permission = NotificationPermission | "unsupported";
 
@@ -30,6 +31,7 @@ export function NotificationsTab() {
   const setAutoBrief = useDevicePrefs((s) => s.setAutoBrief);
   const [permission, setPermission] = useState<Permission>("default");
   const desktop = useIsTauri();
+  const m = t().settings.notifications;
 
   useEffect(() => {
     const prefs = useDevicePrefs.getState();
@@ -50,17 +52,17 @@ export function NotificationsTab() {
 
   function test() {
     if (isTauri()) {
-      void desktopNotify("בדיקת התראה", "ככה תיראה תזכורת").catch(() =>
-        toast.error("Windows לא הציג את ההתראה"),
+      void desktopNotify(m.testTitle, m.testBody).catch(() =>
+        toast.error(m.testFailed),
       );
     } else if (permission === "granted") {
-      new Notification("בדיקת התראה", {
-        body: "ככה תיראה תזכורת",
-        lang: "he",
-        dir: "rtl",
+      new Notification(m.testTitle, {
+        body: m.testBody,
+        lang: getLocale(),
+        dir: dirOf(getLocale()),
       });
     }
-    toast("בדיקת התראה", { description: "ככה תיראה תזכורת בתוך המערכת" });
+    toast(m.testTitle, { description: m.testInApp });
   }
 
   return (
@@ -69,39 +71,34 @@ export function NotificationsTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <BellRing className="size-4" />
-            תזכורות
+            {m.remindersTitle}
           </CardTitle>
-          <CardDescription>
-            תזכורת נקבעת בדיאלוג של משימה או אירוע עם שעה. בזמנה מופיעה הודעה
-            במערכת, והתראה של המחשב או הטלפון כשהמערכת פתוחה ברקע.
-          </CardDescription>
+          <CardDescription>{m.remindersHint}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 text-sm">
           <div className="flex items-center justify-between gap-3">
             <span>
-              {desktop ? "התראות של Windows" : "התראות מהדפדפן"}:{" "}
+              {desktop ? m.windowsNotifications : m.browserNotifications}:{" "}
               <strong>
                 {permission === "granted"
-                  ? "מופעלות"
+                  ? m.granted
                   : permission === "denied"
-                    ? "חסומות"
+                    ? m.denied
                     : permission === "unsupported"
-                      ? "לא נתמכות בדפדפן הזה"
-                      : "עוד לא הופעלו"}
+                      ? m.unsupported
+                      : m.notYet}
               </strong>
             </span>
             {permission === "default" && (
               <Button size="sm" onClick={enable}>
-                הפעלה
+                {m.enable}
               </Button>
             )}
           </div>
           {permission === "denied" && (
             <p className="flex items-start gap-2 text-muted-foreground">
               <CircleAlert className="mt-0.5 size-4 shrink-0" />
-              {desktop
-                ? "ההתראות כבויות ב‑Windows. אפשר להפעיל אותן בהגדרות › מערכת › הודעות."
-                : "ההתראות נחסמו בדפדפן. אפשר לאשר אותן מחדש מסמל המנעול שליד הכתובת."}
+              {desktop ? m.deniedWindows : m.deniedBrowser}
             </p>
           )}
           <Button
@@ -110,12 +107,9 @@ export function NotificationsTab() {
             className="justify-self-start"
             onClick={test}
           >
-            בדיקה
+            {m.test}
           </Button>
-          <p className="text-xs text-muted-foreground">
-            התראה לטלפון כשהמערכת סגורה לגמרי דורשת את המעבר ל‑Firebase (ספרינט
-            1).
-          </p>
+          <p className="text-xs text-muted-foreground">{m.phoneNote}</p>
         </CardContent>
       </Card>
 
@@ -123,32 +117,27 @@ export function NotificationsTab() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Sunrise className="size-4" />
-            תדריך בוקר
+            {m.briefTitle}
           </CardTitle>
-          <CardDescription>
-            בכניסה הראשונה של היום: אירועים ומשימות, מה שנגרר, חשבונות קבועים
-            שמתקרבים ומאזן החודש. בימי שישי — סיכום השבוע.
-          </CardDescription>
+          <CardDescription>{m.briefHint}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 text-sm">
           <div className="flex items-center justify-between gap-3">
-            <label htmlFor="auto-brief">להציג לבד בכניסה הראשונה של היום</label>
+            <label htmlFor="auto-brief">{m.autoBrief}</label>
             <Switch
               id="auto-brief"
               checked={autoBrief}
               onCheckedChange={setAutoBrief}
             />
           </div>
-          <p className="text-xs text-muted-foreground">
-            ההגדרה הזו שמורה במכשיר הזה בלבד.
-          </p>
+          <p className="text-xs text-muted-foreground">{m.deviceOnly}</p>
           <Button
             variant="outline"
             size="sm"
             className="justify-self-start"
             onClick={() => useBrief.getState().open()}
           >
-            פתיחת התדריך עכשיו
+            {m.openBrief}
           </Button>
         </CardContent>
       </Card>

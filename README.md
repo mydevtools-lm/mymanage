@@ -1,76 +1,78 @@
-<div dir="rtl">
-
 # mymanage
 
-אפליקציה למחשב לניהול היום: משימות, יומן, כספים, הערות ורשימות — במקום אחד, בעברית.
-הכול נשמר אצלך במחשב. אין חשבון, אין שרת ואין מעקב.
+A Windows desktop app for running your day — tasks, calendar, money, notes and
+lists, in one place, in English or Hebrew. Everything stays on your computer:
+no account, no server, no tracking.
 
-[English](README.en.md)
+[עברית](README.he.md)
 
-![מסך ״היום״](docs/screenshots/today.png)
+![Today](docs/screenshots/today.png)
 
-## מה יש בה
+## What's inside
 
-| מסך | מה עושים בו |
+| Screen | What it's for |
 |---|---|
-| **היום** | ציר היום — אירועים ומשימות לפי שעה, מה שנגרר מאתמול, השבוע הקרוב ומאזן החודש. תדריך בוקר |
-| **משימות** | לפי זמן, תת‑משימות, משימות קבועות, תזכורות, ארכיון |
-| **יומן** | חודש, שבוע ורשימה. אירועים חוזרים, גרירה, ועד 9 יומני גוגל (קריאה בלבד) |
-| **כספים** | חודש ושנה, תנועות חוזרות, תקציבים, ייבוא דף חשבון, ייצוא ל‑CSV ולדוח |
-| **הערות ורשימות** | רשימות לשימוש חוזר, הערות עם צבע ונעיצה |
+| **Today** | The day on a timeline — events and tasks by the hour, what's carried over, the week ahead and the month's balance. A morning brief |
+| **Tasks** | By when they're due, subtasks, routines, reminders, an archive; drag a task to another day |
+| **Calendar** | Month, week and list. Recurring events, drag and drop, and up to 9 Google calendars (read only) |
+| **Money** | Month and year, recurring transactions, budgets, bank statement import, CSV and a printable report |
+| **Notes & lists** | Reusable lists, and notes with colours and pins |
 
-ובכל מסך: `Ctrl+K` לחיפוש בכל המערכת ול״הוספה במשפט״ — כותבים ״מחר ב‑10 פגישה
-עם רואה חשבון״ ומקבלים אירוע מוכן. `?` מציג את קיצורי המקלדת.
+Everywhere: `Ctrl+K` searches everything and adds in a sentence — type "meeting
+with the accountant tomorrow at 10" and get the event, ready to confirm. `?`
+shows the keyboard shortcuts.
 
 | | |
 |---|---|
-| ![משימות](docs/screenshots/tasks.png) | ![יומן](docs/screenshots/calendar.png) |
-| ![כספים](docs/screenshots/finance.png) | ![הגדרות](docs/screenshots/settings.png) |
+| ![Tasks](docs/screenshots/tasks.png) | ![Calendar](docs/screenshots/calendar.png) |
+| ![Money](docs/screenshots/finance.png) | ![Settings](docs/screenshots/settings.png) |
 
-## התקנה
+## Install
 
-1. מורידים את קובץ ההתקנה (`…_x64-setup.exe`) מ‑[עמוד הגרסאות](../../releases/latest).
-2. מפעילים אותו. ההתקנה היא למשתמש שלך בלבד, ולא צריך הרשאות מנהל.
-3. בפתיחה הראשונה עונים על שתי שאלות — איך לקרוא לך, ולהתחיל ריק או עם נתוני
-   דוגמה (נמחקים בלחיצה אחת).
+1. Download the installer (`…_x64-setup.exe`) from the [latest release](../../releases/latest).
+2. Run it. It installs for your Windows user only — no administrator rights.
+3. On first launch, choose a language (Windows' own is preselected), say what to
+   call you, and start empty or with sample data (removed with one click).
 
-**Windows מזהיר ש״Windows הגן על המחשב שלך״?** המתקין עוד לא חתום בתעודה בתשלום,
-ולכן SmartScreen לא מכיר אותו. לוחצים **מידע נוסף** ואז **הפעל בכל זאת**. הקוד כולו
-כאן, והמתקין נבנה ממנו אוטומטית ב‑GitHub Actions.
+**"Windows protected your PC"?** The installer isn't signed with a paid
+certificate yet, so SmartScreen doesn't know it. Choose **More info**, then
+**Run anyway**. All the code is here, and the installer is built from it by
+GitHub Actions.
 
-דרישות: Windows 10 או 11 (64 ביט). WebView2 כבר מותקן ב‑Windows; אם חסר, המתקין
-מוריד אותו.
+Requires Windows 10 or 11 (64‑bit). WebView2 ships with Windows; the installer
+downloads it if it's missing.
 
-## איפה הנתונים
+## Your data
 
-| מה | איפה |
+| What | Where |
 |---|---|
-| המסד | `%APPDATA%\io.github.mydevtools-lm.management\data.db` |
-| גיבוי יומי (14 אחרונים) | `backups\` באותה תיקייה, ועוד תיקייה לבחירתך — הגדרות › העדפות |
-| גיבוי ידני | הגדרות › גיבוי — קובץ JSON שאפשר לייבא בחזרה |
+| The database | `%APPDATA%\io.github.mydevtools-lm.management\data.db` |
+| Daily backups (last 14) | `backups\` in the same folder, plus a folder of your choice — Settings › Preferences |
+| Manual backup | Settings › Backup — a JSON file you can import back |
 
-**כתובות יומן גוגל ומפתח Claude** נשמרים מוצפנים בתיקייה הזו (DPAPI של Windows) —
-רק המשתמש שלך במחשב הזה יכול לפענח אותם, והם לא מוצגים שוב במסך.
+**Google Calendar addresses and the Claude key** are stored encrypted in that
+folder (Windows DPAPI): only your Windows user on this computer can decrypt
+them, and the app never shows them again.
 
-**עדכונים** — כשיוצאת גרסה, האפליקציה שואלת אם לעדכן עכשיו או ביציאה, ושומרת
-גיבוי לפני. הגדרות › אודות מציג את הגרסה.
+**Updates** — when a new version is out, the app asks whether to update now or
+when you quit, and backs up first. Settings › About shows the version.
 
-**הסרה** — מהגדרות Windows › אפליקציות. הנתונים נשארים, אלא אם מסמנים ״למחוק גם
-את הנתונים״.
+**Uninstall** from Windows Settings › Apps. Your data stays unless you tick
+"Delete the application data".
 
-## חיבורים (רשות)
+## Connections (optional)
 
-- **גוגל יומן** — הגדרות › חיבורים. מדביקים את ״כתובת סודית בפורמט iCal״ מהגדרות
-  היומן בגוגל. קריאה בלבד.
-- **Claude** — להוספה במשפט חכמה יותר. מדביקים מפתח API מ‑console.anthropic.com.
-  בלי מפתח, הקריאה נעשית בכללים מקומיים.
+- **Google Calendar** — Settings › Connections. Paste the "Secret address in
+  iCal format" from your calendar's settings in Google Calendar. Read only.
+- **Claude** — makes "add in a sentence" smarter. Paste an API key from
+  console.anthropic.com. Without one, local rules read the sentence (English
+  and Hebrew).
 
-הרשת משמשת רק לשני אלה. בלי חשבון, בלי טלמטריה.
+The network is used for these two only. No account, no telemetry.
 
-## קוד פתוח
+## Open source
 
-רישיון [MIT](LICENSE). רוצים להריץ מהקוד או לתרום? [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
-ו‑[CONTRIBUTING.md](CONTRIBUTING.md). בעיית אבטחה — [SECURITY.md](SECURITY.md).
-מה השתנה בכל גרסה — [CHANGELOG.md](CHANGELOG.md).
-
-</div>
+[MIT](LICENSE). To run it from source or contribute, see
+[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+Security issues: [SECURITY.md](SECURITY.md). What changed in each version:
+[CHANGELOG.md](CHANGELOG.md).

@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { setLocale, type Locale } from "./i18n";
 
 /**
  * Preferences that belong to this device rather than to the data: whether
@@ -12,6 +13,8 @@ const KEY = "lior-device";
 
 interface Stored {
   autoBrief: boolean;
+  /** The interface language chosen on this device; unset follows Windows. */
+  language?: Locale;
   /** The first-run questions were answered (or skipped) on this device. */
   onboarded?: boolean;
   /** Desktop app: closing the window keeps it in the tray (unset is on). */
@@ -49,6 +52,7 @@ interface DevicePrefs extends Stored {
   markBriefShown: (day: string) => void;
   markFired: (keys: string[], day: string) => void;
   markOnboarded: () => void;
+  setLanguage: (language: Locale) => void;
   setCloseToTray: (on: boolean) => void;
   setBackupDir: (dir: string | undefined) => void;
 }
@@ -60,6 +64,7 @@ export const useDevicePrefs = create<DevicePrefs>()((set, get) => {
     write({
       autoBrief: next.autoBrief,
       onboarded: next.onboarded,
+      language: next.language,
       closeToTray: next.closeToTray,
       backupDir: next.backupDir,
       briefShownOn: next.briefShownOn,
@@ -73,6 +78,10 @@ export const useDevicePrefs = create<DevicePrefs>()((set, get) => {
     setAutoBrief: (autoBrief) => save({ autoBrief }),
     markBriefShown: (briefShownOn) => save({ briefShownOn }),
     markOnboarded: () => save({ onboarded: true }),
+    setLanguage: (language) => {
+      save({ language });
+      setLocale(language);
+    },
     setCloseToTray: (closeToTray) => save({ closeToTray }),
     setBackupDir: (backupDir) => save({ backupDir }),
     markFired: (keys, day) => {

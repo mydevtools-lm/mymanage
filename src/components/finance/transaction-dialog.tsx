@@ -24,12 +24,10 @@ import { LinksSection } from "@/components/links-section";
 import type { MonthTransaction } from "@/lib/finance";
 import type { SeriesScope, Transaction, TransactionType } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
-export const SCOPE_LABELS: Record<SeriesScope, string> = {
-  this: "רק החודש הזה",
-  following: "מהחודש הזה והלאה",
-  all: "כל הסדרה",
-};
+export const scopeLabels = (): Record<SeriesScope, string> =>
+  t().finance.scope.labels;
 
 interface TransactionDialogProps {
   open: boolean;
@@ -94,11 +92,15 @@ function TransactionForm({
     transaction?.recurring?.endMonth ?? "",
   );
 
+  const m = t().finance;
+  const tm = m.transaction;
+  const common = t().common;
+
   function submit(e: React.FormEvent) {
     e.preventDefault();
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) {
-      toast.error("צריך סכום חיובי");
+      toast.error(tm.needAmount);
       return;
     }
     const category = categoryId === NONE ? undefined : categoryId;
@@ -106,7 +108,7 @@ function TransactionForm({
     const label =
       description.trim() ||
       categories.find((c) => c.id === category)?.name ||
-      (type === "income" ? "הכנסה" : "הוצאה");
+      (type === "income" ? tm.income : tm.expense);
 
     if (series) {
       editInSeries(series.row.id, series.month, series.scope, {
@@ -115,13 +117,13 @@ function TransactionForm({
         categoryId: category,
         ...(onlyThisMonth ? {} : { type, notes: notes.trim() || undefined }),
       });
-      toast.success(`עודכן — ${SCOPE_LABELS[series.scope]}`);
+      toast.success(tm.updatedScope(scopeLabels()[series.scope]));
       onOpenChange(false);
       return;
     }
 
     if (!date) {
-      toast.error("צריך תאריך");
+      toast.error(tm.needDate);
       return;
     }
     const input = {
@@ -137,19 +139,19 @@ function TransactionForm({
     };
     if (transaction) {
       updateTransaction(transaction.id, input);
-      toast.success("התנועה עודכנה");
+      toast.success(tm.updated);
     } else {
       addTransaction(input);
-      toast.success(type === "income" ? "ההכנסה נוספה" : "ההוצאה נוספה");
+      toast.success(type === "income" ? tm.incomeAdded : tm.expenseAdded);
     }
     onOpenChange(false);
   }
 
   const title = series
-    ? "עריכת תנועה חוזרת"
+    ? tm.editRecurring
     : transaction
-      ? "עריכת תנועה"
-      : "תנועה חדשה";
+      ? tm.edit
+      : m.newTransaction;
 
   return (
     <form onSubmit={submit} className="grid gap-4">
@@ -157,8 +159,8 @@ function TransactionForm({
         <DialogTitle>{title}</DialogTitle>
         {series && (
           <DialogDescription>
-            {SCOPE_LABELS[series.scope]}
-            {series.scope !== "all" && ` · מ${formatMonth(series.month)}`}
+            {scopeLabels()[series.scope]}
+            {series.scope !== "all" && tm.fromMonth(formatMonth(series.month))}
           </DialogDescription>
         )}
       </DialogHeader>
@@ -167,17 +169,17 @@ function TransactionForm({
         <Tabs value={type} onValueChange={(v) => setType(v as TransactionType)}>
           <TabsList className="w-full">
             <TabsTrigger value="expense" className="data-active:text-expense">
-              הוצאה
+              {tm.expense}
             </TabsTrigger>
             <TabsTrigger value="income" className="data-active:text-income">
-              הכנסה
+              {tm.income}
             </TabsTrigger>
           </TabsList>
         </Tabs>
       )}
 
       {/* Amount first and large: it is the one thing every entry needs. */}
-      <Field label="סכום (₪)" htmlFor="tx-amount">
+      <Field label={tm.amount} htmlFor="tx-amount">
         <Input
           id="tx-amount"
           type="number"
@@ -195,7 +197,7 @@ function TransactionForm({
         />
       </Field>
 
-      <Field label="קטגוריה">
+      <Field label={m.category}>
         <CategoryChips
           kind="finance"
           value={categoryId}
@@ -207,16 +209,18 @@ function TransactionForm({
       </Field>
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="תיאור (רשות)" htmlFor="tx-desc">
+        <Field label={tm.descriptionOptional} htmlFor="tx-desc">
           <Input
             id="tx-desc"
             value={description}
             onChange={(e) => describe(e.target.value)}
-            placeholder={type === "income" ? "למשל: משכורת" : "למשל: סופר"}
+            placeholder={
+              type === "income" ? tm.incomeExample : tm.expenseExample
+            }
           />
         </Field>
         {!series && (
-          <Field label="תאריך" htmlFor="tx-date">
+          <Field label={m.date} htmlFor="tx-date">
             <Input
               id="tx-date"
               type="date"
@@ -235,11 +239,11 @@ function TransactionForm({
               checked={recurring}
               onCheckedChange={setRecurring}
             />
-            <Label htmlFor="tx-recurring">חוזרת כל חודש</Label>
+            <Label htmlFor="tx-recurring">{tm.recurring}</Label>
           </div>
           {recurring && (
             <div className="mt-3 grid gap-1.5">
-              <Label htmlFor="tx-end">עד חודש (לא חובה)</Label>
+              <Label htmlFor="tx-end">{tm.untilMonth}</Label>
               <Input
                 id="tx-end"
                 type="month"
@@ -248,7 +252,7 @@ function TransactionForm({
                 onChange={(e) => setEndMonth(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                התנועה תופיע בכל חודש מ‑{date.slice(0, 7)} באותו יום בחודש.
+                {tm.recurringHint(date.slice(0, 7))}
               </p>
             </div>
           )}
@@ -256,7 +260,7 @@ function TransactionForm({
       )}
 
       {!onlyThisMonth && (
-        <Field label="הערות" htmlFor="tx-notes">
+        <Field label={m.notes} htmlFor="tx-notes">
           <Textarea
             id="tx-notes"
             rows={2}
@@ -280,10 +284,10 @@ function TransactionForm({
           variant="outline"
           onClick={() => onOpenChange(false)}
         >
-          ביטול
+          {common.cancel}
         </Button>
         <Button type="submit">
-          {transaction || series ? "שמירה" : "הוספה"}
+          {transaction || series ? common.save : common.add}
         </Button>
       </DialogFooter>
     </form>

@@ -10,6 +10,7 @@ import type {
   Task,
   Transaction,
 } from "./types";
+import { t } from "./i18n";
 
 /**
  * Every data endpoint of /api, written once. The Next route files hand their
@@ -27,19 +28,22 @@ type Params = Record<string, string>;
 type Handler = (params: Params, body: unknown) => Promise<ApiResult>;
 
 const ok = (body: unknown): ApiResult => ({ status: 200, body });
-const notFound = (): ApiResult => ({ status: 404, body: { error: "לא נמצא" } });
+const notFound = (): ApiResult => ({
+  status: 404,
+  body: { error: t().data.api.notFound },
+});
 const badRequest = (message: string): ApiResult => ({
   status: 400,
   body: { error: message },
 });
-const NOT_JSON = "גוף הבקשה אינו JSON תקין";
+const notJson = () => t().data.api.notJson;
 
 async function handle(fn: () => Promise<unknown>): Promise<ApiResult> {
   try {
     return ok(await fn());
   } catch (error) {
     console.error("API error:", error);
-    return { status: 500, body: { error: "הפעולה נכשלה בצד השרת" } };
+    return { status: 500, body: { error: t().data.api.serverFailed } };
   }
 }
 
@@ -69,7 +73,7 @@ const ROUTES: Record<string, Handler> = {
   "PUT /api/data": (_, body) => {
     const snapshot = body as Partial<DataSnapshot> | null;
     if (!snapshot || !Array.isArray(snapshot.tasks)) {
-      return Promise.resolve(badRequest("קובץ לא תקין"));
+      return Promise.resolve(badRequest(t().data.api.badFile));
     }
     return handle(() => repo.replaceAll(snapshot));
   },
@@ -78,7 +82,7 @@ const ROUTES: Record<string, Handler> = {
   "POST /api/sample": (_, body) => {
     const today = (body as { today?: unknown } | null)?.today;
     if (typeof today !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(today)) {
-      return Promise.resolve(badRequest("תאריך לא תקין"));
+      return Promise.resolve(badRequest(t().data.api.badDate));
     }
     return handle(() => repo.addSampleData(today));
   },
@@ -87,15 +91,19 @@ const ROUTES: Record<string, Handler> = {
   /* ---------------------------------------------------------- tasks */
   "GET /api/tasks": () => handle(() => repo.listTasks()),
   "POST /api/tasks": async (_, body) =>
-    body ? handle(() => repo.createTask(body as Partial<Task>)) : badRequest(NOT_JSON),
+    body
+      ? handle(() => repo.createTask(body as Partial<Task>))
+      : badRequest(notJson()),
   "GET /api/tasks/:id": async ({ id }) => found(await repo.getTask(id)),
   "PATCH /api/tasks/:id": async ({ id }, body) =>
-    body ? found(await repo.updateTask(id, body as Partial<Task>)) : badRequest(NOT_JSON),
+    body
+      ? found(await repo.updateTask(id, body as Partial<Task>))
+      : badRequest(notJson()),
   "DELETE /api/tasks/:id": ({ id }) => handle(() => done(repo.deleteTask(id))),
   /* Body: { ids } — the tasks of one day, in the order they should appear. */
   "POST /api/tasks/reorder": async (_, body) => {
     const ids = isObject(body) ? body.ids : undefined;
-    if (!isIdList(ids)) return badRequest("צריך רשימת מזהים");
+    if (!isIdList(ids)) return badRequest(t().data.api.idsRequired);
     return handle(() => done(repo.reorderTasks(ids)));
   },
 
@@ -105,7 +113,7 @@ const ROUTES: Record<string, Handler> = {
   "POST /api/routines": async (_, body) => {
     const input = body as Partial<Routine> | null;
     if (!input?.title || !input.repeat) {
-      return badRequest("חסרים כותרת או תדירות");
+      return badRequest(t().data.api.titleOrRepeatMissing);
     }
     // Which day was last copied is the server's to decide; a client that
     // sends it along would stop today's copy from being made.
@@ -119,7 +127,7 @@ const ROUTES: Record<string, Handler> = {
   "PATCH /api/routines/:id": async ({ id }, body) =>
     body
       ? found(await repo.updateRoutine(id, body as Partial<Routine>))
-      : badRequest(NOT_JSON),
+      : badRequest(notJson()),
   "DELETE /api/routines/:id": ({ id }) =>
     handle(() => done(repo.deleteRoutine(id))),
 
@@ -128,32 +136,34 @@ const ROUTES: Record<string, Handler> = {
   "POST /api/events": async (_, body) =>
     body
       ? handle(() => repo.createEvent(body as Partial<CalendarEvent>))
-      : badRequest(NOT_JSON),
+      : badRequest(notJson()),
   "GET /api/events/:id": async ({ id }) => found(await repo.getEvent(id)),
   "PATCH /api/events/:id": async ({ id }, body) =>
     body
       ? found(await repo.updateEvent(id, body as Partial<CalendarEvent>))
-      : badRequest(NOT_JSON),
-  "DELETE /api/events/:id": ({ id }) => handle(() => done(repo.deleteEvent(id))),
+      : badRequest(notJson()),
+  "DELETE /api/events/:id": ({ id }) =>
+    handle(() => done(repo.deleteEvent(id))),
 
   /* --------------------------------------------------- transactions */
   "GET /api/transactions": () => handle(() => repo.listTransactions()),
   "POST /api/transactions": async (_, body) =>
     body
       ? handle(() => repo.createTransaction(body as Partial<Transaction>))
-      : badRequest(NOT_JSON),
+      : badRequest(notJson()),
   "GET /api/transactions/:id": async ({ id }) =>
     found(await repo.getTransaction(id)),
   "PATCH /api/transactions/:id": async ({ id }, body) =>
     body
       ? found(await repo.updateTransaction(id, body as Partial<Transaction>))
-      : badRequest(NOT_JSON),
+      : badRequest(notJson()),
   "DELETE /api/transactions/:id": ({ id }) =>
     handle(() => done(repo.deleteTransaction(id))),
   /* Body: { transactions } — all saved together, or none. */
   "POST /api/transactions/bulk": async (_, body) => {
     const rows = isObject(body) ? body.transactions : undefined;
-    if (!Array.isArray(rows)) return badRequest("צריך רשימת תנועות");
+    if (!Array.isArray(rows))
+      return badRequest(t().data.api.transactionsRequired);
     return handle(() =>
       repo.createTransactions(rows as Partial<Transaction>[]),
     );
@@ -161,17 +171,21 @@ const ROUTES: Record<string, Handler> = {
   /* Body: { ids } — undoing an import. */
   "DELETE /api/transactions/bulk": async (_, body) => {
     const ids = isObject(body) ? body.ids : undefined;
-    if (!isIdList(ids)) return badRequest("צריך רשימת מזהים");
+    if (!isIdList(ids)) return badRequest(t().data.api.idsRequired);
     return handle(() => done(repo.deleteTransactions(ids)));
   },
 
   /* ---------------------------------------------------------- notes */
   "GET /api/notes": () => handle(() => repo.listNotes()),
   "POST /api/notes": async (_, body) =>
-    body ? handle(() => repo.createNote(body as Partial<Note>)) : badRequest(NOT_JSON),
+    body
+      ? handle(() => repo.createNote(body as Partial<Note>))
+      : badRequest(notJson()),
   "GET /api/notes/:id": async ({ id }) => found(await repo.getNote(id)),
   "PATCH /api/notes/:id": async ({ id }, body) =>
-    body ? found(await repo.updateNote(id, body as Partial<Note>)) : badRequest(NOT_JSON),
+    body
+      ? found(await repo.updateNote(id, body as Partial<Note>))
+      : badRequest(notJson()),
   "DELETE /api/notes/:id": ({ id }) => handle(() => done(repo.deleteNote(id))),
 
   /* ----------------------------------------------------- checklists */
@@ -183,7 +197,7 @@ const ROUTES: Record<string, Handler> = {
       items?: (string | { id?: string; text: string })[];
     } | null;
     const title = input?.title?.trim();
-    if (!title) return badRequest("צריך שם לרשימה");
+    if (!title) return badRequest(t().data.api.listNameRequired);
     return handle(() =>
       repo.createChecklist(title, input?.items ?? [], input?.id),
     );
@@ -200,15 +214,21 @@ const ROUTES: Record<string, Handler> = {
       pinned?: boolean;
       order?: string[];
     } | null;
-    if (!input) return badRequest(NOT_JSON);
+    if (!input) return badRequest(notJson());
 
     let list = null;
-    if (input.title?.trim()) list = await repo.renameChecklist(id, input.title.trim());
+    if (input.title?.trim())
+      list = await repo.renameChecklist(id, input.title.trim());
     if (input.addItem?.trim()) {
-      list = await repo.addChecklistItem(id, input.addItem.trim(), input.addItemId, {
-        index: input.addItemIndex ?? undefined,
-        done: input.addItemDone ?? undefined,
-      });
+      list = await repo.addChecklistItem(
+        id,
+        input.addItem.trim(),
+        input.addItemId,
+        {
+          index: input.addItemIndex ?? undefined,
+          done: input.addItemDone ?? undefined,
+        },
+      );
     }
     if (input.clearDone) list = await repo.clearDoneChecklistItems(id);
     if (input.resetDone) list = await repo.resetChecklist(id);
@@ -231,7 +251,7 @@ const ROUTES: Record<string, Handler> = {
             body as { text?: string; done?: boolean },
           ),
         )
-      : badRequest(NOT_JSON),
+      : badRequest(notJson()),
   "DELETE /api/checklists/:id/items/:itemId": async ({ id, itemId }) =>
     found(await repo.deleteChecklistItem(id, itemId)),
 
@@ -239,13 +259,14 @@ const ROUTES: Record<string, Handler> = {
   "GET /api/categories": () => handle(() => repo.listCategories()),
   "POST /api/categories": async (_, body) => {
     const input = body as (Omit<Category, "id"> & { id?: string }) | null;
-    if (!input?.name || !input.kind) return badRequest("חסר שם או סוג");
+    if (!input?.name || !input.kind)
+      return badRequest(t().data.api.nameOrKindMissing);
     return handle(() => repo.createCategory(input));
   },
   "PATCH /api/categories/:id": async ({ id }, body) =>
     body
       ? found(await repo.updateCategory(id, body as Partial<Category>))
-      : badRequest(NOT_JSON),
+      : badRequest(notJson()),
   "DELETE /api/categories/:id": ({ id }) =>
     handle(() => done(repo.deleteCategory(id))),
 
@@ -260,7 +281,7 @@ const ROUTES: Record<string, Handler> = {
       !LINK_KINDS.includes(link.aKind ?? "") ||
       !LINK_KINDS.includes(link.bKind ?? "")
     ) {
-      return badRequest("קישור לא תקין");
+      return badRequest(t().data.api.badLink);
     }
     return handle(() => repo.createLink(link));
   },
@@ -273,7 +294,7 @@ const ROUTES: Record<string, Handler> = {
   "PATCH /api/settings": async (_, body) => {
     const { calendars, budgets, prefs } = (body ?? {}) as Partial<Settings>;
     if (!isObject(calendars) && !isObject(budgets) && !isObject(prefs)) {
-      return badRequest("אין מה לעדכן");
+      return badRequest(t().data.api.nothingToUpdate);
     }
     return handle(async () => ({
       calendars: calendars
@@ -295,7 +316,8 @@ function match(pattern: string, path: string): Params | null {
   if (want.length !== got.length) return null;
   const params: Params = {};
   for (let i = 0; i < want.length; i++) {
-    if (want[i].startsWith(":")) params[want[i].slice(1)] = decodeURIComponent(got[i]);
+    if (want[i].startsWith(":"))
+      params[want[i].slice(1)] = decodeURIComponent(got[i]);
     else if (want[i] !== got[i]) return null;
   }
   return params;
@@ -310,7 +332,10 @@ export function runRoute(
 ): Promise<ApiResult> {
   const handler = ROUTES[`${method} ${pattern}`];
   if (!handler) {
-    return Promise.resolve({ status: 405, body: { error: "פעולה לא נתמכת" } });
+    return Promise.resolve({
+      status: 405,
+      body: { error: t().data.api.unsupported },
+    });
   }
   return handler(params, body);
 }

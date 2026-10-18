@@ -22,6 +22,7 @@ import {
   toMonthKey,
 } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 
 /**
  * A plain report of one month (?month=yyyy-MM) or one year (?year=yyyy),
@@ -35,7 +36,6 @@ function Report() {
 
   const year = params.get("year");
   const month = params.get("month") ?? toMonthKey(new Date());
-  const title = year ? `דוח שנתי ${year}` : `דוח חודשי — ${formatMonth(month)}`;
   const back = year ? "/finance?view=year" : `/finance?month=${month}`;
 
   const rows = useMemo(
@@ -45,6 +45,10 @@ function Report() {
         : getMonthTransactions(transactions, month),
     [transactions, year, month],
   );
+  const m = t().finance;
+  const title = year
+    ? m.report.yearly(year)
+    : m.report.monthly(formatMonth(month));
   const summary = summarize(rows);
   const expenses = categoryBreakdown(rows, categories, "expense");
   const income = categoryBreakdown(rows, categories, "income");
@@ -62,26 +66,28 @@ function Report() {
           nativeButton={false}
           render={<Link href={back} />}
         >
-          <ArrowRight />
-          חזרה לכספים
+          <ArrowRight className="ltr:rotate-180" />
+          {m.report.back}
         </Button>
         <Button onClick={() => window.print()}>
           <Printer />
-          הדפסה / שמירה כ‑PDF
+          {m.report.print}
         </Button>
       </div>
 
       <header>
         <h1 className="text-2xl font-bold">{title}</h1>
-        <p className="text-muted-foreground">הופק ב־{formatDate(todayKey())}</p>
+        <p className="text-muted-foreground">
+          {m.report.generated(formatDate(todayKey()))}
+        </p>
       </header>
 
       <section className="grid grid-cols-3 gap-3">
         {[
-          { label: "הכנסות", value: summary.income, tone: "text-income" },
-          { label: "הוצאות", value: summary.expense, tone: "text-expense" },
+          { label: m.income, value: summary.income, tone: "text-income" },
+          { label: m.expenses, value: summary.expense, tone: "text-expense" },
           {
-            label: "מאזן",
+            label: m.balance,
             value: summary.balance,
             tone: summary.balance >= 0 ? "text-income" : "text-expense",
           },
@@ -99,11 +105,14 @@ function Report() {
 
       {overBudget.length > 0 && (
         <section className="rounded-lg border border-destructive/40 p-3 text-destructive">
-          חריגה מהתקציב:{" "}
+          {m.report.overBudget}{" "}
           {overBudget
-            .map(
-              (b) =>
-                `${names.get(b.categoryId) ?? "?"} (${formatCurrency(b.spent)} מתוך ${formatCurrency(b.budget)})`,
+            .map((b) =>
+              m.report.overLine(
+                names.get(b.categoryId) ?? "?",
+                formatCurrency(b.spent),
+                formatCurrency(b.budget),
+              ),
             )
             .join(" · ")}
         </section>
@@ -111,21 +120,19 @@ function Report() {
 
       <section className="grid gap-6 sm:grid-cols-2 print:grid-cols-2">
         {[
-          { heading: "הוצאות לפי קטגוריה", list: expenses },
-          { heading: "הכנסות לפי קטגוריה", list: income },
+          { heading: m.report.expensesByCategory, list: expenses },
+          { heading: m.report.incomeByCategory, list: income },
         ].map(({ heading, list }) => (
           <div key={heading}>
             <h2 className="mb-2 font-semibold">{heading}</h2>
             {list.length === 0 ? (
-              <p className="text-muted-foreground">אין.</p>
+              <p className="text-muted-foreground">{m.report.none}</p>
             ) : (
               <table className="w-full">
                 <tbody>
                   {list.map(({ category, amount, share }) => (
                     <tr key={category?.id ?? "none"} className="border-b">
-                      <td className="py-1">
-                        {category?.name ?? "ללא קטגוריה"}
-                      </td>
+                      <td className="py-1">{category?.name ?? m.noCategory}</td>
                       <td className="py-1 text-end tabular-nums">
                         {formatCurrency(amount)}
                       </td>
@@ -142,14 +149,16 @@ function Report() {
       </section>
 
       <section>
-        <h2 className="mb-2 font-semibold">תנועות ({sorted.length})</h2>
+        <h2 className="mb-2 font-semibold">
+          {m.report.transactions(sorted.length)}
+        </h2>
         <table className="w-full">
           <thead className="text-xs text-muted-foreground">
             <tr className="border-b">
-              <th className="py-1 text-start font-medium">תאריך</th>
-              <th className="py-1 text-start font-medium">תיאור</th>
-              <th className="py-1 text-start font-medium">קטגוריה</th>
-              <th className="py-1 text-end font-medium">סכום</th>
+              <th className="py-1 text-start font-medium">{m.date}</th>
+              <th className="py-1 text-start font-medium">{m.description}</th>
+              <th className="py-1 text-start font-medium">{m.category}</th>
+              <th className="py-1 text-end font-medium">{m.amount}</th>
             </tr>
           </thead>
           <tbody>

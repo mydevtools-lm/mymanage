@@ -4,6 +4,7 @@
 //! reads the secret, makes the request and hands back the answer, so the
 //! secret never reaches the page.
 
+use crate::lang::tr;
 use crate::vault::Vault;
 use serde::Serialize;
 use serde_json::Value as Json;
@@ -27,10 +28,13 @@ fn valid_name(name: &str) -> bool {
 fn checked_value(name: &str, value: &str) -> Result<String, String> {
     let value = value.trim();
     if name != CLAUDE && !value.starts_with("https://") {
-        return Err("כתובת היומן צריכה להתחיל ב-https://".into());
+        return Err(tr(
+            "The calendar address must start with https://",
+            "כתובת היומן צריכה להתחיל ב-https://",
+        ));
     }
     if value.len() > 4096 {
-        return Err("הערך ארוך מדי".into());
+        return Err(tr("That's too long", "הערך ארוך מדי"));
     }
     Ok(value.to_string())
 }
@@ -50,14 +54,20 @@ pub fn secret_status(vault: State<'_, Vault>) -> Result<SecretStatus, String> {
             calendars.push(n.to_string());
         }
     }
-    Ok(SecretStatus { calendars, claude: vault.has(CLAUDE)? })
+    Ok(SecretStatus {
+        calendars,
+        claude: vault.has(CLAUDE)?,
+    })
 }
 
 /// Stores a secret; an empty value removes it.
 #[tauri::command]
 pub fn secret_set(vault: State<'_, Vault>, name: String, value: String) -> Result<(), String> {
     if !valid_name(&name) {
-        return Err(format!("אין סוד בשם {name}"));
+        return Err(tr(
+            &format!("No secret called {name}"),
+            &format!("אין סוד בשם {name}"),
+        ));
     }
     if value.trim().is_empty() {
         return vault.remove(&name);
@@ -79,18 +89,29 @@ fn client() -> Result<reqwest::Client, String> {
 pub async fn calendar_fetch(vault: State<'_, Vault>, id: String) -> Result<String, String> {
     let name = format!("calendar-{id}");
     if !valid_name(&name) {
-        return Err(format!("אין יומן מספר {id}"));
+        return Err(tr(
+            &format!("No calendar number {id}"),
+            &format!("אין יומן מספר {id}"),
+        ));
     }
-    let url = vault.get(&name)?.ok_or("היומן לא מחובר")?;
+    let url = vault
+        .get(&name)?
+        .ok_or_else(|| tr("The calendar isn't connected", "היומן לא מחובר"))?;
     let response = client()?
         .get(url)
         .send()
         .await
         .map_err(|e| e.without_url().to_string())?;
     if !response.status().is_success() {
-        return Err(format!("Google Calendar {id} returned {}", response.status().as_u16()));
+        return Err(format!(
+            "Google Calendar {id} returned {}",
+            response.status().as_u16()
+        ));
     }
-    response.text().await.map_err(|e| e.without_url().to_string())
+    response
+        .text()
+        .await
+        .map_err(|e| e.without_url().to_string())
 }
 
 /// One Messages API call with the stored key. The page builds the request
@@ -98,7 +119,9 @@ pub async fn calendar_fetch(vault: State<'_, Vault>, id: String) -> Result<Strin
 /// address, and nothing else.
 #[tauri::command]
 pub async fn assist_parse(vault: State<'_, Vault>, body: Json) -> Result<Json, String> {
-    let key = vault.get(CLAUDE)?.ok_or("אין מפתח Claude")?;
+    let key = vault
+        .get(CLAUDE)?
+        .ok_or_else(|| tr("No Claude key", "אין מפתח Claude"))?;
     let response = client()?
         .post(CLAUDE_URL)
         .header("x-api-key", key)
@@ -110,7 +133,10 @@ pub async fn assist_parse(vault: State<'_, Vault>, body: Json) -> Result<Json, S
     if !response.status().is_success() {
         return Err(format!("Claude API {}", response.status().as_u16()));
     }
-    response.json().await.map_err(|e| e.without_url().to_string())
+    response
+        .json()
+        .await
+        .map_err(|e| e.without_url().to_string())
 }
 
 #[cfg(test)]

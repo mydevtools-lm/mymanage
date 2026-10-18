@@ -7,6 +7,7 @@ import type { Category, ColorKey, Priority } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { t } from "@/lib/i18n";
 
 export function PageHeader({
   title,
@@ -36,7 +37,12 @@ export function Hydrated({ children }: { children: React.ReactNode }) {
   const hydrated = useAppStore((s) => s.hydrated);
   if (!hydrated) {
     return (
-      <div data-skeleton role="status" aria-label="טוען" className="space-y-4">
+      <div
+        data-skeleton
+        role="status"
+        aria-label={t().common.shared.loading}
+        className="space-y-4"
+      >
         <div className="h-9 w-56 rounded-md bg-muted motion-safe:animate-pulse" />
         <div className="h-44 rounded-xl border bg-card motion-safe:animate-pulse" />
         <div className="grid gap-4 lg:grid-cols-2">
@@ -106,12 +112,9 @@ export function CategoryBadge({ category }: { category?: Category | null }) {
   );
 }
 
-export const PRIORITY_LABELS: Record<Priority, string> = {
-  low: "נמוכה",
-  normal: "רגילה",
-  high: "גבוהה",
-  urgent: "דחופה",
-};
+export function priorityLabels(): Record<Priority, string> {
+  return t().common.shared.priority;
+}
 
 const PRIORITY_CLASSES: Record<Priority, string> = {
   low: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
@@ -126,7 +129,7 @@ export function PriorityBadge({ priority }: { priority: Priority }) {
       variant="secondary"
       className={cn("font-normal", PRIORITY_CLASSES[priority])}
     >
-      {PRIORITY_LABELS[priority]}
+      {priorityLabels()[priority]}
     </Badge>
   );
 }

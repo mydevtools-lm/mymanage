@@ -10,6 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { t } from "@/lib/i18n";
 
 /**
  * For deletes that "undo" can't fully take back — a whole list, or a category
@@ -20,7 +21,7 @@ export function ConfirmDialog({
   onOpenChange,
   title,
   description,
-  confirmLabel = "מחיקה",
+  confirmLabel = t().common.delete,
   onConfirm,
 }: {
   open: boolean;
@@ -40,7 +41,7 @@ export function ConfirmDialog({
           )}
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>ביטול</AlertDialogCancel>
+          <AlertDialogCancel>{t().common.cancel}</AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
             onClick={() => {

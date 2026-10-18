@@ -1,5 +1,5 @@
 import "server-only";
-import { parseHebrew } from "./nl-parse";
+import { parseSentence } from "./nl-parse";
 import {
   claudeRequest,
   DEFAULT_MODEL,
@@ -51,5 +51,5 @@ export async function readProposals(text: string, today: string) {
       console.error("Claude parse failed:", (error as Error).message);
     }
   }
-  return { source: "local" as const, proposals: parseHebrew(text, today) };
+  return { source: "local" as const, proposals: parseSentence(text, today) };
 }

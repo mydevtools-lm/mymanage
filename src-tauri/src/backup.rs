@@ -2,6 +2,7 @@
 //! one before each migration, in `backups/` next to the database, the last 14
 //! kept. VACUUM INTO writes a consistent copy while the app keeps running.
 
+use crate::lang::tr;
 use rusqlite::Connection;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,10 +16,13 @@ const PREFIX: &str = "backup-";
 fn valid_label(label: &str) -> bool {
     let b = label.as_bytes();
     let date = b.len() >= 10
-        && b[..10]
-            .iter()
-            .enumerate()
-            .all(|(i, c)| if i == 4 || i == 7 { *c == b'-' } else { c.is_ascii_digit() });
+        && b[..10].iter().enumerate().all(|(i, c)| {
+            if i == 4 || i == 7 {
+                *c == b'-'
+            } else {
+                c.is_ascii_digit()
+            }
+        });
     let rest = &label[10.min(label.len())..];
     let suffix = rest.is_empty()
         || rest == "-before-update"
@@ -39,7 +43,10 @@ pub fn snapshot(
     also: Option<&Path>,
 ) -> Result<Option<PathBuf>, String> {
     if !valid_label(label) {
-        return Err(format!("שם גיבוי לא תקין: {label}"));
+        return Err(tr(
+            &format!("Invalid backup name: {label}"),
+            &format!("שם גיבוי לא תקין: {label}"),
+        ));
     }
     fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let name = format!("{PREFIX}{label}.db");
@@ -57,8 +64,14 @@ pub fn snapshot(
     if let Some(also) = also {
         let copy = also.join(&name);
         if !copy.exists() {
-            fs::create_dir_all(also).map_err(|e| format!("תיקיית הגיבוי הנוספת: {e}"))?;
-            fs::copy(&target, &copy).map_err(|e| format!("תיקיית הגיבוי הנוספת: {e}"))?;
+            let extra = |e: std::io::Error| {
+                tr(
+                    &format!("Extra backup folder: {e}"),
+                    &format!("תיקיית הגיבוי הנוספת: {e}"),
+                )
+            };
+            fs::create_dir_all(also).map_err(extra)?;
+            fs::copy(&target, &copy).map_err(extra)?;
             prune(also).map_err(|e| e.to_string())?;
         }
     }
@@ -84,7 +97,8 @@ mod tests {
     use super::*;
 
     fn temp_dir(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("app-backup-test-{name}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("app-backup-test-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         dir
     }
@@ -105,7 +119,8 @@ mod tests {
     fn writes_once_a_label_and_keeps_the_newest_fourteen() {
         let dir = temp_dir("keep");
         let conn = Connection::open_in_memory().unwrap();
-        conn.execute_batch("CREATE TABLE t (a TEXT); INSERT INTO t VALUES ('x')").unwrap();
+        conn.execute_batch("CREATE TABLE t (a TEXT); INSERT INTO t VALUES ('x')")
+            .unwrap();
 
         for day in 1..=16 {
             let label = format!("2099-01-{day:02}");
@@ -136,7 +151,11 @@ mod tests {
         conn.execute_batch("CREATE TABLE t (a TEXT)").unwrap();
 
         snapshot(&conn, &dir, "2099-02-01", None).unwrap();
-        assert!(snapshot(&conn, &dir, "2099-02-01", Some(&extra)).unwrap().is_none());
+        assert!(
+            snapshot(&conn, &dir, "2099-02-01", Some(&extra))
+                .unwrap()
+                .is_none()
+        );
         assert!(extra.join("backup-2099-02-01.db").exists());
         fs::remove_dir_all(&dir).unwrap();
         fs::remove_dir_all(&extra).unwrap();

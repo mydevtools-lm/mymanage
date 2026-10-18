@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import Link from "next/link";
 import { addDays, format } from "date-fns";
-import { he } from "date-fns/locale";
 import { CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +17,7 @@ import { useAppStore } from "@/lib/store";
 import { useGoogleEvents } from "@/lib/use-google-events";
 import { COLOR_STYLES } from "@/lib/colors";
 import { toDateKey, todayKey } from "@/lib/format";
+import { dateLocale, t } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { expandEvents } from "@/lib/event-series";
 import { googleChip } from "@/components/calendar/chips";
@@ -47,11 +47,13 @@ export function WeekAheadCard() {
       .filter((d) => d.events.length + d.google.length + d.tasks.length > 0);
   }, [events, tasks, google.events, from, to]);
 
+  const { common, today: text } = t();
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>השבוע הקרוב</CardTitle>
-        <CardDescription>ששת הימים שאחרי היום</CardDescription>
+        <CardTitle>{text.weekAhead.title}</CardTitle>
+        <CardDescription>{text.weekAhead.description}</CardDescription>
         <CardAction>
           <Button
             variant="ghost"
@@ -59,14 +61,14 @@ export function WeekAheadCard() {
             nativeButton={false}
             render={<Link href="/calendar" />}
           >
-            ליומן
+            {text.weekAhead.openCalendar}
           </Button>
         </CardAction>
       </CardHeader>
       <CardContent>
         {days.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            שבוע פנוי. אין אירועים או משימות מתוזמנות.
+            {text.weekAhead.empty}
           </p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
@@ -74,9 +76,9 @@ export function WeekAheadCard() {
               <div key={d.day} className="rounded-lg border p-3">
                 <div className="mb-2 text-sm font-semibold">
                   {d.day === today
-                    ? "היום"
+                    ? common.today
                     : format(new Date(d.day + "T00:00"), "EEEE d/M", {
-                        locale: he,
+                        locale: dateLocale(),
                       })}
                 </div>
                 <div className="grid gap-1">

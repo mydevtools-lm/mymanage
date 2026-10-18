@@ -1,11 +1,11 @@
 "use client";
 
 import { format } from "date-fns";
-import { he } from "date-fns/locale";
 import { CalendarX2, Lock, MapPin, Repeat } from "lucide-react";
 import { COLOR_STYLES } from "@/lib/colors";
 import { toDateKey, todayKey } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { dateLocale, t } from "@/lib/i18n";
 import type { CalendarEvent, Task } from "@/lib/types";
 import { TaskRow } from "@/components/tasks/task-row";
 import { TimeRange } from "@/components/time-range";
@@ -31,6 +31,8 @@ export function AgendaView({
   onEditTask: (task: Task) => void;
 }) {
   const today = todayKey();
+  const m = t().calendar;
+  const locale = dateLocale();
   const rows = days
     .map((date) => ({ date, key: toDateKey(date), data: day(toDateKey(date)) }))
     .filter(
@@ -43,8 +45,8 @@ export function AgendaView({
     return (
       <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed py-12 text-center text-muted-foreground">
         <CalendarX2 className="size-8 opacity-60" />
-        <p className="font-medium text-foreground">אין כלום בתקופה הזו</p>
-        <p className="text-sm">נסה תקופה אחרת, או הוסף אירוע</p>
+        <p className="font-medium text-foreground">{m.agenda.emptyTitle}</p>
+        <p className="text-sm">{m.agenda.emptyHint}</p>
       </div>
     );
   }
@@ -74,7 +76,7 @@ export function AgendaView({
               className="flex flex-col items-center self-start rounded-lg py-1 transition-colors can-hover:hover:bg-accent/50"
             >
               <span className="text-xs text-muted-foreground">
-                {format(date, "EEE", { locale: he })}
+                {format(date, "EEE", { locale })}
               </span>
               <span
                 className={cn(
@@ -85,14 +87,14 @@ export function AgendaView({
                 {format(date, "d")}
               </span>
               <span className="text-[10px] text-muted-foreground">
-                {format(date, "MMM", { locale: he })}
+                {format(date, "MMM", { locale })}
               </span>
             </button>
 
             <div className="grid min-w-0 content-start gap-2 border-b pb-4">
               {empty && (
                 <p className="py-2 text-sm text-muted-foreground">
-                  היום פנוי ביומן.
+                  {m.agenda.dayFree}
                 </p>
               )}
 
@@ -162,7 +164,7 @@ export function AgendaView({
                       {item.e.repeat && (
                         <Repeat
                           className="size-3.5 text-muted-foreground"
-                          aria-label="אירוע חוזר"
+                          aria-label={m.recurringEvent}
                         />
                       )}
                     </div>

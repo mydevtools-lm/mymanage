@@ -51,6 +51,9 @@ afterEach(() => {
 });
 
 async function freshStore() {
+  // resetModules gives store.ts a fresh i18n too, back on the default
+  // language; the toasts below are matched in Hebrew.
+  (await import("./i18n")).setLocale("he");
   const { useAppStore } = await import("./store");
   return useAppStore;
 }
