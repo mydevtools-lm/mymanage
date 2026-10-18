@@ -25,5 +25,8 @@ The first public version: a Windows app.
   sentence" — secrets are encrypted.
 - Tray, Windows notifications even with the window closed, start with Windows
   (optional), single instance.
+- `mymanage-mcp.mjs`, an optional read-only MCP server: Claude can read your
+  tasks, calendar, money, notes and lists. It never writes and never sees your
+  secrets. Attached to each release.
 - Updates from GitHub Releases: checked at launch and once a day, installed only
   when you agree, with a backup first. Settings › About.

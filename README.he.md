@@ -67,6 +67,31 @@
 
 הרשת משמשת רק לשני אלה. בלי חשבון, בלי טלמטריה.
 
+## שיתוף הנתונים עם Claude (רשות)
+
+`mymanage-mcp.mjs`, שמצורף לכל גרסה, הוא שרת [MCP](https://modelcontextprotocol.io)
+קטן. הוא נותן ל‑Claude (Claude Code, Claude Desktop) לענות על ״מה יש לי היום?״ או
+״כמה הוצאתי החודש?״ מהנתונים האמיתיים שלך. הוא **רק קורא**: המסד נפתח לקריאה בלבד,
+אין בו כלי ששומר או מוחק, והסודות שלך (כתובות היומן ומפתח Claude) אף פעם לא נחשפים.
+צריך [Node.js](https://nodejs.org) 22 ומעלה.
+
+1. מורידים את `mymanage-mcp.mjs` מ‑[עמוד הגרסאות](../../releases/latest) ושומרים
+   אותו במקום קבוע, למשל `C:Tools`.
+2. מוסיפים ל‑Claude Code:
+   ```
+   claude mcp add mymanage -- node --experimental-sqlite C:Toolsmymanage-mcp.mjs
+   ```
+   או ל‑`claude_desktop_config.json` של Claude Desktop:
+   ```json
+   { "mcpServers": { "mymanage": {
+       "command": "node",
+       "args": ["--experimental-sqlite", "C:\Tools\mymanage-mcp.mjs"]
+   } } }
+   ```
+
+ברירת המחדל היא הנתונים של האפליקציה המותקנת; `--db <נתיב ל‑data.db>` מכוון למסד אחר.
+האפליקציה יכולה להישאר פתוחה בזמן ש‑Claude קורא.
+
 ## קוד פתוח
 
 רישיון [MIT](LICENSE). להרצה מהקוד ולתרומה — [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)

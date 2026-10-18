@@ -47,6 +47,7 @@ jobs:
           } | ConvertTo-Json -Depth 5 | Set-Content src-tauri/tauri.updater.conf.json -Encoding utf8
           "args=--config src-tauri/tauri.updater.conf.json" >> $env:GITHUB_OUTPUT
       - uses: tauri-apps/tauri-action@v0
+        id: tauri
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -57,6 +58,15 @@ jobs:
           updaterJsonPreferNsis: true
           tagName: ${{ github.ref_name }}
           releaseName: "mymanage ${{ github.ref_name }}"
-          releaseBody: "מה חדש — CHANGELOG.md. ההתקנה: מורידים את קובץ ה‑setup.exe ומפעילים."
+          releaseBody: "What's new: see CHANGELOG.md. To install, download the setup.exe and run it. mymanage-mcp.mjs is the optional MCP server (README)."
           releaseDraft: true
           prerelease: false
+      # The read-only MCP server (DESKTOP.md ד9) rides along as one file.
+      - name: Attach the MCP server
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ steps.tauri.outputs.releaseId }}
+        run: |
+          npm run build:mcp
+          gh api --method POST -H "Content-Type: application/octet-stream" "https://uploads.github.com/repos/${{ github.repository }}/releases/$env:RELEASE_ID/assets?name=mymanage-mcp.mjs" --input mcp/dist/mymanage-mcp.mjs
