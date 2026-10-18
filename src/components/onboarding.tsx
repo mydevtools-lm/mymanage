@@ -85,14 +85,11 @@ function Questions() {
   if (step === "language") {
     const current = getLocale();
     const choose = (locale: Locale) => {
-      // Already showing: just go on. Otherwise the app re-renders in the
-      // new language, and these questions continue from the name.
-      if (locale === current) {
-        useDevicePrefs.getState().setLanguage(locale);
-        setStep("name");
-      } else {
-        switchLanguage(locale);
-      }
+      // Either way the default categories take the chosen language. Already
+      // showing: just go on. Otherwise the app re-renders in the new
+      // language, and these questions continue from the name.
+      switchLanguage(locale);
+      if (locale === current) setStep("name");
     };
     return (
       <div className="grid gap-4">

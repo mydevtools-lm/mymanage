@@ -58,7 +58,7 @@ node scripts/desktop-smoke.mjs write
 node scripts/desktop-smoke.mjs read
 node scripts/desktop-smoke.mjs services    # a public calendar and a fake Claude key; cleans up after itself
 node scripts/desktop-smoke.mjs shell       # tray, a reminder from the tray, single instance
-node scripts/desktop-smoke.mjs screenshots # the README's pictures
+node scripts/desktop-smoke.mjs screenshots # the README's pictures in English; add "he" for Hebrew
 ```
 
 It drives WebView2 through its debug port and runs the app in quiet mode

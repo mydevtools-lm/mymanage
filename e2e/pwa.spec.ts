@@ -14,8 +14,8 @@ test("the manifest and its icons are served", async ({ request }) => {
   const manifest = await (await request.get("/manifest.webmanifest")).json();
   expect(manifest).toMatchObject({
     name: "mymanage",
-    lang: "he",
-    dir: "rtl",
+    lang: "en",
+    dir: "ltr",
     display: "standalone",
     start_url: "/",
   });
@@ -40,11 +40,15 @@ test("the service worker keeps the app opening without the server", async ({
   expect(active).toBe(true);
   // Let the worker take over this page, then cache it by visiting.
   await page.reload();
-  await expect(page.getByRole("heading", { name: "היום", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "היום", exact: true }),
+  ).toBeVisible();
 
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "היום", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "היום", exact: true }),
+  ).toBeVisible();
   await context.setOffline(false);
 });
 

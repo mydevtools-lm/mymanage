@@ -164,11 +164,16 @@ if (phase === "write") {
     en: { welcome: /Welcome/, name: "What should we call you?", who: "Dana", next: "Continue", sample: "With sample data", shown: "Showing sample data." },
     he: { welcome: /ברוכים הבאים/, name: "איך לקרוא לך?", who: "דנה", next: "המשך", sample: "עם נתוני דוגמה", shown: "מוצגים נתוני דוגמה." },
   }[LANGUAGE];
-  await page.evaluate((language) => {
-    localStorage.setItem("lior-device", JSON.stringify({ autoBrief: false, language, fired: {} }));
+  // The language through the first question, as a person picks it: that also
+  // renames the default categories the database was created with.
+  await page.evaluate(() => {
+    localStorage.setItem("lior-device", JSON.stringify({ autoBrief: false, fired: {} }));
     localStorage.setItem("theme", "light");
-  }, LANGUAGE);
+  });
   await goto(page, "/");
+  const language = page.getByRole("dialog", { name: /Choose a language|בחירת שפה/ });
+  await language.waitFor({ timeout: 10000 });
+  await language.getByRole("button", { name: LANGUAGE === "he" ? "עברית" : "English" }).click();
   const dialog = page.getByRole("dialog", { name: words.welcome });
   await dialog.waitFor({ timeout: 10000 });
   await dialog.getByLabel(words.name).fill(words.who);

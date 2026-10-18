@@ -63,11 +63,16 @@ async function dataTexts(request: APIRequestContext) {
     "/api/categories",
     "/api/tasks",
     "/api/events",
+    "/api/transactions",
+    "/api/routines",
+    "/api/notes",
+    "/api/checklists",
     `/api/calendar/google?from=${dayKey(-45)}&to=${dayKey(45)}`,
   ];
   const texts = new Set<string>();
   const collect = (value: unknown) => {
-    if (typeof value === "string" && value.trim()) texts.add(value.trim());
+    if (typeof value === "string" && /[א-ת]/.test(value))
+      texts.add(value.trim());
     else if (Array.isArray(value)) value.forEach(collect);
     else if (value && typeof value === "object")
       Object.values(value).forEach(collect);
