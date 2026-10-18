@@ -19,6 +19,10 @@ Worth including: what the problem is, how to reproduce it, and the version.
 - **What leaves the app** — links open in the browser only if they are `http` or
   `https`. Opening a file or another protocol is a problem.
 
+- **The MCP server** — `mymanage-mcp.mjs` must only read. A tool that writes
+  to the database, or that returns the Google Calendar addresses or the Claude
+  key, is a problem.
+
 ## Supported versions
 
 Only the latest version gets security fixes.

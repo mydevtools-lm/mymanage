@@ -45,6 +45,8 @@ npm run test:e2e    # Playwright — flows, accessibility (axe) and screenshots,
 cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
+`npm test` also runs `mcp/server.test.ts`: the MCP server's tools against a temporary database, and the bundled server over stdio.
+
 Vitest and the existing Playwright tests run in Hebrew (`test/setup-db.ts`,
 `playwright.config.ts`); English has its own tests.
 
@@ -74,6 +76,24 @@ npm run tauri build    # NSIS installer in src-tauri/target/release/bundle/nsis/
 The desktop build exports the screens as static files (`NEXT_TARGET=desktop`,
 `output: "export"`) — no `/api` routes and no server.
 
+## The MCP server
+
+`mcp/` is a small read-only [MCP](https://modelcontextprotocol.io) server over
+the app's database (DESKTOP.md ד9): `server.ts` starts it over stdio,
+`tools.ts` has the tools, `readonly-db.ts` opens the file with SQLite's own
+read-only mode. Tools reuse `repo.ts` and the pure helpers (`finance.ts`,
+`event-series.ts`, `search.ts`), so they count a month the way the screens do.
+Nothing in it writes, and nothing reads the secrets (they're in an encrypted file
+outside the database). A new tool must stay that way.
+
+```bash
+npm run build:mcp                      # mcp/dist/mymanage-mcp.mjs, one file (esbuild)
+node --experimental-sqlite mcp/dist/mymanage-mcp.mjs --db path/to/data.db
+```
+
+`release.yml` attaches that file to every release. How people connect it to
+Claude is in the [README](../README.md#let-claude-read-your-data-optional).
+
 ## Layout
 
 | Folder | What's in it |
@@ -85,6 +105,7 @@ The desktop build exports the screens as static files (`NEXT_TARGET=desktop`,
 | `src/lib/store.ts` | Screen state (Zustand) |
 | `src/lib/i18n` | Languages: `t()`, and a messages file per area |
 | `src-tauri/src` | Rust: the SQLite bridge, backups, secrets, network, tray, notifications, updates |
+| `mcp` | The read-only MCP server for Claude |
 | `e2e`, `test` | Playwright, and Vitest helpers |
 | `scripts` | The desktop smoke test, icon drawing, the update key setup |
 

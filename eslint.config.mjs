@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     // Rust build output of the desktop app (generated JS included).
     "src-tauri/target/**",
     "src-tauri/gen/**",
+    // The bundled MCP server (npm run build:mcp).
+    "mcp/dist/**",
   ]),
 ]);
 

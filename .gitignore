@@ -53,3 +53,6 @@ src-tauri/tauri.updater.conf.json
 # Signing keys (updates) never enter the repository.
 *.key
 *.key.pub
+
+# the MCP server bundle (npm run build:mcp)
+/mcp/dist/
