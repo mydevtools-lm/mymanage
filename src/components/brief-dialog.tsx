@@ -26,6 +26,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAppStore } from "@/lib/store";
 import { useDevicePrefs } from "@/lib/device-prefs";
 import { useGoogleEvents } from "@/lib/use-google-events";
+import { useHolidays } from "@/lib/use-holidays";
 import { morningBrief, weekSummary } from "@/lib/brief";
 import { formatCurrency, formatDate, todayKey } from "@/lib/format";
 import { greeting } from "@/lib/greeting";
@@ -89,13 +90,15 @@ function DayBrief() {
   );
   // Today's Google events belong in the day too, in time order.
   const google = useGoogleEvents(today, today);
+  const holidays = useHolidays(today, today);
   const dayEvents = useMemo(
     () =>
       [
         ...brief.events.map((e) => ({ ...e, google: false })),
+        ...holidays.events.map((e) => ({ ...e, google: false })),
         ...google.events.map((e) => ({ ...e, google: true })),
       ].sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? "")),
-    [brief.events, google.events],
+    [brief.events, holidays.events, google.events],
   );
   const { common, today: area } = t();
   const text = area.briefDialog;

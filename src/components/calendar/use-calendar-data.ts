@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { useAppStore } from "@/lib/store";
 import { expandEvents } from "@/lib/event-series";
 import { useGoogleEvents, type ExternalEvent } from "@/lib/use-google-events";
+import { useHolidays } from "@/lib/use-holidays";
 import type { CalendarEvent, Task } from "@/lib/types";
 
 export interface DayData {
@@ -27,6 +28,7 @@ export function useCalendarData(from: string, to: string) {
   const events = useAppStore((s) => s.events);
   const tasks = useAppStore((s) => s.tasks);
   const google = useGoogleEvents(from, to);
+  const holidays = useHolidays(from, to);
 
   const byDay = useMemo(() => {
     const map = new Map<string, DayData>();
@@ -41,7 +43,9 @@ export function useCalendarData(from: string, to: string) {
     // Recurring events arrive as one occurrence per day they fall on.
     for (const e of expandEvents(events, from, to))
       bucket(e.date).events.push(e);
-    for (const e of google.events) bucket(e.date).google.push(e);
+    // Google events and holidays are both read-only and from outside: one list.
+    for (const e of [...google.events, ...holidays.events])
+      bucket(e.date).google.push(e);
     for (const t of tasks) {
       if (t.dueDate && t.dueDate >= from && t.dueDate <= to) {
         bucket(t.dueDate).tasks.push(t);
@@ -53,10 +57,11 @@ export function useCalendarData(from: string, to: string) {
       day.tasks.sort((a, b) => byTime(a.dueTime, b.dueTime));
     }
     return map;
-  }, [events, tasks, google.events, from, to]);
+  }, [events, tasks, google.events, holidays.events, from, to]);
 
   return {
     day: (key: string) => byDay.get(key) ?? EMPTY,
     google,
+    holidays,
   };
 }

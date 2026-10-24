@@ -17,6 +17,11 @@ export const en = {
     /** Follows the struck-through word "Task". */
     taskDone: "done",
   },
+  holidays: {
+    jewish: "Jewish holidays",
+    national: "Memorial and national days",
+    heading: "Holidays and special days",
+  },
   google: {
     notConnected: "Google Calendar not connected · Connect",
     loading: "Loading from Google…",
@@ -100,6 +105,11 @@ export const he: typeof en = {
     event: "אירוע",
     task: "משימה",
     taskDone: "הושלמה",
+  },
+  holidays: {
+    jewish: "חגי ישראל",
+    national: "ימי זיכרון ולאום",
+    heading: "חגים ותאריכים מיוחדים",
   },
   google: {
     notConnected: "גוגל יומן לא מחובר · לחיבור",

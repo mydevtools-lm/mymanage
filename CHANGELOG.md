@@ -17,6 +17,9 @@ The first public version: a Windows app.
   ahead, no date), or click its handle to pick a date — with undo.
 - Desktop app (Tauri): installs for the current user, no administrator rights;
   the installer follows Windows' language.
+- Israel's holidays and memorial and national days, 2026 to 2028, on the
+  calendar, Today and the morning brief, in English and Hebrew. Each group can
+  be hidden or recoloured in Settings › Preferences.
 - Local data in SQLite, with daily backups (last 14), a backup before every
   database upgrade, and an extra backup folder of your choice.
 - First launch: language, a name for the greeting, and sample data that's

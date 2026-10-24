@@ -110,7 +110,7 @@ export default function CalendarPage() {
   );
   const from = toDateKey(days[0]);
   const to = toDateKey(days[days.length - 1]);
-  const { day, google } = useCalendarData(from, to);
+  const { day, google, holidays } = useCalendarData(from, to);
 
   const changeView = (next: View) => {
     setView(next);
@@ -263,6 +263,14 @@ export default function CalendarPage() {
           </span>
           {google.calendars
             .filter((c) => !c.hidden && !c.failed)
+            .map((c) => (
+              <span key={c.id} className="flex items-center gap-1.5">
+                <span className={cn("size-3 rounded", googleChip(c.color))} />
+                {c.name}
+              </span>
+            ))}
+          {holidays.calendars
+            .filter((c) => !c.hidden)
             .map((c) => (
               <span key={c.id} className="flex items-center gap-1.5">
                 <span className={cn("size-3 rounded", googleChip(c.color))} />

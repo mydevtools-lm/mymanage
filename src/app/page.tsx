@@ -35,6 +35,7 @@ import { MonthBalanceCard } from "@/components/today/month-balance-card";
 import { WeekAheadCard } from "@/components/today/week-ahead-card";
 import { useAppStore } from "@/lib/store";
 import { useGoogleEvents } from "@/lib/use-google-events";
+import { useHolidays } from "@/lib/use-holidays";
 import { buildDayAgenda, dayProgress } from "@/lib/agenda";
 import { formatDate, toDateKey, todayKey } from "@/lib/format";
 import { greeting } from "@/lib/greeting";
@@ -65,6 +66,7 @@ export default function TodayPage() {
   const today = todayKey();
   const isToday = date === today;
   const google = useGoogleEvents(date, date);
+  const holidays = useHolidays(date, date);
 
   const agenda = useMemo(
     () =>
@@ -73,9 +75,9 @@ export default function TodayPage() {
         today,
         tasks,
         events: expandEvents(events, date, date),
-        googleEvents: google.events,
+        googleEvents: [...google.events, ...holidays.events],
       }),
-    [date, today, tasks, events, google.events],
+    [date, today, tasks, events, google.events, holidays.events],
   );
   const progress = dayProgress(agenda);
 

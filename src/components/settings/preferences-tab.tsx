@@ -2,6 +2,7 @@
 
 import { useTheme } from "next-themes";
 import {
+  CalendarHeart,
   Download,
   MonitorSmartphone,
   Palette,
@@ -17,7 +18,12 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Field, SimpleSelect } from "@/components/fields";
+import { ColorSelect, Field, SimpleSelect } from "@/components/fields";
+import { Switch } from "@/components/ui/switch";
+import { googleTint } from "@/components/calendar/chips";
+import { HOLIDAYS_FROM, HOLIDAYS_TO } from "@/lib/holidays";
+import { useHolidays } from "@/lib/use-holidays";
+import { cn } from "@/lib/utils";
 import { ReminderField } from "@/components/reminder-field";
 import { install, useInstall } from "@/components/pwa";
 import { useAppStore } from "@/lib/store";
@@ -63,6 +69,8 @@ export function PreferencesTab() {
   const installed = useInstall((s) => s.installed);
   const desktop = useIsTauri();
   const locale = useLocale();
+  const setCalendarPref = useAppStore((s) => s.setCalendarPref);
+  const holidays = useHolidays(HOLIDAYS_FROM, HOLIDAYS_FROM);
   const m = t().settings.preferences;
 
   return (
@@ -141,6 +149,60 @@ export function PreferencesTab() {
                 onChange={setTheme}
               />
             </Field>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CalendarHeart className="size-4" />
+              {m.holidaysTitle}
+            </CardTitle>
+            <CardDescription>
+              {m.holidaysHint(
+                Number(HOLIDAYS_FROM.slice(0, 4)),
+                Number(HOLIDAYS_TO.slice(0, 4)),
+              )}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3">
+            {holidays.calendars.map((calendar) => {
+              const switchId = `calendar-shown-${calendar.id}`;
+              return (
+                <section
+                  key={calendar.id}
+                  aria-label={calendar.name}
+                  className={cn(
+                    "grid gap-3 rounded-lg border border-s-4 p-3",
+                    googleTint(calendar.color).bar,
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 truncate font-medium">
+                      {calendar.name}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <label htmlFor={switchId} className="text-xs">
+                        {m.holidaysShow}
+                      </label>
+                      <Switch
+                        id={switchId}
+                        checked={!calendar.hidden}
+                        onCheckedChange={(shown) =>
+                          setCalendarPref(calendar.id, { hidden: !shown })
+                        }
+                      />
+                    </div>
+                  </div>
+                  <ColorSelect
+                    value={calendar.color}
+                    onChange={(color) =>
+                      setCalendarPref(calendar.id, { color })
+                    }
+                  />
+                </section>
+              );
+            })}
           </CardContent>
         </Card>
 

@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { useAppStore } from "@/lib/store";
 import { useGoogleEvents } from "@/lib/use-google-events";
+import { useHolidays } from "@/lib/use-holidays";
 import { COLOR_STYLES } from "@/lib/colors";
 import { toDateKey, todayKey } from "@/lib/format";
 import { dateLocale, t } from "@/lib/i18n";
@@ -30,6 +31,7 @@ export function WeekAheadCard() {
   const from = toDateKey(addDays(new Date(), 1));
   const to = toDateKey(addDays(new Date(), 6));
   const google = useGoogleEvents(from, to);
+  const holidays = useHolidays(from, to);
 
   const days = useMemo(() => {
     const shown = expandEvents(events, from, to);
@@ -41,11 +43,13 @@ export function WeekAheadCard() {
         events: shown
           .filter((e) => e.date === day)
           .sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? "")),
-        google: google.events.filter((e) => e.date === day),
+        google: [...google.events, ...holidays.events].filter(
+          (e) => e.date === day,
+        ),
         tasks: tasks.filter((t) => t.dueDate === day && !t.archivedAt),
       }))
       .filter((d) => d.events.length + d.google.length + d.tasks.length > 0);
-  }, [events, tasks, google.events, from, to]);
+  }, [events, tasks, google.events, holidays.events, from, to]);
 
   const { common, today: text } = t();
 
