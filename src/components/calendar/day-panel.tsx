@@ -45,7 +45,10 @@ export function DayPanel({
 }) {
   const { remove: removeEvent } = useEventActions();
   const isDesktop = useIsDesktop();
-  const { events, google, tasks } = data;
+  const { events, tasks } = data;
+  // Both are read-only and from outside the app, but they are not the same thing.
+  const google = data.google.filter((e) => e.source === "google");
+  const holidays = data.google.filter((e) => e.source === "holidays");
   const m = t().calendar;
 
   return (
@@ -144,6 +147,26 @@ export function DayPanel({
                   </div>
                 ))}
               </section>
+
+              {holidays.length > 0 && (
+                <section className="grid gap-2">
+                  <h3 className="text-sm font-semibold">
+                    {m.holidays.heading}
+                  </h3>
+                  {holidays.map((e) => (
+                    <div
+                      key={e.id}
+                      className={cn(
+                        "rounded-lg border border-s-2 p-3",
+                        googleTint(e.color).bar,
+                        googleTint(e.color).card,
+                      )}
+                    >
+                      <div className="font-medium">{e.title}</div>
+                    </div>
+                  ))}
+                </section>
+              )}
 
               {google.length > 0 && (
                 <section className="grid gap-2">

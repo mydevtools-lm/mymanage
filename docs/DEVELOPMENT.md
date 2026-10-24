@@ -14,11 +14,11 @@ Hebrew).
 
 The same screens and the same data layer, carried two ways (DESKTOP.md 5.3):
 
-| | Browser | Desktop (Tauri) |
-|---|---|---|
-| Run | `npm run dev` → `http://localhost:3000` | `npm run tauri dev` |
-| Data | `data/lior.db` through `node:sqlite` and the `/api` routes | `%APPDATA%\<identifier>\data.db` through the bridge in `src-tauri/src/db.rs` |
-| Secrets | `.env.local` (see `.env.example`) | Settings › Connections, encrypted with DPAPI |
+|         | Browser                                                    | Desktop (Tauri)                                                              |
+| ------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Run     | `npm run dev` → `http://localhost:3000`                    | `npm run tauri dev`                                                          |
+| Data    | `data/lior.db` through `node:sqlite` and the `/api` routes | `%APPDATA%\<identifier>\data.db` through the bridge in `src-tauri/src/db.rs` |
+| Secrets | `.env.local` (see `.env.example`)                          | Settings › Connections, encrypted with DPAPI                                 |
 
 `node:sqlite` is still behind a flag, so the scripts run Next with
 `--experimental-sqlite`.
@@ -76,6 +76,20 @@ npm run tauri build    # NSIS installer in src-tauri/target/release/bundle/nsis/
 The desktop build exports the screens as static files (`NEXT_TARGET=desktop`,
 `output: "export"`) — no `/api` routes and no server.
 
+## Holidays
+
+`src/lib/holidays-data.ts` is generated: Israel's holidays and memorial and
+national days, by `@hebcal/core`, so the app needs no calendar library at run
+time. To cover other years:
+
+```bash
+node scripts/gen-holidays.mjs 2026 2032   # then commit the result
+```
+
+The two groups behave like read-only calendars of their own (`use-holidays.ts`):
+their colour and visibility are kept with the Google calendars' preferences.
+The lists of included names are at the top of the script.
+
 ## The MCP server
 
 `mcp/` is a small read-only [MCP](https://modelcontextprotocol.io) server over
@@ -96,18 +110,18 @@ Claude is in the [README](../README.md#let-claude-read-your-data-optional).
 
 ## Layout
 
-| Folder | What's in it |
-|---|---|
-| `src/app` | The screens (App Router) and the browser mode's `/api` routes |
-| `src/components` | The screens' components; `ui/` — shadcn |
-| `src/lib/repo.ts` | Every query, behind `db-adapter.ts` |
-| `src/lib/api-routes.ts` | The shared router — serves Next and the desktop app |
-| `src/lib/store.ts` | Screen state (Zustand) |
-| `src/lib/i18n` | Languages: `t()`, and a messages file per area |
-| `src-tauri/src` | Rust: the SQLite bridge, backups, secrets, network, tray, notifications, updates |
-| `mcp` | The read-only MCP server for Claude |
-| `e2e`, `test` | Playwright, and Vitest helpers |
-| `scripts` | The desktop smoke test, icon drawing, the update key setup |
+| Folder                  | What's in it                                                                     |
+| ----------------------- | -------------------------------------------------------------------------------- |
+| `src/app`               | The screens (App Router) and the browser mode's `/api` routes                    |
+| `src/components`        | The screens' components; `ui/` — shadcn                                          |
+| `src/lib/repo.ts`       | Every query, behind `db-adapter.ts`                                              |
+| `src/lib/api-routes.ts` | The shared router — serves Next and the desktop app                              |
+| `src/lib/store.ts`      | Screen state (Zustand)                                                           |
+| `src/lib/i18n`          | Languages: `t()`, and a messages file per area                                   |
+| `src-tauri/src`         | Rust: the SQLite bridge, backups, secrets, network, tray, notifications, updates |
+| `mcp`                   | The read-only MCP server for Claude                                              |
+| `e2e`, `test`           | Playwright, and Vitest helpers                                                   |
+| `scripts`               | The desktop smoke test, icon drawing, the update key setup                       |
 
 ## The update key (once)
 

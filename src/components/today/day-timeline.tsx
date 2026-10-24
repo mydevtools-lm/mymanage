@@ -42,7 +42,11 @@ export function AllDayStrip({
         ) : (
           <span
             key={item.key}
-            title={t().today.timeline.readOnlyGoogle}
+            title={
+              item.event.source === "google"
+                ? t().today.timeline.readOnlyGoogle
+                : undefined
+            }
             className={cn(
               "flex items-center gap-1.5 rounded-full px-3 py-1 text-sm",
               googleChip(item.event.color),

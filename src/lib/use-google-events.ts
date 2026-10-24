@@ -17,7 +17,7 @@ export interface ExternalEvent {
   allDay: boolean;
   location?: string;
   notes?: string;
-  source: "google";
+  source: "google" | "holidays";
   /** Which Google calendar, by its number (.env.local, or the desktop app's
    *  settings). */
   calendarId: string;

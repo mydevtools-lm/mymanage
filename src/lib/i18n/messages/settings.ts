@@ -182,6 +182,10 @@ export const en = {
     defaultReminder: "Default reminder for a task or event with a time",
     appearance: "Appearance",
     thisDevice: "On this device.",
+    holidaysTitle: "Holidays and special days",
+    holidaysHint: (from: number, to: number) =>
+      `Israel's holidays and memorial days, ${from}–${to}. Shown on the calendar, Today and the morning brief. Read only.`,
+    holidaysShow: "Show",
     theme: "Color theme",
     installTitle: "Install as an app",
     installHint:
@@ -372,6 +376,10 @@ export const he: typeof en = {
     defaultReminder: "תזכורת ברירת מחדל למשימה או אירוע עם שעה",
     appearance: "מראה",
     thisDevice: "במכשיר הזה.",
+    holidaysTitle: "חגים ותאריכים מיוחדים",
+    holidaysHint: (from, to) =>
+      `חגי ישראל וימי הזיכרון, ${from}–${to}. מוצגים ביומן, ב״היום״ ובתדריך הבוקר. לקריאה בלבד.`,
+    holidaysShow: "הצגה",
     theme: "ערכת צבעים",
     installTitle: "התקנה כאפליקציה",
     installHint: "אייקון במסך הבית ובשולחן העבודה, וחלון משלה בלי שורת כתובת.",

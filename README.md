@@ -10,21 +10,21 @@ no account, no server, no tracking.
 
 ## What's inside
 
-| Screen | What it's for |
-|---|---|
-| **Today** | The day on a timeline — events and tasks by the hour, what's carried over, the week ahead and the month's balance. A morning brief |
-| **Tasks** | By when they're due, subtasks, routines, reminders, an archive; drag a task to another day |
-| **Calendar** | Month, week and list. Recurring events, drag and drop, and up to 9 Google calendars (read only) |
-| **Money** | Month and year, recurring transactions, budgets, bank statement import, CSV and a printable report |
-| **Notes & lists** | Reusable lists, and notes with colours and pins |
+| Screen            | What it's for                                                                                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Today**         | The day on a timeline — events and tasks by the hour, what's carried over, the week ahead and the month's balance. A morning brief                   |
+| **Tasks**         | By when they're due, subtasks, routines, reminders, an archive; drag a task to another day                                                           |
+| **Calendar**      | Month, week and list. Recurring events, drag and drop, and up to 9 Google calendars (read only), and Israel's holidays and memorial days (2026–2028) |
+| **Money**         | Month and year, recurring transactions, budgets, bank statement import, CSV and a printable report                                                   |
+| **Notes & lists** | Reusable lists, and notes with colours and pins                                                                                                      |
 
 Everywhere: `Ctrl+K` searches everything and adds in a sentence — type "meeting
 with the accountant tomorrow at 10" and get the event, ready to confirm. `?`
 shows the keyboard shortcuts.
 
-| | |
-|---|---|
-| ![Tasks](docs/screenshots/tasks.png) | ![Calendar](docs/screenshots/calendar.png) |
+|                                        |                                            |
+| -------------------------------------- | ------------------------------------------ |
+| ![Tasks](docs/screenshots/tasks.png)   | ![Calendar](docs/screenshots/calendar.png) |
 | ![Money](docs/screenshots/finance.png) | ![Settings](docs/screenshots/settings.png) |
 
 ## Install
@@ -44,11 +44,11 @@ downloads it if it's missing.
 
 ## Your data
 
-| What | Where |
-|---|---|
-| The database | `%APPDATA%\io.github.mydevtools-lm.management\data.db` |
+| What                    | Where                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------ |
+| The database            | `%APPDATA%\io.github.mydevtools-lm.management\data.db`                               |
 | Daily backups (last 14) | `backups\` in the same folder, plus a folder of your choice — Settings › Preferences |
-| Manual backup | Settings › Backup — a JSON file you can import back |
+| Manual backup           | Settings › Backup — a JSON file you can import back                                  |
 
 **Google Calendar addresses and the Claude key** are stored encrypted in that
 folder (Windows DPAPI): only your Windows user on this computer can decrypt
@@ -87,10 +87,14 @@ Claude key) are never exposed. It needs [Node.js](https://nodejs.org) 22 or late
    ```
    or to Claude Desktop's `claude_desktop_config.json`:
    ```json
-   { "mcpServers": { "mymanage": {
-       "command": "node",
-       "args": ["--experimental-sqlite", "C:\Tools\mymanage-mcp.mjs"]
-   } } }
+   {
+     "mcpServers": {
+       "mymanage": {
+         "command": "node",
+         "args": ["--experimental-sqlite", "C:\Tools\mymanage-mcp.mjs"]
+       }
+     }
+   }
    ```
 
 It reads the installed app's data by default; `--db <path to data.db>` points it
