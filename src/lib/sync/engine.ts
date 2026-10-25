@@ -82,6 +82,7 @@ export async function syncStatus(db: Db): Promise<SyncStatus> {
       pending: 0,
       lastSync: null,
       devices: 0,
+      deviceNames: [],
     };
   }
   const count = async (sql: string) =>
@@ -94,6 +95,7 @@ export async function syncStatus(db: Db): Promise<SyncStatus> {
     pending: await count("SELECT COUNT(*) AS n FROM _sync_pending"),
     lastSync: last ? Number(last) : null,
     devices: Number((await meta(db, "devices")) ?? 0),
+    deviceNames: JSON.parse((await meta(db, "deviceNames")) ?? "[]"),
   };
 }
 
@@ -125,6 +127,9 @@ export async function enableSync(
   const dev = (await meta(db, "dev")) ?? crypto.randomUUID();
   await db.batch([
     { sql: "DELETE FROM _sync_out" },
+    // A computer's numbering starts at 1: readers wait for a missing file
+    // rather than skip it, so a later start must not carry on from an old one.
+    { sql: "DELETE FROM sqlite_sequence WHERE name = '_sync_out'" },
     { sql: "DELETE FROM _sync_field" },
     setMeta("dev", dev),
   ]);
@@ -164,6 +169,7 @@ export async function disableSync(db: Db) {
   await db.batch([
     setMeta("on", 0),
     { sql: "DELETE FROM _sync_out" },
+    { sql: "DELETE FROM sqlite_sequence WHERE name = '_sync_out'" },
     { sql: "DELETE FROM _sync_field" },
     { sql: "DELETE FROM _sync_pending" },
     { sql: "DELETE FROM _sync_alias" },
@@ -274,6 +280,7 @@ interface Incoming {
   cursors: Map<string, number>;
   waiting: string[];
   devices: number;
+  names: string[];
 }
 
 async function readOthers(
@@ -286,6 +293,7 @@ async function readOthers(
     cursors: new Map(),
     waiting: [],
     devices: 0,
+    names: [],
   };
   for (const dev of await folder.list(SYNC_DIR)) {
     if (dev === me || dev.includes(".") || dev.includes("/")) continue;
@@ -294,6 +302,16 @@ async function readOthers(
       .filter((n): n is NonNullable<typeof n> => n !== null);
     if (names.length === 0) continue;
     incoming.devices++;
+    try {
+      const info = JSON.parse(
+        (await folder.read(`${SYNC_DIR}/${dev}/device.json`)) ?? "{}",
+      );
+      if (typeof info.name === "string" && info.name) {
+        incoming.names.push(info.name);
+      }
+    } catch {
+      // No name: it is listed as another computer.
+    }
 
     let cursor = Number((await meta(db, `cur:${dev}`)) ?? 0);
 
@@ -657,7 +675,9 @@ async function applyBatch(
 
     if (!exists(e.t, e.r)) {
       insert(e.t, table.key, e.r, known);
-      rows.get(e.t)?.add(e.r) ?? rows.set(e.t, new Set([e.r]));
+      const present = rows.get(e.t);
+      if (present) present.add(e.r);
+      else rows.set(e.t, new Set([e.r]));
       stamp(e, ALIVE);
       for (const c of Object.keys(known)) stamp(e, c);
     } else {
@@ -787,7 +807,13 @@ export async function syncOnce(
   if ((await folder.read(`${SYNC_DIR}/${dev}/device.json`)) === null) {
     await folder.write(
       `${SYNC_DIR}/${dev}/device.json`,
-      JSON.stringify({ app: "mymanage-sync", version: 1, dev, created: now() }),
+      JSON.stringify({
+        app: "mymanage-sync",
+        version: 1,
+        dev,
+        name: options.deviceName ?? "",
+        created: now(),
+      }),
     );
   }
 
@@ -826,12 +852,14 @@ export async function syncOnce(
   await db.batch([
     setMeta("lastSync", now()),
     setMeta("devices", incoming.devices),
+    setMeta("deviceNames", JSON.stringify(incoming.names)),
   ]);
   return {
     exported,
     applied,
     pending,
     devices: incoming.devices,
+    deviceNames: incoming.names,
     waiting: incoming.waiting,
     compacted,
     changed,

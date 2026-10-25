@@ -21,6 +21,8 @@ interface Stored {
   closeToTray?: boolean;
   /** Desktop app: a second folder that gets a copy of each daily backup. */
   backupDir?: string;
+  /** Desktop app: the folder this computer syncs through (sprint ד8). */
+  syncDir?: string;
   briefShownOn?: string;
   /** Reminder keys already shown on this device, with the day they fired. */
   fired: Record<string, string>;
@@ -55,6 +57,7 @@ interface DevicePrefs extends Stored {
   setLanguage: (language: Locale) => void;
   setCloseToTray: (on: boolean) => void;
   setBackupDir: (dir: string | undefined) => void;
+  setSyncDir: (dir: string | undefined) => void;
 }
 
 export const useDevicePrefs = create<DevicePrefs>()((set, get) => {
@@ -67,6 +70,7 @@ export const useDevicePrefs = create<DevicePrefs>()((set, get) => {
       language: next.language,
       closeToTray: next.closeToTray,
       backupDir: next.backupDir,
+      syncDir: next.syncDir,
       briefShownOn: next.briefShownOn,
       fired: next.fired,
     });
@@ -84,6 +88,7 @@ export const useDevicePrefs = create<DevicePrefs>()((set, get) => {
     },
     setCloseToTray: (closeToTray) => save({ closeToTray }),
     setBackupDir: (backupDir) => save({ backupDir }),
+    setSyncDir: (syncDir) => save({ syncDir }),
     markFired: (keys, day) => {
       // Keep two days of history; older keys can never fire again anyway.
       const cutoff = new Date(Date.now() - 2 * 86_400_000).toLocaleDateString(

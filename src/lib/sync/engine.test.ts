@@ -145,6 +145,22 @@ describe("watching", () => {
     expect(a.rows("_sync_out", "seq")).toEqual([]);
   });
 
+  it("starting again after stopping numbers its files from 1, so others don't wait for ones that never existed", async () => {
+    const a = new Computer(T0);
+    const b = new Computer(T0);
+    await a.do(() => repo.createTask({ title: "first life" }));
+    await a.on();
+    await a.do(() => repo.createTask({ title: "more" }), T0 + 10);
+    await disableSync(a.db);
+    await a.do(() => repo.createTask({ title: "while off" }), T0 + 20);
+    await a.on();
+    await b.on();
+    await a.sync(folder);
+    const result = await b.sync(folder);
+    expect(result.waiting).toEqual([]);
+    expect(b.rows("tasks")).toHaveLength(3);
+  });
+
   it("records a row, a changed field, and a delete — only what changed", async () => {
     const a = new Computer(T0);
     await a.on();

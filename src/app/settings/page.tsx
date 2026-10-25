@@ -8,6 +8,7 @@ import { BackupTab } from "@/components/settings/backup-tab";
 import { NotificationsTab } from "@/components/settings/notifications-tab";
 import { PreferencesTab } from "@/components/settings/preferences-tab";
 import { AboutTab } from "@/components/settings/about-tab";
+import { SyncTab } from "@/components/settings/sync-tab";
 import { useIsTauri } from "@/lib/platform";
 import { t } from "@/lib/i18n";
 
@@ -43,7 +44,10 @@ export default function SettingsPage() {
             },
             { value: "backup", label: m.backup, content: <BackupTab /> },
             ...(desktop
-              ? [{ value: "about", label: m.about, content: <AboutTab /> }]
+              ? [
+                  { value: "sync", label: m.sync, content: <SyncTab /> },
+                  { value: "about", label: m.about, content: <AboutTab /> },
+                ]
               : []),
           ]}
         />

@@ -7,7 +7,51 @@ export const en = {
     preferences: "Preferences",
     notifications: "Notifications",
     backup: "Backup",
+    sync: "Sync",
     about: "About",
+  },
+  sync: {
+    title: "Sync between computers",
+    hint: "Keep the data the same on more than one computer, through a folder you already sync: Google Drive, OneDrive, Dropbox. There is no account and no server of ours. Each computer writes small files of its own in that folder and reads the others'.",
+    status: "Status",
+    on: "Syncing",
+    off: "Not syncing",
+    folder: "Sync folder",
+    notChosen: "Not chosen",
+    choose: "Choose a folder…",
+    start: "Start syncing",
+    change: "Change folder",
+    stop: "Stop syncing",
+    stopHint:
+      "This computer stops writing to the folder and reading from it. The files stay for the other computers, and nothing here is deleted.",
+    syncNow: "Sync now",
+    running: "Syncing…",
+    started: "Syncing started",
+    lastSync: (when: string) => `Last synced ${when}`,
+    never: "Not synced yet",
+    computers: (n: number, names: string[]) =>
+      n === 0
+        ? "No other computer yet. Choose the same folder on the other one."
+        : `${n === 1 ? "1 other computer" : `${n} other computers`}${names.length ? `: ${names.join(", ")}` : ""}`,
+    outbox: (n: number) =>
+      n === 1
+        ? "1 change here isn't in the folder yet"
+        : `${n} changes here aren't in the folder yet`,
+    waiting: (n: number) =>
+      n === 1
+        ? "A file from another computer isn't complete yet, probably still uploading. It will be read next time."
+        : `${n} files from other computers aren't complete yet, probably still uploading. They will be read next time.`,
+    pending: (n: number) =>
+      n === 1
+        ? "1 change waits for something that hasn't arrived yet."
+        : `${n} changes wait for something that hasn't arrived yet.`,
+    failed: "Syncing failed",
+    notSyncedTitle: "What isn't synced",
+    notSynced:
+      "Secrets (the Google Calendar addresses and the Claude key) stay on each computer and are entered on each one. So do the settings of this computer alone: the tray and starting with Windows.",
+    safetyTitle: "Before you start",
+    safety:
+      "Before this computer first takes in another computer's changes, it makes a backup copy of its own data. If the same item was changed on two computers, the later change wins, field by field; a deleted item stays deleted.",
   },
   about: {
     upToDate: "You have the latest version",
@@ -208,7 +252,51 @@ export const he: typeof en = {
     preferences: "העדפות",
     notifications: "התראות",
     backup: "גיבוי",
+    sync: "סנכרון",
     about: "אודות",
+  },
+  sync: {
+    title: "סנכרון בין מחשבים",
+    hint: "אותם נתונים ביותר ממחשב אחד, דרך תיקייה שכבר מסונכרנת אצלך: Google Drive,‏ OneDrive או Dropbox. אין חשבון ואין שרת שלנו. כל מחשב כותב בתיקייה קבצים קטנים משלו וקורא את אלה של האחרים.",
+    status: "מצב",
+    on: "מסונכרן",
+    off: "לא מסונכרן",
+    folder: "תיקיית סנכרון",
+    notChosen: "לא נבחרה",
+    choose: "בחירת תיקייה…",
+    start: "התחלת סנכרון",
+    change: "החלפת תיקייה",
+    stop: "הפסקת סנכרון",
+    stopHint:
+      "המחשב הזה מפסיק לכתוב לתיקייה ולקרוא ממנה. הקבצים נשארים בשביל המחשבים האחרים, ושום דבר כאן לא נמחק.",
+    syncNow: "סנכרון עכשיו",
+    running: "מסנכרן…",
+    started: "הסנכרון התחיל",
+    lastSync: (when) => `סונכרן לאחרונה ${when}`,
+    never: "עוד לא סונכרן",
+    computers: (n, names) =>
+      n === 0
+        ? "אין עוד מחשב. בוחרים את אותה תיקייה במחשב השני."
+        : `${n === 1 ? "מחשב אחד נוסף" : `${n} מחשבים נוספים`}${names.length ? `: ${names.join(", ")}` : ""}`,
+    outbox: (n) =>
+      n === 1
+        ? "שינוי אחד כאן עוד לא בתיקייה"
+        : `${n} שינויים כאן עוד לא בתיקייה`,
+    waiting: (n) =>
+      n === 1
+        ? "קובץ ממחשב אחר עוד לא שלם, כנראה עדיין מועלה. ייקרא בפעם הבאה."
+        : `${n} קבצים ממחשבים אחרים עוד לא שלמים, כנראה עדיין מועלים. ייקראו בפעם הבאה.`,
+    pending: (n) =>
+      n === 1
+        ? "שינוי אחד מחכה למשהו שעוד לא הגיע."
+        : `${n} שינויים מחכים למשהו שעוד לא הגיע.`,
+    failed: "הסנכרון נכשל",
+    notSyncedTitle: "מה לא מסונכרן",
+    notSynced:
+      "הסודות (כתובות יומן גוגל ומפתח Claude) נשארים בכל מחשב ומוזנים בכל אחד. כך גם ההגדרות של המחשב הזה בלבד: המגש וההפעלה עם Windows.",
+    safetyTitle: "לפני שמתחילים",
+    safety:
+      "לפני שהמחשב הזה מקבל בפעם הראשונה שינויים ממחשב אחר, נעשה גיבוי של הנתונים שלו. אם אותו פריט שונה בשני מחשבים, השינוי המאוחר מנצח, שדה אחר שדה; פריט שנמחק נשאר מחוק.",
   },
   about: {
     upToDate: "זו הגרסה האחרונה",

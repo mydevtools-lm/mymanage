@@ -34,6 +34,8 @@ export interface SyncOptions {
   beforeFirstMerge?: () => Promise<void>;
   /** Milliseconds; the clock the engine reads. Tests replace it. */
   now?: () => number;
+  /** This computer's name, for the others to show. */
+  deviceName?: string;
   /** Write a snapshot and drop old files once this computer has this many
    *  files of its own (default 20). */
   compactAfter?: number;
@@ -48,6 +50,8 @@ export interface SyncResult {
   pending: number;
   /** Other computers whose files were seen. */
   devices: number;
+  /** Their names, where they gave one. */
+  deviceNames: string[];
   /** Files that are not complete yet (still uploading, or damaged). */
   waiting: string[];
   /** A snapshot was written and old files removed. */
@@ -65,4 +69,5 @@ export interface SyncStatus {
   /** Epoch ms of the last finished sync, or null. */
   lastSync: number | null;
   devices: number;
+  deviceNames: string[];
 }

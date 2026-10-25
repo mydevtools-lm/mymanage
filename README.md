@@ -70,6 +70,16 @@ when you quit, and backs up first. Settings › About shows the version.
 
 The network is used for these two only. No account, no telemetry.
 
+## Two computers (optional)
+
+Settings › Sync keeps the data the same on more than one computer, through a folder
+you already sync — Google Drive, OneDrive, Dropbox. There is no account and no server
+of ours: each computer writes small files of its own in that folder and reads the
+others'. Pick the same folder on each computer. Changes to different parts of an item
+both survive; if the same field changed on two computers, the later change wins; a
+deleted item stays deleted. A backup of a computer's data is made before it first takes
+in another's. Secrets (calendar addresses, the Claude key) are not synced.
+
 ## Let Claude read your data (optional)
 
 `mymanage-mcp.mjs`, attached to each release, is a small
