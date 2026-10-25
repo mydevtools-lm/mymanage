@@ -11,7 +11,8 @@ pub const KEEP: usize = 14;
 const PREFIX: &str = "backup-";
 
 /// `2026-10-13`, `2026-10-13-before-v8` ahead of a migration, or
-/// `2026-10-13-before-update` ahead of an app update. Anything else is refused,
+/// `2026-10-13-before-update` ahead of an app update, or
+/// `2026-10-13-before-sync` ahead of the first merge with another computer. Anything else is refused,
 /// so the screens can't name a file outside the folder.
 fn valid_label(label: &str) -> bool {
     let b = label.as_bytes();
@@ -26,6 +27,7 @@ fn valid_label(label: &str) -> bool {
     let rest = &label[10.min(label.len())..];
     let suffix = rest.is_empty()
         || rest == "-before-update"
+        || rest == "-before-sync"
         || rest
             .strip_prefix("-before-v")
             .is_some_and(|v| !v.is_empty() && v.bytes().all(|c| c.is_ascii_digit()));
@@ -108,6 +110,7 @@ mod tests {
         assert!(valid_label("2026-10-13"));
         assert!(valid_label("2026-10-13-before-v8"));
         assert!(valid_label("2026-10-13-before-update"));
+        assert!(valid_label("2026-10-13-before-sync"));
         assert!(!valid_label("2026-10-13-before-update/x"));
         assert!(!valid_label("../2026-10-13"));
         assert!(!valid_label("2026-10-13-before-v"));

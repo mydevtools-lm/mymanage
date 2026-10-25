@@ -7,6 +7,7 @@ import { useQuickAdd } from "@/components/quick-add";
 import { useDevicePrefs } from "@/lib/device-prefs";
 import { isTauri } from "@/lib/platform";
 import { getLocale } from "@/lib/i18n";
+import { startAutoSync } from "@/lib/sync/client";
 
 /**
  * The desktop app's side of the shell in src-tauri/src/shell.rs: tells Rust
@@ -40,10 +41,13 @@ export function DesktopShell() {
       void invoke("shell_open_url", { url: url.href }).catch(() => {});
     };
     document.addEventListener("click", onClick, true);
+    // Rounds of syncing, if a sync folder is chosen (Settings › Sync).
+    const stopSync = startAutoSync();
 
     return () => {
       void quickAdd.then((stop) => stop());
       document.removeEventListener("click", onClick, true);
+      stopSync();
     };
   }, []);
 

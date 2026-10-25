@@ -6,6 +6,7 @@
 //   node scripts/desktop-smoke.mjs services           calendar, Claude, backups
 //   node scripts/desktop-smoke.mjs shell              tray, reminder, one instance
 //   node scripts/desktop-smoke.mjs screenshots [he]   README pictures (English, or Hebrew)
+//   node scripts/desktop-smoke.mjs sync               a second computer (a Node peer) through a shared folder
 // Every phase but English screenshots runs the app in Hebrew.
 // first-run and screenshots need a fresh data folder; services connects a public calendar
 // and a fake Claude key, and removes both at the end.
@@ -13,9 +14,10 @@
 // keeps its data in its own folder and never touches the installed app's.
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { spawn, execSync } from "node:child_process";
+import { spawn, execSync, execFileSync } from "node:child_process";
 import path from "node:path";
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -188,6 +190,116 @@ if (phase === "write") {
     await page.screenshot({ path: path.join(out, `${name}.png`) });
   }
   console.log(`screenshots (${LANGUAGE}):`, Object.keys(shots).join(", "));
+} else if (phase === "sync") {
+  // The app syncs through a folder with a second computer (here a Node
+  // process with its own database and the same sync engine), in both
+  // directions, including a change to the same task on each side.
+  const { build } = require("esbuild");
+  const work = mkdtempSync(path.join(tmpdir(), "mymanage-sync-smoke-"));
+  const shared = path.join(work, "shared");
+  const peerBundle = path.join(work, "peer.mjs");
+  const peerDb = path.join(work, "peer.db");
+  await build({
+    absWorkingDir: fileURLToPath(new URL("..", import.meta.url)),
+    entryPoints: ["scripts/sync-peer.entry.ts"],
+    outfile: peerBundle,
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    target: "node22",
+    logLevel: "error",
+  });
+  const peer = (...args) =>
+    JSON.parse(
+      execFileSync(process.execPath, ["--experimental-sqlite", "--no-warnings", peerBundle, peerDb, shared, ...args], { encoding: "utf8" }),
+    );
+  const failures = [];
+  const ok = (label, condition, detail = "") => {
+    console.log(`${condition ? "ok  " : "FAIL"} ${label}${detail ? " : " + detail : ""}`);
+    if (!condition) failures.push(label);
+  };
+  const syncTab = async () => goto(page, "/settings/?tab=sync");
+  const syncNow = async () => {
+    await syncTab();
+    await page.getByRole("button", { name: "סנכרון עכשיו" }).click();
+    await page.getByRole("button", { name: "סנכרון עכשיו" }).waitFor({ timeout: 20000 });
+    await page.waitForTimeout(500);
+  };
+  const addTask = async (title) => {
+    await goto(page, "/tasks/");
+    await page.getByRole("button", { name: "משימה חדשה" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "משימה חדשה" });
+    await dialog.getByPlaceholder("מה צריך לעשות?").fill(title);
+    await dialog.getByRole("button", { name: "הוספה" }).click();
+    await page.getByText(title).first().waitFor();
+  };
+  const hasTask = async (title) => {
+    await goto(page, "/tasks/");
+    return (await page.getByText(title, { exact: true }).count()) > 0;
+  };
+
+  try {
+    mkdirSync(shared, { recursive: true });
+    await page.evaluate((dir) => {
+      const device = JSON.parse(localStorage.getItem("lior-device") ?? "{}");
+      localStorage.setItem("lior-device", JSON.stringify({ ...device, syncDir: dir, autoBrief: false }));
+    }, shared);
+    await syncTab();
+    await page.getByRole("button", { name: "התחלת סנכרון" }).click();
+    await page.getByText(/סונכרן לאחרונה/).waitFor({ timeout: 20000 });
+    ok("the app started syncing and says when it last did", true);
+
+    const root = path.join(shared, "mymanage-sync", "v1");
+    const devices = existsSync(root) ? readdirSync(root) : [];
+    const own = devices.length === 1 ? readdirSync(path.join(root, devices[0])) : [];
+    ok("one device folder in the shared folder", devices.length === 1, devices.join(","));
+    ok("it holds a segment and device.json", own.some((n) => n.startsWith("seg-")) && own.includes("device.json"), own.join(","));
+    ok("no half-written files are left beside them", !own.some((n) => n.includes(".tmp-")));
+
+    peer("join");
+    const first = peer("sync");
+    ok("the second computer read the app's files", first.devices === 1 && first.applied > 0, JSON.stringify(first));
+    ok("it got the categories the app has", peer("categories") > 0);
+
+    peer("add-task", "מהמחשב השני");
+    peer("sync");
+    await syncNow();
+    ok("a task made on the second computer shows in the app", await hasTask("מהמחשב השני"));
+
+    await addTask("מהאפליקציה לסנכרון");
+    await syncNow();
+    peer("sync");
+    ok("a task made in the app reaches the second computer", peer("tasks").includes("מהאפליקציה לסנכרון"));
+
+    peer("retitle", "מהמחשב השני", "שונה במחשב השני");
+    peer("sync");
+    await syncNow();
+    ok("a change made there arrives here, and the old title is gone", (await hasTask("שונה במחשב השני")) && !(await hasTask("מהמחשב השני")));
+
+    await syncTab();
+    const text = await page.locator("main").innerText();
+    ok("the screen counts the other computer", /מחשב אחד נוסף/.test(text), text.replace(/\s+/g, " ").slice(0, 160));
+  } finally {
+    try {
+      await syncTab();
+      const stop = page.getByRole("button", { name: "הפסקת סנכרון" });
+      if (await stop.count()) await stop.click();
+      await page.waitForTimeout(500);
+      const left = await page.evaluate(() => JSON.parse(localStorage.getItem("lior-device") ?? "{}").syncDir ?? null);
+      ok("stopping forgets the folder", left === null);
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  }
+  // This phase reloads pages (page.goto) while a round of sync may be talking
+  // to Rust; Tauri logs that. The app itself never reloads.
+  for (let i = warnings.length - 1; i >= 0; i--) {
+    if (/Couldn't find callback id|IPC custom protocol failed/.test(warnings[i])) warnings.splice(i, 1);
+  }
+  if (failures.length) {
+    console.log("failed:", failures.join(" | "));
+    process.exitCode = 1;
+  }
 } else if (phase === "first-run") {
   const seen = {};
   // This device may have answered on an earlier run; forget that here (the

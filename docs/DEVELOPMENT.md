@@ -90,6 +90,25 @@ The two groups behave like read-only calendars of their own (`use-holidays.ts`):
 their colour and visibility are kept with the Google calendars' preferences.
 The lists of included names are at the top of the script.
 
+## Sync between computers
+
+How it works is in DESKTOP.md (ד8). In short: SQLite triggers (migration v8) record
+every write to the synchronised tables into `_sync_out` and stamp each field in
+`_sync_field`; `src/lib/sync/engine.ts` writes the outbox as files in the shared
+folder and merges other computers' files, the later stamp winning field by field.
+`src-tauri/src/sync.rs` is the only way the page reaches the folder, and only inside
+it. Sync is off until a folder is chosen, and then nothing else in the app changes: the
+triggers see every write, whoever makes it.
+
+**When you change a table** that is synchronised (`SYNC_TABLES` in
+`src/lib/sync/tables.ts`): add the column to its list, and add a migration that calls
+`syncTriggersSql()` again, so the triggers know the new column. A test fails until you do.
+
+```bash
+npx vitest run src/lib/sync        # the engine: several computers, one folder
+node scripts/desktop-smoke.mjs sync   # the real app and a second computer (a Node peer)
+```
+
 ## The MCP server
 
 `mcp/` is a small read-only [MCP](https://modelcontextprotocol.io) server over

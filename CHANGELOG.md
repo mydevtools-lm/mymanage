@@ -28,6 +28,9 @@ The first public version: a Windows app.
   sentence" — secrets are encrypted.
 - Tray, Windows notifications even with the window closed, start with Windows
   (optional), single instance.
+- Sync between computers through a folder you already sync (Settings › Sync): no
+  account and no server of ours; changes merge field by field, a deleted item stays
+  deleted, and a backup is made before the first merge.
 - `mymanage-mcp.mjs`, an optional read-only MCP server: Claude can read your
   tasks, calendar, money, notes and lists. It never writes and never sees your
   secrets. Attached to each release.

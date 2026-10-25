@@ -3,6 +3,7 @@ mod db;
 mod lang;
 mod services;
 mod shell;
+mod sync;
 mod updates;
 mod vault;
 
@@ -39,6 +40,7 @@ pub fn run() {
         .manage(shell::CloseToTray::default())
         .manage(updates::Updates::new(updates))
         .manage(shell::Quiet::default())
+        .manage(sync::SyncRoot::default())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -80,6 +82,12 @@ pub fn run() {
             shell::shell_notify,
             shell::shell_open_url,
             shell::shell_quiet_calls,
+            sync::sync_set_root,
+            sync::sync_list,
+            sync::sync_read,
+            sync::sync_write,
+            sync::sync_remove,
+            sync::sync_device_name,
             updates::app_about,
             updates::update_check,
             updates::update_install,
