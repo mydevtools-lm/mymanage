@@ -1,4 +1,5 @@
 import { getLocale, type Locale } from "./i18n";
+import { syncMigrationSql } from "./sync/tables";
 /**
  * The database schema, shared by every place that opens the database: the
  * Node server (db.ts, through node:sqlite) and the desktop app (through the
@@ -142,6 +143,11 @@ export const MIGRATIONS: string[] = [
   // v7 — reminders: minutes before a task's or an event's time.
   `ALTER TABLE tasks ADD COLUMN reminder INTEGER;
    ALTER TABLE events ADD COLUMN reminder INTEGER;`,
+  // v8 — syncing between computers (sprint ד8): bookkeeping tables and the
+  // triggers that fill them. Off until the person turns sync on. A later
+  // migration that changes a synchronised table must create the triggers
+  // again (see sync/tables.ts).
+  syncMigrationSql(),
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;
