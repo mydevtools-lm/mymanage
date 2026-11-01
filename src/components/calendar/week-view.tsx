@@ -6,7 +6,12 @@ import { Lock } from "lucide-react";
 import { COLOR_STYLES } from "@/lib/colors";
 import { TimeRange } from "@/components/time-range";
 import { toDateKey, todayKey } from "@/lib/format";
-import { layoutDay, type Timed } from "@/lib/week-layout";
+import {
+  layoutDay,
+  RESIZE_MIN_MINUTES,
+  resizedEnd,
+  type Timed,
+} from "@/lib/week-layout";
 import { cn } from "@/lib/utils";
 import { dateLocale, dirOf, getLocale, t } from "@/lib/i18n";
 import type { CalendarEvent, Task } from "@/lib/types";
@@ -50,6 +55,8 @@ export function movedBlock(
     end: block.end ? toTime(nextStart + length) : undefined,
   };
 }
+
+type DragMode = "move" | "resize";
 
 type Block = Timed &
   (
@@ -130,15 +137,18 @@ export function WeekView({
   const forward = dirOf(getLocale()) === "rtl" ? -1 : 1;
 
   // Dragging a block with the mouse moves it: up and down by 15 minutes,
-  // sideways by whole days. Touch keeps scrolling; the dialog edits there.
+  // sideways by whole days. Dragging an event's bottom edge changes when it
+  // ends, by 15 minutes. Touch keeps scrolling; the dialog edits there.
   const [drag, setDrag] = useState<{
     key: string;
+    mode: DragMode;
     days: number;
     minutes: number;
     width: number;
   } | null>(null);
   const pressed = useRef<{
     key: string;
+    mode: DragMode;
     x: number;
     y: number;
     moved: boolean;
@@ -155,15 +165,19 @@ export function WeekView({
     };
   }
 
-  function dragHandlers(block: Block, dayKey: string) {
+  function dragHandlers(block: Block, dayKey: string, mode: DragMode = "move") {
     if (block.kind === "google") return {};
     if (block.kind === "event" && !onMoveEvent) return {};
     if (block.kind === "task" && !onMoveTask) return {};
+    if (mode === "resize" && block.kind !== "event") return {};
     return {
       onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
         if (e.pointerType === "touch" || e.button !== 0) return;
+        // The edge sits inside the block: grabbing it must not also move it.
+        e.stopPropagation();
         pressed.current = {
           key: block.key,
+          mode,
           x: e.clientX,
           y: e.clientY,
           moved: false,
@@ -174,25 +188,36 @@ export function WeekView({
       },
       onPointerMove: (e: React.PointerEvent<HTMLElement>) => {
         const start = pressed.current;
-        if (!start || start.key !== block.key) return;
-        const dx = e.clientX - start.x;
+        if (!start || start.key !== block.key || start.mode !== mode) return;
+        const dx = mode === "resize" ? 0 : e.clientX - start.x;
         const dy = e.clientY - start.y;
         if (!start.moved && Math.hypot(dx, dy) < 5) return;
         start.moved = true;
-        setDrag({ key: block.key, ...offsets(dx, dy) });
+        setDrag({ key: block.key, mode, ...offsets(dx, dy) });
       },
       onPointerUp: (e: React.PointerEvent<HTMLElement>) => {
         const start = pressed.current;
+        if (start && start.mode !== mode) return;
         pressed.current = null;
         setDrag(null);
         if (!start?.moved || start.key !== block.key) return;
         // The click that follows a drag must not open the editor.
         justDragged.current = true;
         const { days, minutes } = offsets(
-          e.clientX - start.x,
+          mode === "resize" ? 0 : e.clientX - start.x,
           e.clientY - start.y,
         );
         if (days === 0 && minutes === 0) return;
+        if (mode === "resize") {
+          if (block.kind === "event")
+            onMoveEvent?.(
+              block.event,
+              dayKey,
+              block.start,
+              resizedEnd(block, minutes),
+            );
+          return;
+        }
         const to = movedBlock(block, dayKey, days, minutes);
         if (block.kind === "event")
           onMoveEvent?.(block.event, to.date, to.start, to.end);
@@ -364,14 +389,19 @@ export function WeekView({
 
               {placed.map(({ item, top, height, lane, lanes }) => {
                 const dragging = drag?.key === item.key ? drag : null;
+                const moving = dragging?.mode === "move" ? dragging : null;
+                const tall =
+                  dragging?.mode === "resize"
+                    ? Math.max(RESIZE_MIN_MINUTES, height + dragging.minutes)
+                    : height;
                 const style = {
                   top: top * PX_PER_MIN,
-                  height: height * PX_PER_MIN - 2,
+                  height: tall * PX_PER_MIN - 2,
                   // Logical inset so lanes flow right-to-left like the page.
                   insetInlineStart: `calc(${(lane / lanes) * 100}% + 2px)`,
                   width: `calc(${100 / lanes}% - 4px)`,
-                  transform: dragging
-                    ? `translate(${forward * dragging.days * dragging.width}px, ${dragging.minutes * PX_PER_MIN}px)`
+                  transform: moving
+                    ? `translate(${forward * moving.days * moving.width}px, ${moving.minutes * PX_PER_MIN}px)`
                     : undefined,
                 };
                 const label =
@@ -415,9 +445,11 @@ export function WeekView({
                       else onEditEvent(item.event);
                     }}
                     className={cn(
-                      "absolute z-20 overflow-hidden rounded-md px-1 py-0.5 text-start text-[11px] leading-4 shadow-xs",
+                      "group absolute z-20 overflow-hidden rounded-md px-1 py-0.5 text-start text-[11px] leading-4 shadow-xs",
                       dragging &&
-                        "z-30 cursor-grabbing opacity-90 shadow-lg ring-2 ring-primary",
+                        "z-30 opacity-90 shadow-lg ring-2 ring-primary",
+                      moving && "cursor-grabbing",
+                      dragging?.mode === "resize" && "cursor-ns-resize",
                       item.kind === "task"
                         ? cn(
                             "bg-card",
@@ -434,6 +466,14 @@ export function WeekView({
                       <div className="opacity-85">
                         <TimeRange start={item.start} end={item.end} />
                       </div>
+                    )}
+                    {item.kind === "event" && onMoveEvent && (
+                      <span
+                        aria-hidden
+                        data-resize
+                        {...dragHandlers(item, key, "resize")}
+                        className="absolute inset-x-0 bottom-0 h-2 cursor-ns-resize can-hover:group-hover:bg-foreground/10"
+                      />
                     )}
                   </button>
                 );

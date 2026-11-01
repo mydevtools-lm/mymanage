@@ -111,6 +111,55 @@ test("dragging in the week grid changes the time, and the day", async ({
     .toMatchObject({ startTime: "12:00", date: next });
 });
 
+test("dragging an event's bottom edge changes when it ends", async ({
+  page,
+  request,
+}) => {
+  await request.post("/api/events", {
+    data: {
+      id: "resize-1",
+      title: "להאריך",
+      date: dayKey(),
+      startTime: "10:00",
+      endTime: "11:00",
+      allDay: false,
+      color: "sky",
+    },
+  });
+  await ready(page, "/calendar");
+  await view(page, "שבוע");
+
+  const block = page.getByRole("button", { name: /להאריך/ });
+  const edge = block.locator("[data-resize]");
+  let box = (await edge.boundingBox())!;
+  let x = box.x + box.width / 2;
+  let y = box.y + box.height / 2;
+  // An hour and a half longer: 48px an hour.
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y + 40, { steps: 4 });
+  await page.mouse.move(x, y + 72, { steps: 4 });
+  await page.mouse.up();
+
+  // Letting go must not open the editor, and the start stays.
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect
+    .poll(async () => (await request.get("/api/events/resize-1")).json())
+    .toMatchObject({ date: dayKey(), startTime: "10:00", endTime: "12:30" });
+
+  // Shorter again, but never below a quarter of an hour.
+  box = (await edge.boundingBox())!;
+  x = box.x + box.width / 2;
+  y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y - 300, { steps: 6 });
+  await page.mouse.up();
+  await expect
+    .poll(async () => (await request.get("/api/events/resize-1")).json())
+    .toMatchObject({ startTime: "10:00", endTime: "10:15" });
+});
+
 test("dragging a task to another day in the month grid", async ({
   page,
   request,
@@ -130,9 +179,10 @@ test("dragging a task to another day in the month grid", async ({
   await ready(page, "/calendar");
   await view(page, "חודש");
 
+  // From the start of the label: "5.11 —" alone would also match 15.11.
   const label = (key: string) => {
     const [, m, d] = key.split("-").map(Number);
-    return `${d}.${m} —`;
+    return new RegExp(`^${d}\\.${m} —`);
   };
   await page
     .getByTitle("משימה לגרירה")
