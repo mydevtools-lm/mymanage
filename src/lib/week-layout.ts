@@ -82,3 +82,26 @@ export function layoutDay<T extends Timed>(items: T[]): Placed<T>[] {
 
   return placed;
 }
+
+/** Shortest an item can be made by dragging its bottom edge. */
+export const RESIZE_MIN_MINUTES = 15;
+
+/**
+ * The new end time after dragging an item's bottom edge by `minutes` (already
+ * snapped). The start stays; the item never gets shorter than
+ * RESIZE_MIN_MINUTES nor runs past the end of the day.
+ */
+export function resizedEnd(
+  item: { start: string; end?: string },
+  minutes: number,
+) {
+  const top = minutesOf(item.start);
+  const end = item.end ? minutesOf(item.end) : top + DEFAULT_MINUTES;
+  const next = Math.max(
+    top + RESIZE_MIN_MINUTES,
+    Math.min(24 * 60 - 1, end + minutes),
+  );
+  const h = Math.floor(next / 60);
+  const m = next % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}

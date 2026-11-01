@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { layoutDay, minutesOf, MIN_MINUTES } from "./week-layout";
+import { layoutDay, minutesOf, MIN_MINUTES, resizedEnd } from "./week-layout";
 
 const at = (key: string, start: string, end?: string) => ({ key, start, end });
 
@@ -73,5 +73,24 @@ describe("layoutDay", () => {
   it("keeps a late event inside the day", () => {
     const [late] = layoutDay([at("late", "23:45", "00:30")]);
     expect(late.top + late.height).toBe(24 * 60);
+  });
+});
+
+describe("resizedEnd", () => {
+  it("moves the end and keeps the start", () => {
+    expect(resizedEnd({ start: "10:00", end: "11:00" }, 45)).toBe("11:45");
+    expect(resizedEnd({ start: "10:00", end: "11:00" }, -30)).toBe("10:30");
+  });
+
+  it("never goes below the shortest length", () => {
+    expect(resizedEnd({ start: "10:00", end: "11:00" }, -120)).toBe("10:15");
+  });
+
+  it("stops at the end of the day", () => {
+    expect(resizedEnd({ start: "22:00", end: "23:00" }, 180)).toBe("23:59");
+  });
+
+  it("starts from the default hour when there is no end", () => {
+    expect(resizedEnd({ start: "09:00" }, 30)).toBe("10:30");
   });
 });
