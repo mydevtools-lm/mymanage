@@ -104,7 +104,10 @@ or later.
    ```
    claude mcp add mymanage -- node --experimental-sqlite C:\Tools\mymanage-mcp.mjs --write
    ```
-   or to Claude Desktop's `claude_desktop_config.json`:
+   In PowerShell, write the separator as `'--'`, or it doesn't reach the command.
+
+   Or add it to Claude Desktop's `claude_desktop_config.json`, with Claude quit
+   (from the tray too): it overwrites this file while it runs.
    ```json
    {
      "mcpServers": {

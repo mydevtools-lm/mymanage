@@ -96,7 +96,10 @@ Google Drive,‏ OneDrive או Dropbox. אין חשבון ואין שרת שלנ
    ```
    claude mcp add mymanage -- node --experimental-sqlite C:\Tools\mymanage-mcp.mjs --write
    ```
-   או ל‑`claude_desktop_config.json` של Claude Desktop:
+   ב‑PowerShell כותבים את המפריד כ‑`'--'`, אחרת הוא לא מגיע לפקודה.
+
+   או מוסיפים ל‑`claude_desktop_config.json` של Claude Desktop, כש‑Claude סגור (גם
+   מהמגש), כי בזמן שהוא רץ הוא דורס את הקובץ:
    ```json
    {
      "mcpServers": {
