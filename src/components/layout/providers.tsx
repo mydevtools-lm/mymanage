@@ -5,7 +5,8 @@ import { ThemeProvider } from "next-themes";
 import { DirectionProvider } from "@base-ui/react/direction-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
-import { useAppStore } from "@/lib/store";
+import { hasWritesOnTheirWay, readDataVersion, useAppStore } from "@/lib/store";
+import { watchExternalChanges } from "@/lib/external-changes";
 import { todayKey } from "@/lib/format";
 import { dirOf } from "@/lib/i18n";
 import { useLocale } from "@/lib/i18n/use-locale";
@@ -42,7 +43,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
       void useAppStore.getState().load();
     };
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+
+    // A chat changed the data through the MCP server: show it.
+    const stopWatching = watchExternalChanges({
+      read: readDataVersion,
+      reload: () => useAppStore.getState().load(),
+      busy: hasWritesOnTheirWay,
+    });
+
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      stopWatching();
+    };
   }, []);
 
   return (

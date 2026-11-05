@@ -31,8 +31,10 @@ The first public version: a Windows app.
 - Sync between computers through a folder you already sync (Settings › Sync): no
   account and no server of ours; changes merge field by field, a deleted item stays
   deleted, and a backup is made before the first merge.
-- `mymanage-mcp.mjs`, an optional read-only MCP server: Claude can read your
-  tasks, calendar, money, notes and lists. It never writes and never sees your
-  secrets. Attached to each release.
+- `mymanage-mcp.mjs`, an optional MCP server: a chat on your computer can read
+  your tasks, calendar, money, notes and lists, and never sees your secrets. It
+  only reads unless you start it with `--write`; then the chat can also add,
+  change and delete, the open app follows within seconds, and a backup is made
+  before the day's first change. Attached to each release.
 - Updates from GitHub Releases: checked at launch and once a day, installed only
   when you agree, with a backup first. Settings › About.

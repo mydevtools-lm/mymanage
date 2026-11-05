@@ -45,7 +45,7 @@ npm run test:e2e    # Playwright — flows, accessibility (axe) and screenshots,
 cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test
 ```
 
-`npm test` also runs `mcp/server.test.ts`: the MCP server's tools against a temporary database, and the bundled server over stdio.
+`npm test` also runs `mcp/*.test.ts`: the MCP server's tools against a temporary database, and the bundled server over stdio.
 
 Vitest and the existing Playwright tests run in Hebrew (`test/setup-db.ts`,
 `playwright.config.ts`); English has its own tests.
@@ -111,21 +111,32 @@ node scripts/desktop-smoke.mjs sync   # the real app and a second computer (a No
 
 ## The MCP server
 
-`mcp/` is a small read-only [MCP](https://modelcontextprotocol.io) server over
-the app's database (DESKTOP.md ד9): `server.ts` starts it over stdio,
-`tools.ts` has the tools, `readonly-db.ts` opens the file with SQLite's own
-read-only mode. Tools reuse `repo.ts` and the pure helpers (`finance.ts`,
-`event-series.ts`, `search.ts`), so they count a month the way the screens do.
-Nothing in it writes, and nothing reads the secrets (they're in an encrypted file
-outside the database). A new tool must stay that way.
+`mcp/` is a small [MCP](https://modelcontextprotocol.io) server over the app's
+database (DESKTOP.md ד9, ד11). `server.ts` starts it over stdio. Tools reuse
+`repo.ts` and the pure helpers (`finance.ts`, `event-series.ts`, `search.ts`), so
+they count a month and split a series the way the screens do.
+
+- **Reading is the default.** `tools.ts` has the reading tools and `readonly-db.ts`
+  opens the file with SQLite's own read-only mode, so nothing can write.
+- **`--write` adds `write-tools.ts`** and opens the file through `writable-db.ts`:
+  it waits on a busy file, turns foreign keys on, refuses a schema other than its
+  own (it never migrates; the app does), and backs up before the day's first write.
+- **Nothing reads the secrets** (they're in an encrypted file outside the
+  database), and no tool wipes or replaces everything. A new tool must stay that way.
+
+The app sees these writes through `PRAGMA data_version`, which changes only when
+another connection commits: `src/lib/external-changes.ts` asks every 3 seconds and
+reloads the store. The sync triggers see them like any other write.
 
 ```bash
 npm run build:mcp                      # mcp/dist/mymanage-mcp.mjs, one file (esbuild)
-node --experimental-sqlite mcp/dist/mymanage-mcp.mjs --db path/to/data.db
+node --experimental-sqlite mcp/dist/mymanage-mcp.mjs --db path/to/data.db [--write]
+npx vitest run mcp                     # the tools, through a real client
+node scripts/desktop-smoke.mjs chat    # the real app and the bundle: the open window follows
 ```
 
-`release.yml` attaches that file to every release. How people connect it to
-Claude is in the [README](../README.md#let-claude-read-your-data-optional).
+`release.yml` attaches that file to every release. How people connect it to a
+chat is in the [README](../README.md#let-a-chat-read-and-update-your-data-optional).
 
 ## Layout
 
@@ -138,7 +149,7 @@ Claude is in the [README](../README.md#let-claude-read-your-data-optional).
 | `src/lib/store.ts`      | Screen state (Zustand)                                                           |
 | `src/lib/i18n`          | Languages: `t()`, and a messages file per area                                   |
 | `src-tauri/src`         | Rust: the SQLite bridge, backups, secrets, network, tray, notifications, updates |
-| `mcp`                   | The read-only MCP server for Claude                                              |
+| `mcp`                   | The MCP server for chats: reads, and writes with `--write`                       |
 | `e2e`, `test`           | Playwright, and Vitest helpers                                                   |
 | `scripts`               | The desktop smoke test, icon drawing, the update key setup                       |
 

@@ -198,7 +198,9 @@ describe("tools", () => {
       "list_categories",
       "list_checklists",
       "list_events",
+      "list_links",
       "list_notes",
+      "list_routines",
       "list_tasks",
       "list_transactions",
       "search",
@@ -362,6 +364,7 @@ describe("read only", () => {
       "list_tasks",
       "finance_summary",
       "list_categories",
+      "list_checklists_PLACEHOLDER",
     ]) {
       await call(client, name);
     }
@@ -392,7 +395,7 @@ describe("the bundle", () => {
     );
     try {
       const { tools } = await client.listTools();
-      expect(tools).toHaveLength(10);
+      expect(tools).toHaveLength(12);
       const { json } = await call(client, "today", { date: TODAY });
       expect(json.tasks).toHaveLength(2);
     } finally {

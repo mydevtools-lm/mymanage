@@ -204,12 +204,30 @@ async function api(
   return response.json();
 }
 
+let writesOnTheirWay = 0;
+
+/** A save of the app's own hasn't reached the database yet. */
+export const hasWritesOnTheirWay = () => writesOnTheirWay > 0;
+
+/** See external-changes.ts. */
+export async function readDataVersion() {
+  const { version } = (await api("/api/data/version", "GET")) as {
+    version: number;
+  };
+  return version;
+}
+
 // Fire a write and keep the mirror honest if it fails.
 function push(work: Promise<unknown>) {
-  work.catch((error: Error) => {
-    toast.error(error.message || t().data.store.saveFailed);
-    void useAppStore.getState().load();
-  });
+  writesOnTheirWay++;
+  work
+    .catch((error: Error) => {
+      toast.error(error.message || t().data.store.saveFailed);
+      void useAppStore.getState().load();
+    })
+    .finally(() => {
+      writesOnTheirWay--;
+    });
 }
 
 const UNDO_MS = 6000;

@@ -67,7 +67,7 @@ function occurrence(
   return shown;
 }
 
-function fallsOn(series: CalendarEvent, day: string) {
+export function fallsOn(series: CalendarEvent, day: string) {
   if (!series.repeat) return day === series.date;
   if (day < series.date) return false;
   if (series.until && day > series.until) return false;

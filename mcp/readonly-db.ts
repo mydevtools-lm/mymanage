@@ -43,15 +43,18 @@ const READ_ONLY = "This server only reads: it never changes mymanage's data.";
 
 export type ReadOnlyDb = Db & { close(): void };
 
-export async function openReadOnly(file: string): Promise<ReadOnlyDb> {
-  let sqlite: typeof import("node:sqlite");
+export async function loadSqlite(): Promise<typeof import("node:sqlite")> {
   try {
-    sqlite = await import("node:sqlite");
+    return await import("node:sqlite");
   } catch {
     throw new Error(
       "This Node has no built-in SQLite. Use Node 22 or later, and on Node 22 before 22.13 start it with --experimental-sqlite.",
     );
   }
+}
+
+export async function openReadOnly(file: string): Promise<ReadOnlyDb> {
+  const sqlite = await loadSqlite();
   const database = new sqlite.DatabaseSync(file, { readOnly: true });
   return {
     close: () => database.close(),
