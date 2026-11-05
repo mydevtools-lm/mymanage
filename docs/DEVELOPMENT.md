@@ -135,6 +135,8 @@ npx vitest run mcp                     # the tools, through a real client
 node scripts/desktop-smoke.mjs chat    # the real app and the bundle: the open window follows
 ```
 
+**Claude from the Microsoft Store** runs in an MSIX package, and so does everything it starts, this server and a Claude Code session included. Under `%APPDATA%` and `%LOCALAPPDATA%` such a process writes to the package's private `LocalCache`, which the rest of Windows doesn't see. Don't install the app from such a session, and check an install from outside it.
+
 `release.yml` attaches that file to every release. How people connect it to a
 chat is in the [README](../README.md#let-a-chat-read-and-update-your-data-optional).
 
