@@ -5,6 +5,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -34,9 +35,8 @@ let counter = 0;
 const opened: { close(): void }[] = [];
 
 /** A fresh database file, the shape the app leaves it in. */
-function newDatabase() {
-  const folder = path.join(dir, `data-${++counter}`);
-  mkdirSync(folder);
+function newDatabase(folder = path.join(dir, `data-${++counter}`)) {
+  mkdirSync(folder, { recursive: true });
   const file = path.join(folder, "data.db");
   const database = new DatabaseSync(file);
   database.exec("PRAGMA journal_mode = WAL;");
@@ -725,6 +725,98 @@ describe("living beside the app", () => {
     expect(answer.text).toMatch(message);
     expect(peek(file, "SELECT id FROM tasks")).toEqual([]);
     expect((await call("list_tasks")).isError).toBe(false);
+  });
+});
+
+describe("a chat app in a Windows package (Claude from the Store)", () => {
+  /**
+   * A profile with a Roaming and a Local folder, and a package's private twin
+   * of the data folder. What a process in the package sees can't be made in a
+   * test, but its result can: the path it opens leads to the private folder.
+   */
+  function profile(root: "Roaming" | "Local" = "Roaming") {
+    const home = path.join(dir, `profile-${++counter}`);
+    const env = {
+      APPDATA: path.join(home, "Roaming"),
+      LOCALAPPDATA: path.join(home, "Local"),
+    };
+    const real = path.join(home, root, "app");
+    const twin = path.join(
+      env.LOCALAPPDATA,
+      "Packages",
+      "Claude_test",
+      "LocalCache",
+      root,
+      "app",
+    );
+    mkdirSync(path.dirname(real), { recursive: true });
+    mkdirSync(path.dirname(twin), { recursive: true });
+    return { env, real, twin, file: path.join(real, "data.db") };
+  }
+
+  async function createTaskThrough(file: string, env: Record<string, string>) {
+    const database = await openWritable(file, env);
+    opened.push(database);
+    client = await clientOn(database);
+    return call("create_task", { title: "from the chat" });
+  }
+
+  it.each(["Roaming", "Local"] as const)(
+    "refuses when the folder it sees is the private one (%s)",
+    async (root) => {
+      const { env, real, twin, file: seen } = profile(root);
+      const privateFile = newDatabase(twin);
+      symlinkSync(twin, real, "junction");
+
+      const answer = await createTaskThrough(seen, env);
+
+      expect(answer.isError).toBe(true);
+      expect(answer.text).toContain(twin);
+      expect(answer.text).toMatch(/Nothing was changed/);
+      expect(peek(privateFile, "SELECT id FROM tasks")).toEqual([]);
+      expect(existsSync(path.join(twin, "backups"))).toBe(false);
+      expect((await call("list_tasks")).isError).toBe(false);
+    },
+  );
+
+  it("writes when the private folder is not the one it sees: it runs outside the package", async () => {
+    const { env, real, twin, file: seen } = profile();
+    newDatabase(real);
+    mkdirSync(twin);
+
+    const answer = await createTaskThrough(seen, env);
+
+    expect(answer.isError).toBe(false);
+    expect(peek(seen, "SELECT title FROM tasks")).toEqual([
+      { title: "from the chat" },
+    ]);
+  });
+
+  it("writes when a junction sends the private folder to the real one", async () => {
+    const { env, real, twin, file: seen } = profile();
+    newDatabase(real);
+    symlinkSync(real, twin, "junction");
+
+    const answer = await createTaskThrough(seen, env);
+
+    expect(answer.isError).toBe(false);
+    expect(peek(seen, "SELECT title FROM tasks")).toEqual([
+      { title: "from the chat" },
+    ]);
+  });
+
+  it("writes when there is no private folder, the usual case", async () => {
+    const { env, real, file: seen } = profile();
+    newDatabase(real);
+
+    expect((await createTaskThrough(seen, env)).isError).toBe(false);
+  });
+
+  it("writes to a database outside the profile's folders", async () => {
+    const { env } = profile();
+    const elsewhere = newDatabase();
+
+    expect((await createTaskThrough(elsewhere, env)).isError).toBe(false);
   });
 });
 

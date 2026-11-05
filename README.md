@@ -123,6 +123,14 @@ It uses the installed app's data by default; `--db <path to data.db>` points it
 elsewhere. The app can stay open meanwhile. A chat you allow to write acts on what
 it reads, so keep your chat app's confirmation on for anything that deletes.
 
+**Claude from the Microsoft Store:** install mymanage and open it yourself, from the
+Start menu, not from a chat. Claude runs in a Windows package, and a data folder
+first created from there lands in the package's private folder, where the app you
+open can't see it. If that has happened, a chat's change is refused with a message
+naming that folder, and nothing is changed. Quit Claude (from the tray too), rename
+the folder, and start Claude again. Whatever was written there stays in the renamed
+folder.
+
 ## Open source
 
 [MIT](LICENSE). To run it from source or contribute, see
