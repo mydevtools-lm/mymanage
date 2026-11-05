@@ -1102,6 +1102,16 @@ function startMonthWrite(month: string): Statement {
 
 /* ------------------------------------------------------- whole snapshot */
 
+/**
+ * A number that changes when something other than this connection commits to
+ * the database: a chat through the MCP server, say. The app's own writes leave
+ * it alone, so it tells the screens exactly when their mirror has gone stale.
+ */
+export async function dataVersion(): Promise<number> {
+  const row = await db().get<{ data_version: number }>("PRAGMA data_version");
+  return row?.data_version ?? 0;
+}
+
 export async function readAll(): Promise<DataSnapshot> {
   return {
     version: 1,

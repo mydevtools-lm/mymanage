@@ -12,14 +12,23 @@ import {
 } from "../src/lib/finance";
 import { occursOn } from "../src/lib/routines";
 import { searchAll } from "../src/lib/search";
-import type { Category, DataSnapshot, Task } from "../src/lib/types";
+import type { DataSnapshot, Task } from "../src/lib/types";
+import {
+  categoryName,
+  result,
+  shapeChecklist,
+  shapeEvent,
+  shapeRoutine,
+  shapeTask,
+} from "./shapes";
+import { registerWriteTools } from "./write-tools";
 
 /**
- * The tools Claude gets (ד9). Every one only reads: the database is opened
- * read-only (readonly-db.ts) and nothing here asks it to write. Nothing reads
- * the app's secrets either — the Google Calendar addresses and the Claude key
- * live in an encrypted file outside the database, and settings are not
- * exposed beyond the currency.
+ * The tools a chat gets. The ones in this file only read (ד9): without
+ * `--write` the database is opened read-only (readonly-db.ts) and these are
+ * all there is. With it, write-tools.ts adds the ones that change data (ד11).
+ * Nothing reads the app's secrets either way — the Google Calendar addresses
+ * and the Claude key live in an encrypted file outside the database.
  */
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -42,42 +51,30 @@ const limit = z
 
 const cap = (n: number | undefined) => Math.min(n ?? 50, 200);
 
-function result(value: unknown) {
-  return {
-    content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }],
-  };
-}
-
-function categoryName(categories: Category[], id: string | undefined) {
-  return id ? (categories.find((c) => c.id === id)?.name ?? null) : null;
-}
-
-function shapeTask(task: Task, categories: Category[]) {
-  return {
-    id: task.id,
-    title: task.title,
-    description: task.description,
-    dueDate: task.dueDate,
-    dueTime: task.dueTime,
-    priority: task.priority,
-    category: categoryName(categories, task.categoryId),
-    completed: task.completed,
-    completedAt: task.completedAt,
-    archived: !!task.archivedAt,
-    subtasks: task.subtasks?.map((s) => ({ text: s.text, done: s.done })),
-  };
-}
-
 const isOpen = (task: Task) => !task.completed && !task.archivedAt;
 
 const includes = (haystack: string | undefined, needle: string) =>
   (haystack ?? "").toLowerCase().includes(needle.toLowerCase());
 
-export function createServer(database: Db): McpServer {
-  // repo.ts reads through whichever database is set; here, the read-only one.
+const INSTRUCTIONS = `mymanage is one person's organiser: tasks, routines, calendar events, income and expenses, notes and lists.
+Use the today tool for today's date and a view of the day. Dates are yyyy-MM-dd, months yyyy-MM, times HH:mm.`;
+
+const WRITE_INSTRUCTIONS = `${INSTRUCTIONS}
+Changes show in the app within seconds, and on the person's other computers if they sync.
+Find an item's id with a list_ tool or search before changing it. If more than one item could be meant, ask which.
+Before deleting anything, say what will go and wait for a yes. A repeating event or transaction needs a scope: if the person did not say whether they mean one occurrence, from then on, or all of them, ask.`;
+
+export function createServer(
+  database: Db,
+  { write = false }: { write?: boolean } = {},
+): McpServer {
+  // repo.ts works through whichever database is set: here, the one given.
   setRepoDb(database);
 
-  const server = new McpServer({ name: "mymanage", version: "1.0.0" });
+  const server = new McpServer(
+    { name: "mymanage", version: "1.1.0" },
+    { instructions: write ? WRITE_INSTRUCTIONS : INSTRUCTIONS },
+  );
   const readOnly = { readOnlyHint: true, openWorldHint: false };
   const snapshot = (): Promise<DataSnapshot> => readAll();
 
@@ -104,14 +101,7 @@ export function createServer(database: Db): McpServer {
           .filter((t) => isOpen(t) && t.dueDate && t.dueDate < today)
           .map((t) => shapeTask(t, categories)),
         tasks: dueToday.map((t) => shapeTask(t, categories)),
-        events: expandEvents(data.events, today, today).map((e) => ({
-          id: e.seriesId ?? e.id,
-          title: e.title,
-          startTime: e.startTime,
-          endTime: e.endTime,
-          allDay: e.allDay,
-          location: e.location,
-        })),
+        events: expandEvents(data.events, today, today).map(shapeEvent),
         routinesDue: (data.routines ?? [])
           .filter((r) => occursOn(r, today))
           .map((r) => ({
@@ -205,16 +195,7 @@ export function createServer(database: Db): McpServer {
       );
       return result({
         total: rows.length,
-        events: rows.slice(0, cap(n)).map((e) => ({
-          id: e.seriesId ?? e.id,
-          title: e.title,
-          date: e.date,
-          startTime: e.startTime,
-          endTime: e.endTime,
-          allDay: e.allDay,
-          location: e.location,
-          notes: e.notes,
-        })),
+        events: rows.slice(0, cap(n)).map(shapeEvent),
       });
     },
   );
@@ -405,15 +386,7 @@ export function createServer(database: Db): McpServer {
         .sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
       return result({
         total: rows.length,
-        checklists: rows.slice(0, cap(n)).map((list) => ({
-          id: list.id,
-          title: list.title,
-          pinned: !!list.pinned,
-          items: list.items.map((item) => ({
-            text: item.text,
-            done: item.done,
-          })),
-        })),
+        checklists: rows.slice(0, cap(n)).map(shapeChecklist),
       });
     },
   );
@@ -428,10 +401,54 @@ export function createServer(database: Db): McpServer {
     async () => {
       const { categories } = await snapshot();
       return result(
-        categories.map((c) => ({ name: c.name, kind: c.kind, color: c.color })),
+        categories.map((c) => ({
+          id: c.id,
+          name: c.name,
+          kind: c.kind,
+          color: c.color,
+        })),
       );
     },
   );
+
+  server.registerTool(
+    "list_routines",
+    {
+      title: "List routines",
+      description:
+        "Tasks that come back by themselves (pills, workout, mail), with how often. Each day one is due, a plain task is made from it.",
+      inputSchema: { query: z.string().optional(), limit },
+      annotations: readOnly,
+    },
+    async ({ query, limit: n }) => {
+      const { routines = [], categories } = await snapshot();
+      const rows = routines.filter(
+        (r) =>
+          !query || includes(r.title, query) || includes(r.description, query),
+      );
+      return result({
+        total: rows.length,
+        routines: rows.slice(0, cap(n)).map((r) => shapeRoutine(r, categories)),
+      });
+    },
+  );
+
+  server.registerTool(
+    "list_links",
+    {
+      title: "List links between items",
+      description:
+        "Pairs of items that belong together: a task and the event it prepares, the payment that settled a bill. Pass an item's id to get only its links.",
+      inputSchema: { id: z.string().optional() },
+      annotations: readOnly,
+    },
+    async ({ id }) => {
+      const { links = [] } = await snapshot();
+      return result(links.filter((l) => !id || l.aId === id || l.bId === id));
+    },
+  );
+
+  if (write) registerWriteTools(server);
 
   return server;
 }

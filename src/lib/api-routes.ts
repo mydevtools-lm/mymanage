@@ -78,6 +78,9 @@ const ROUTES: Record<string, Handler> = {
     return handle(() => repo.replaceAll(snapshot));
   },
   "DELETE /api/data": () => handle(() => repo.clearAll()),
+  /* Changes when another process wrote to the database (external-changes.ts). */
+  "GET /api/data/version": () =>
+    handle(async () => ({ version: await repo.dataVersion() })),
   /* First run: { today } adds the sample set; DELETE takes it away again. */
   "POST /api/sample": (_, body) => {
     const today = (body as { today?: unknown } | null)?.today;

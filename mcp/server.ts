@@ -2,27 +2,29 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { isLocale, setLocale } from "../src/lib/i18n";
 import { openReadOnly, resolveDbPath } from "./readonly-db";
 import { createServer } from "./tools";
+import { openWritable } from "./writable-db";
 
 /**
- * mymanage's MCP server (ד9): lets Claude read the app's data — tasks,
- * calendar, money, notes, lists — and never change it. Claude starts it
- * itself; it talks over stdin/stdout, so everything meant for a person goes
- * to stderr.
+ * mymanage's MCP server: lets a chat read the app's data — tasks, calendar,
+ * money, notes, lists (ד9) — and, only with --write, change it (ד11). The chat
+ * app starts it itself; it talks over stdin/stdout, so everything meant for a
+ * person goes to stderr.
  *
- *   node --experimental-sqlite mymanage-mcp.mjs [--db <data.db>] [--lang en|he]
+ *   node --experimental-sqlite mymanage-mcp.mjs [--write] [--db <data.db>] [--lang en|he]
  */
 
-const HELP = `mymanage-mcp — read-only access to mymanage's data for Claude
+const HELP = `mymanage-mcp — mymanage's data for a chat. Reads only, unless --write is given.
 
-  node --experimental-sqlite mymanage-mcp.mjs [--db <path to data.db>] [--lang en|he]
+  node --experimental-sqlite mymanage-mcp.mjs [--write] [--db <path to data.db>] [--lang en|he]
 
+  --write Also let the chat add, change and delete. Also on when MYMANAGE_WRITE=1.
   --db    The database. Default: the installed app's (%APPDATA%\\io.github.mydevtools-lm.management\\data.db).
           Also read from the MYMANAGE_DB environment variable.
   --lang  The language of category names in search results (en or he; default en).
           Also read from MYMANAGE_LANG.
 
 Add it to Claude Code:
-  claude mcp add mymanage -- node --experimental-sqlite <path>/mymanage-mcp.mjs
+  claude mcp add mymanage -- node --experimental-sqlite <path>/mymanage-mcp.mjs --write
 `;
 
 function flag(name: string): string | undefined {
@@ -45,9 +47,14 @@ async function main() {
     setLocale(lang);
   }
   const file = resolveDbPath(flag("db"));
-  const server = createServer(await openReadOnly(file));
+  const write =
+    process.argv.includes("--write") || process.env.MYMANAGE_WRITE === "1";
+  const database = write ? await openWritable(file) : await openReadOnly(file);
+  const server = createServer(database, { write });
   await server.connect(new StdioServerTransport());
-  process.stderr.write(`mymanage-mcp: reading ${file} (read-only)\n`);
+  process.stderr.write(
+    `mymanage-mcp: ${write ? "reading and writing" : "reading (read-only)"} ${file}\n`,
+  );
 }
 
 main().catch((error) => {

@@ -7,6 +7,7 @@
 //   node scripts/desktop-smoke.mjs shell              tray, reminder, one instance
 //   node scripts/desktop-smoke.mjs screenshots [he]   README pictures (English, or Hebrew)
 //   node scripts/desktop-smoke.mjs sync               a second computer (a Node peer) through a shared folder
+//   node scripts/desktop-smoke.mjs chat [shot.png]    a chat writes through the MCP server, the open window follows
 // Every phase but English screenshots runs the app in Hebrew.
 // first-run and screenshots need a fresh data folder; services connects a public calendar
 // and a fake Claude key, and removes both at the end.
@@ -295,6 +296,121 @@ if (phase === "write") {
   // to Rust; Tauri logs that. The app itself never reloads.
   for (let i = warnings.length - 1; i >= 0; i--) {
     if (/Couldn't find callback id|IPC custom protocol failed/.test(warnings[i])) warnings.splice(i, 1);
+  }
+  if (failures.length) {
+    console.log("failed:", failures.join(" | "));
+    process.exitCode = 1;
+  }
+} else if (phase === "chat") {
+  // A chat changes the data through the MCP server (the real bundle, over
+  // stdio, on the test app's database) while the app is open. The screen has
+  // to follow by itself: nothing here reloads the page after the first steps.
+  const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
+  const { StdioClientTransport } = await import("@modelcontextprotocol/sdk/client/stdio.js");
+  const { buildMcp } = await import("./build-mcp.mjs");
+  const work = mkdtempSync(path.join(tmpdir(), "mymanage-chat-smoke-"));
+  const failures = [];
+  const ok = (label, condition, detail = "") => {
+    console.log(`${condition ? "ok  " : "FAIL"} ${label}${detail ? " : " + detail : ""}`);
+    if (!condition) failures.push(label);
+  };
+  const chat = new Client({ name: "smoke", version: "0" });
+  const tool = async (name, args = {}) => {
+    const answer = await chat.callTool({ name, arguments: args });
+    if (answer.isError) throw new Error(`${name}: ${answer.content[0].text}`);
+    return JSON.parse(answer.content[0].text);
+  };
+  // Shows up by itself within a few seconds: the look every 3s, then the load.
+  const appears = async (text) => {
+    const started = Date.now();
+    await page.getByText(text, { exact: true }).first().waitFor({ timeout: 8000 });
+    return Date.now() - started;
+  };
+  const goes = async (text) => {
+    await page.getByText(text, { exact: true }).first().waitFor({ state: "detached", timeout: 8000 });
+  };
+
+  try {
+    const bundle = await buildMcp(path.join(work, "mymanage-mcp.mjs"));
+    await chat.connect(
+      new StdioClientTransport({
+        command: process.execPath,
+        args: ["--experimental-sqlite", "--no-warnings", bundle, "--write", "--db", path.join(DATA, "data.db")],
+        stderr: "pipe",
+      }),
+    );
+    // Named, so the first-run questions don't sit over the screens.
+    await tool("update_preferences", { userName: "בדיקה" });
+    await page.evaluate(() => {
+      const device = JSON.parse(localStorage.getItem("lior-device") ?? "{}");
+      localStorage.setItem("lior-device", JSON.stringify({ ...device, autoBrief: false }));
+    });
+    await goto(page, "/tasks/");
+    const stamp = Date.now();
+
+    const title = `מהצ'אט ${stamp}`;
+    const task = await tool("create_task", { title, priority: "high" });
+    ok("a task added in the chat shows up in the open window", true, `${await appears(title)}ms`);
+
+    const renamed = `${title} שונה`;
+    await tool("update_task", { id: task.id, title: renamed });
+    await appears(renamed);
+    ok("a rename follows", (await page.getByText(title, { exact: true }).count()) === 0);
+
+    await tool("update_task", { id: task.id, completed: true });
+    await goes(renamed);
+    ok("ticked in the chat, it leaves the open list", true);
+
+    // Both at once: the window saving while the chat writes. Nothing is lost.
+    const fromWindow = `מהחלון ${stamp}`;
+    const writes = Promise.all(
+      Array.from({ length: 10 }, (_, i) => tool("create_task", { title: `בו זמנית ${stamp} ${i}` })),
+    );
+    await page.getByRole("button", { name: "משימה חדשה" }).first().click();
+    const dialog = page.getByRole("dialog", { name: "משימה חדשה" });
+    await dialog.getByPlaceholder("מה צריך לעשות?").fill(fromWindow);
+    await dialog.getByRole("button", { name: "הוספה" }).click();
+    const made = await writes;
+    await appears(`בו זמנית ${stamp} 9`);
+    await page.getByText(fromWindow, { exact: true }).first().waitFor({ timeout: 8000 });
+    const listed = await tool("list_tasks", { query: String(stamp), limit: 50 });
+    ok("the window and the chat wrote together, nothing lost", listed.total === 11, `${listed.total} of 11`);
+
+    await tool("delete_task", { id: made[0].id });
+    await goes(`בו זמנית ${stamp} 0`);
+    ok("deleted in the chat, it goes from the window", true);
+
+    const left = await tool("list_tasks", { query: String(stamp), status: "all", limit: 50 });
+    for (const row of left.tasks) await tool("delete_task", { id: row.id });
+
+    const list = await tool("create_checklist", { title: `רשימה ${stamp}`, items: ["חלב"] });
+    await goto(page, "/notes/");
+    await page.getByText(`רשימה ${stamp}`, { exact: true }).first().waitFor({ timeout: 8000 }).catch(() => {});
+    await tool("delete_checklist", { id: list.id });
+
+    await goto(page, "/finance/");
+    const expense = `הוצאה ${stamp}`;
+    const today = new Date();
+    const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const { created } = await tool("create_transactions", {
+      transactions: [{ type: "expense", amount: 42, description: expense, date }],
+    });
+    ok("an expense added in the chat shows on the money screen", true, `${await appears(expense)}ms`);
+    await tool("delete_transaction", { id: created[0].id });
+    await goes(expense);
+
+    await goto(page, "/");
+    const meeting = `פגישה ${stamp}`;
+    const event = await tool("create_event", { title: meeting, date, startTime: "23:30" });
+    ok("an event added in the chat shows on Today", true, `${await appears(meeting)}ms`);
+    if (process.argv[3]) await page.screenshot({ path: process.argv[3] });
+    await tool("delete_event", { id: event.id });
+    await goes(meeting);
+  } catch (error) {
+    ok("the steps ran to the end", false, error.message);
+  } finally {
+    await chat.close().catch(() => {});
+    rmSync(work, { recursive: true, force: true });
   }
   if (failures.length) {
     console.log("failed:", failures.join(" | "));
