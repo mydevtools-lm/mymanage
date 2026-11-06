@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setRepoDb, type Db, type SqlValue } from "../db-adapter";
 import { BASE_SCHEMA, MIGRATIONS } from "../schema";
 import * as repo from "../repo";
@@ -98,6 +98,7 @@ beforeEach(async () => {
   folder = nodeFolder(root);
 });
 afterEach(async () => {
+  vi.useRealTimers();
   await rm(root, { recursive: true, force: true });
 });
 
@@ -162,13 +163,18 @@ describe("watching", () => {
   });
 
   it("records a row, a changed field, and a delete — only what changed", async () => {
+    // updatedAt comes from the system clock, not the computer's: left running,
+    // a create and an update in the same millisecond change no updatedAt.
+    vi.useFakeTimers({ toFake: ["Date"], now: T0 });
     const a = new Computer(T0);
     await a.on();
     const task = await a.do(() => repo.createTask({ title: "Buy milk" }));
+    vi.setSystemTime(T0 + 10);
     await a.do(
       () => repo.updateTask(task.id, { title: "Buy oat milk" }),
       T0 + 10,
     );
+    vi.setSystemTime(T0 + 20);
     await a.do(() => repo.deleteTask(task.id), T0 + 20);
     const out = a.sql
       .prepare("SELECT op, c, v FROM _sync_out ORDER BY seq")

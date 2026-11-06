@@ -120,7 +120,8 @@ they count a month and split a series the way the screens do.
   opens the file with SQLite's own read-only mode, so nothing can write.
 - **`--write` adds `write-tools.ts`** and opens the file through `writable-db.ts`:
   it waits on a busy file, turns foreign keys on, refuses a schema other than its
-  own (it never migrates; the app does), and backs up before the day's first write.
+  own (it never migrates; the app does), refuses a data folder that is a package's
+  private copy (below), and backs up before the day's first write.
 - **Nothing reads the secrets** (they're in an encrypted file outside the
   database), and no tool wipes or replaces everything. A new tool must stay that way.
 
@@ -135,7 +136,20 @@ npx vitest run mcp                     # the tools, through a real client
 node scripts/desktop-smoke.mjs chat    # the real app and the bundle: the open window follows
 ```
 
-**Claude from the Microsoft Store** runs in an MSIX package, and so does everything it starts, this server and a Claude Code session included. Under `%APPDATA%` and `%LOCALAPPDATA%` such a process writes to the package's private `LocalCache`, which the rest of Windows doesn't see. Don't install the app from such a session, and check an install from outside it.
+**Claude from the Microsoft Store** runs in an MSIX package, and so does everything it starts, this server and a Claude Code session included. Under `%APPDATA%` and `%LOCALAPPDATA%` such a process sees the real folders merged with the package's private `LocalCache`, which the rest of Windows doesn't see. Where a write lands depends on the folder (measured from a session, each result checked from outside it):
+
+| The data folder                                    | Where a write lands                                                        |
+| -------------------------------------------------- | -------------------------------------------------------------------------- |
+| Real, no private folder of that name (the usual)   | The real files, new ones too. The open app sees it within seconds          |
+| Doesn't exist yet                                  | The private folder. So don't install or first open the app from a session  |
+| A private folder of that name exists, even empty   | The private folder wins: `data.db` if it has one, else a new `-wal`. The chat reports success and the app sees nothing |
+| A junction from the private path to the real one   | The real files. `readdir` on it fails with `ELOOP` from inside; opening files works |
+
+Reading goes wrong in the same row: with a private `data.db` the chat answers from that copy ("no tasks" while the app has some), and with a `-wal` left there by an earlier read it misses what the open app still has in its own WAL. Elsewhere it reads what the app sees, its WAL included.
+
+`privateFolderInUse` in `readonly-db.ts` catches the third row, and both kinds of server then refuse every tool call, with or without `--write`: from inside, the folder it opens and the private one are the same folder; from outside, they are two. Renaming the private folder ends it, so no junction is needed. A `--db` that names the private path itself is allowed. Package identity doesn't tell any of this: a session has none and is redirected, while a process started with `Invoke-CommandInDesktopPackage` has one and isn't.
+
+To test any of this, make the file from outside with `Invoke-CimMethod Win32_Process Create`, under a folder name of its own, and check the result the same way: a check from inside sees the merged view.
 
 `release.yml` attaches that file to every release. How people connect it to a
 chat is in the [README](../README.md#let-a-chat-read-and-update-your-data-optional).

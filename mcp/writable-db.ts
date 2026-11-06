@@ -3,14 +3,15 @@ import path from "node:path";
 import type { Db, SqlValue } from "../src/lib/db-adapter";
 import { localDateKey } from "../src/lib/keys";
 import { SCHEMA_VERSION } from "../src/lib/schema";
-import { loadSqlite } from "./readonly-db";
+import { loadSqlite, realFolderCheck, type Env } from "./readonly-db";
 
 /**
  * The app's database, opened for writing (ד11, only with --write). The app may
  * be open on the same file, and so may another chat: SQLite's WAL lets them
  * share it, and whoever finds the file busy waits instead of failing.
  *
- * Two checks stand before every write:
+ * The data folder must be the real one, for reading too (realFolderCheck).
+ * Two more checks stand before every write:
  *  - the file is at the schema this server was built for. The app migrates;
  *    this server never does, and it can outlive an app update.
  *  - the day's backup exists, so a chat's mistake can be undone even when the
@@ -23,7 +24,11 @@ const BUSY_WAIT_MS = 5000;
 
 export type WritableDb = Db & { close(): void };
 
-export async function openWritable(file: string): Promise<WritableDb> {
+export async function openWritable(
+  file: string,
+  env: Env = process.env,
+): Promise<WritableDb> {
+  const checkRealFolder = realFolderCheck(file, env);
   const sqlite = await loadSqlite();
   const database = new sqlite.DatabaseSync(file);
   // Per connection, not stored in the file. Foreign keys are what make
@@ -63,6 +68,7 @@ export async function openWritable(file: string): Promise<WritableDb> {
   }
 
   function beforeWrite() {
+    checkRealFolder();
     checkSchema();
     backupOnce();
   }
@@ -70,9 +76,11 @@ export async function openWritable(file: string): Promise<WritableDb> {
   return {
     close: () => database.close(),
     async all<T>(sql: string, params: SqlValue[] = []) {
+      checkRealFolder();
       return database.prepare(sql).all(...params) as T[];
     },
     async get<T>(sql: string, params: SqlValue[] = []) {
+      checkRealFolder();
       return (database.prepare(sql).get(...params) ?? null) as T | null;
     },
     async run(sql: string, params: SqlValue[] = []) {
