@@ -32,6 +32,7 @@ import { DayPicker } from "@/components/today/day-picker";
 import { AllDayStrip, DayTimeline } from "@/components/today/day-timeline";
 import { DaySwipe } from "@/components/today/day-swipe";
 import { MonthBalanceCard } from "@/components/today/month-balance-card";
+import { DebtsDueCard } from "@/components/today/debts-due-card";
 import { WeekAheadCard } from "@/components/today/week-ahead-card";
 import { useAppStore } from "@/lib/store";
 import { useGoogleEvents } from "@/lib/use-google-events";
@@ -326,6 +327,7 @@ export default function TodayPage() {
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <WeekAheadCard />
           <MonthBalanceCard />
+          <DebtsDueCard />
         </div>
       </Hydrated>
 

@@ -6,8 +6,8 @@ import { useAppStore } from "@/lib/store";
 import type { ResultKind } from "@/lib/search";
 
 /**
- * Open any item where it is edited: tasks, routines, events and
- * transactions in their dialog, right here; notes and lists on their screen,
+ * Open any item where it is edited: tasks, routines, events, transactions
+ * and debts in their dialog, right here; notes and lists on their screen,
  * scrolled to and highlighted.
  */
 export function useOpenItem() {
@@ -28,6 +28,9 @@ export function useOpenItem() {
     } else if (kind === "transaction") {
       const transaction = s.transactions.find((t) => t.id === id);
       if (transaction) openEdit({ kind: "transaction", transaction });
+    } else if (kind === "debt") {
+      const debt = s.debts.find((d) => d.id === id);
+      if (debt) openEdit({ kind: "debt", debt });
     } else {
       router.push(
         `/notes?tab=${kind === "note" ? "notes" : "lists"}&focus=${id}`,

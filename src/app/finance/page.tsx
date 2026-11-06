@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowDownLeft,
@@ -37,6 +38,8 @@ import {
 import { ImportDialog } from "@/components/finance/import-dialog";
 import { BudgetDialog } from "@/components/finance/budget-dialog";
 import { YearView } from "@/components/finance/year-view";
+import { DebtsView } from "@/components/finance/debts-view";
+import { useQuickAdd } from "@/components/quick-add";
 import { CategorySelect, NONE } from "@/components/fields";
 import {
   CategoryBadge,
@@ -118,15 +121,20 @@ function downloadCsv(name: string, text: string) {
   URL.revokeObjectURL(url);
 }
 
-// Back from the printable report lands on the same month or year. The views
-// render only after the store hydrates, so reading the address here can't
-// make the server and client disagree.
-function fromAddress(name: string) {
-  if (typeof window === "undefined") return null;
-  return new URLSearchParams(window.location.search).get(name);
+// useSearchParams needs a Suspense boundary on a statically built page.
+export default function FinancePage() {
+  return (
+    <Suspense>
+      <FinanceScreen />
+    </Suspense>
+  );
 }
 
-export default function FinancePage() {
+function FinanceScreen() {
+  // Back from the printable report lands on the same month or year, and a link
+  // from Today opens the debts. Read through Next, not window.location: on a
+  // link inside the app the address changes only after this first render.
+  const address = useSearchParams();
   const transactions = useAppStore((s) => s.transactions);
   const categories = useAppStore((s) => s.categories);
   const startMonth = useAppStore((s) => s.settings.startMonth);
@@ -137,11 +145,12 @@ export default function FinancePage() {
 
   const currentMonth = toMonthKey(new Date());
   const [month, setMonth] = useState(
-    () => fromAddress("month") ?? currentMonth,
+    () => address.get("month") ?? currentMonth,
   );
-  const [view, setView] = useState(() =>
-    fromAddress("view") === "year" ? "year" : "month",
-  );
+  const [view, setView] = useState(() => {
+    const wanted = address.get("view");
+    return wanted === "year" || wanted === "debts" ? wanted : "month";
+  });
   const [year, setYear] = useState(() => Number(month.slice(0, 4)));
   const [importOpen, setImportOpen] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(false);
@@ -270,6 +279,12 @@ export default function FinancePage() {
         title={m.title}
         description={m.page.description(formatMonth(startMonth))}
         actions={
+          view === "debts" ? (
+            <Button onClick={() => useQuickAdd.getState().open("debt")}>
+              <Plus />
+              {m.debts.new}
+            </Button>
+          ) : (
           <>
             <Button variant="outline" onClick={() => setImportOpen(true)}>
               <FileUp />
@@ -296,6 +311,7 @@ export default function FinancePage() {
               {m.newTransaction}
             </Button>
           </>
+          )
         }
       />
 
@@ -315,11 +331,14 @@ export default function FinancePage() {
             <TabsList>
               <TabsTrigger value="month">{m.month}</TabsTrigger>
               <TabsTrigger value="year">{m.year}</TabsTrigger>
+              <TabsTrigger value="debts">{m.debts.tab}</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
 
-        {view === "year" ? (
+        {view === "debts" ? (
+          <DebtsView />
+        ) : view === "year" ? (
           <YearView
             year={year}
             onYearChange={setYear}

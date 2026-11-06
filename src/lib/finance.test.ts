@@ -10,8 +10,14 @@ import {
   planSeriesEdit,
   shiftMonth,
   summarize,
+  debtPaid,
+  debtRemaining,
+  debtsDueSoon,
+  debtTotals,
+  isDebtOpen,
+  openDebts,
 } from "./finance";
-import type { Category, Transaction } from "./types";
+import type { Debt, Category, Transaction } from "./types";
 
 const base = { createdAt: "2026-09-01T00:00:00.000Z" };
 
@@ -387,5 +393,81 @@ describe("transactionsToCsv", () => {
       "2026-09-01,החזר,,הכנסה,100.00,,",
       '2026-09-02,"פז, ""דלק""",רכב,הוצאה,-80.50,,',
     ]);
+  });
+});
+
+describe("debts", () => {
+  const debt = (over: Partial<Debt> = {}): Debt => ({
+    id: "d",
+    direction: "owe",
+    person: "דנה",
+    amount: 1000,
+    payments: [],
+    createdAt: "2026-10-01T08:00:00.000Z",
+    updatedAt: "2026-10-01T08:00:00.000Z",
+    ...over,
+  });
+  const paid = (...amounts: number[]) =>
+    amounts.map((amount, i) => ({
+      id: `p${i}`,
+      debtId: "d",
+      amount,
+      date: "2026-10-02",
+      createdAt: "",
+    }));
+
+  it("works out what is left from the payments, without rounding errors", () => {
+    const d = debt({ amount: 0.3, payments: paid(0.1, 0.1) });
+    expect(debtPaid(d)).toBe(0.2);
+    expect(debtRemaining(d)).toBe(0.1);
+  });
+
+  it("never goes below zero, even if two computers both paid", () => {
+    const d = debt({ payments: paid(800, 800) });
+    expect(debtRemaining(d)).toBe(0);
+    expect(isDebtOpen(d)).toBe(false);
+  });
+
+  it("is open until paid in full or closed by hand", () => {
+    expect(isDebtOpen(debt({ payments: paid(999) }))).toBe(true);
+    expect(isDebtOpen(debt({ payments: paid(1000) }))).toBe(false);
+    expect(isDebtOpen(debt({ closedAt: "2026-10-05T08:00:00.000Z" }))).toBe(
+      false,
+    );
+  });
+
+  it("adds up only what is open, for each direction", () => {
+    expect(
+      debtTotals([
+        debt({ id: "a", payments: paid(250.5) }),
+        debt({ id: "b", amount: 100 }),
+        debt({ id: "c", direction: "owed", amount: 40 }),
+        debt({ id: "d", direction: "owed", closedAt: "2026-10-05" }),
+      ]),
+    ).toEqual({ owe: 849.5, owed: 40 });
+  });
+
+  it("puts the nearest date first and those with no date last", () => {
+    const ids = openDebts([
+      debt({ id: "none", createdAt: "2026-01-01" }),
+      debt({ id: "later", dueDate: "2026-12-01" }),
+      debt({ id: "paid", dueDate: "2026-01-01", payments: paid(1000) }),
+      debt({ id: "soon", dueDate: "2026-11-01" }),
+    ]).map((d) => d.id);
+    expect(ids).toEqual(["soon", "later", "none"]);
+  });
+
+  it("is due soon when past its date or within the week", () => {
+    const ids = debtsDueSoon(
+      [
+        debt({ id: "past", dueDate: "2026-11-01" }),
+        debt({ id: "today", dueDate: "2026-11-06" }),
+        debt({ id: "week", dueDate: "2026-11-13" }),
+        debt({ id: "after", dueDate: "2026-11-14" }),
+        debt({ id: "none" }),
+      ],
+      "2026-11-06",
+    ).map((d) => d.id);
+    expect(ids).toEqual(["past", "today", "week"]);
   });
 });

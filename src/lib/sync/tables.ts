@@ -121,7 +121,31 @@ export const SYNC_TABLES: SyncTable[] = [
     columns: ["aKind", "aId", "bKind", "bId", "createdAt"],
   },
   { name: "settings", key: "key", columns: ["value"] },
+  {
+    name: "debts",
+    key: "id",
+    columns: [
+      "direction",
+      "person",
+      "description",
+      "amount",
+      "dueDate",
+      "notes",
+      "closedAt",
+      "createdAt",
+      "updatedAt",
+    ],
+  },
+  {
+    name: "debt_payments",
+    key: "id",
+    columns: ["debtId", "amount", "date", "createdAt"],
+  },
 ];
+
+/** Tables made by a migration after v8. v8 can't name them: it runs before
+ *  they exist, on a new database too. */
+const ADDED_AFTER_V8 = ["debts", "debt_payments"];
 
 /** Columns that point at another table's row, and what happens to the row
  *  when the parent is gone (the schema's ON DELETE rule). */
@@ -153,6 +177,12 @@ export const SYNC_REFERENCES: {
     table: "checklist_items",
     column: "listId",
     parent: "checklists",
+    onParentGone: "drop",
+  },
+  {
+    table: "debt_payments",
+    column: "debtId",
+    parent: "debts",
     onParentGone: "drop",
   },
 ];
@@ -273,5 +303,13 @@ END;`);
 /** Migration v8: the bookkeeping tables and the triggers. Sync stays off
  *  (`on` = 0) until the person turns it on, so nothing is written meanwhile. */
 export function syncMigrationSql() {
-  return `${SYNC_BOOKKEEPING}\n${syncTriggersSql()}`;
+  const atV8 = SYNC_TABLES.filter((t) => !ADDED_AFTER_V8.includes(t.name));
+  return `${SYNC_BOOKKEEPING}\n${syncTriggersSql(atV8)}`;
+}
+
+/** The triggers for the tables of migration v9. */
+export function debtSyncTriggersSql() {
+  return syncTriggersSql(
+    SYNC_TABLES.filter((t) => ADDED_AFTER_V8.includes(t.name)),
+  );
 }

@@ -1,5 +1,5 @@
 import { getLocale, type Locale } from "./i18n";
-import { syncMigrationSql } from "./sync/tables";
+import { debtSyncTriggersSql, syncMigrationSql } from "./sync/tables";
 /**
  * The database schema, shared by every place that opens the database: the
  * Node server (db.ts, through node:sqlite) and the desktop app (through the
@@ -148,6 +148,30 @@ export const MIGRATIONS: string[] = [
   // migration that changes a synchronised table must create the triggers
   // again (see sync/tables.ts).
   syncMigrationSql(),
+  // v9 — open debts, apart from income and expenses: a debt and its payments
+  // never touch a month's balance. What is left is worked out from the
+  // payments rather than stored, so payments made on two computers add up.
+  `CREATE TABLE debts (
+     id          TEXT PRIMARY KEY,
+     direction   TEXT NOT NULL CHECK (direction IN ('owe','owed')),
+     person      TEXT NOT NULL,
+     description TEXT,
+     amount      REAL NOT NULL,
+     dueDate     TEXT,
+     notes       TEXT,
+     closedAt    TEXT,
+     createdAt   TEXT NOT NULL,
+     updatedAt   TEXT NOT NULL
+   );
+   CREATE TABLE debt_payments (
+     id        TEXT PRIMARY KEY,
+     debtId    TEXT NOT NULL REFERENCES debts(id) ON DELETE CASCADE,
+     amount    REAL NOT NULL,
+     date      TEXT NOT NULL,
+     createdAt TEXT NOT NULL
+   );
+   CREATE INDEX debt_payments_debt ON debt_payments(debtId);
+   ${debtSyncTriggersSql()}`,
 ];
 
 export const SCHEMA_VERSION = MIGRATIONS.length;

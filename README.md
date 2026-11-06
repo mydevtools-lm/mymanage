@@ -92,7 +92,7 @@ or later.
 - **By default it only reads:** the database is opened read-only and there is no
   tool that changes anything.
 - **With `--write` it can also add, change and delete** tasks, routines, events,
-  income and expenses, notes, lists, categories, budgets, links and preferences.
+  income and expenses, debts, notes, lists, categories, budgets, links and preferences.
   The open app shows the change within seconds, and sync carries it to your other
   computers. A backup is made before the day's first change. Wiping or replacing
   everything is not on offer.

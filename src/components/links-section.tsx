@@ -103,7 +103,9 @@ export function LinksSection({
       { tasks, events, transactions, notes, checklists },
       todayKey(),
       8,
-    ).filter((r) => r.kind !== "routine" && !taken.has(r.id));
+    ).filter(
+      (r) => r.kind !== "routine" && r.kind !== "debt" && !taken.has(r.id),
+    );
   }, [query, id, linked, tasks, events, transactions, notes, checklists]);
 
   return (
@@ -171,7 +173,7 @@ export function LinksSection({
               if (e.key === "Enter") {
                 e.preventDefault();
                 const first = candidates[0];
-                if (first && first.kind !== "routine") {
+                if (first && first.kind !== "routine" && first.kind !== "debt") {
                   addLink({ kind, id }, { kind: first.kind, id: first.id });
                   setQuery("");
                 }
@@ -183,7 +185,7 @@ export function LinksSection({
             }}
           />
           {candidates.map((r) => {
-            if (r.kind === "routine") return null;
+            if (r.kind === "routine" || r.kind === "debt") return null;
             const Icon = ICONS[r.kind];
             return (
               <button

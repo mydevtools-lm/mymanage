@@ -1,11 +1,13 @@
 import type {
   CalendarEvent,
   Checklist,
+  Debt,
   Note,
   Routine,
   Task,
   Transaction,
 } from "./types";
+import { debtRemaining } from "./finance";
 import { formatCurrency } from "./format";
 import { t } from "./i18n";
 
@@ -16,7 +18,7 @@ import { t } from "./i18n";
  */
 
 export type ResultKind =
-  "task" | "routine" | "event" | "transaction" | "note" | "list";
+  "task" | "routine" | "event" | "transaction" | "note" | "list" | "debt";
 
 export interface SearchResult {
   kind: ResultKind;
@@ -36,6 +38,7 @@ export interface Searchable {
   transactions: Transaction[];
   notes: Note[];
   checklists: Checklist[];
+  debts?: Debt[];
 }
 
 /** Lower case, no niqqud or geresh, no punctuation, single spaces. */
@@ -132,6 +135,22 @@ export function searchAll(
     };
     if (amountMatches(query, t.amount)) results.push({ ...base, score: 50 });
     else add(base, t.description, t.notes);
+  }
+  for (const d of data.debts ?? []) {
+    add(
+      {
+        kind: "debt",
+        id: d.id,
+        title: d.person,
+        detail: [d.description, formatCurrency(debtRemaining(d))]
+          .filter(Boolean)
+          .join(" · "),
+        date: d.dueDate,
+      },
+      d.person,
+      d.description,
+      d.notes,
+    );
   }
   for (const n of data.notes) {
     add(

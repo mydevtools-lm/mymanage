@@ -197,6 +197,7 @@ describe("tools", () => {
       "get_note",
       "list_categories",
       "list_checklists",
+      "list_debts",
       "list_events",
       "list_links",
       "list_notes",
@@ -395,7 +396,7 @@ describe("the bundle", () => {
     );
     try {
       const { tools } = await client.listTools();
-      expect(tools).toHaveLength(12);
+      expect(tools).toHaveLength(13);
       const { json } = await call(client, "today", { date: TODAY });
       expect(json.tasks).toHaveLength(2);
     } finally {

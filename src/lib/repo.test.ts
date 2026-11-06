@@ -11,6 +11,11 @@ import path from "node:path";
 import { SCHEMA_VERSION, backupIfDue, getDb, resetDbForTests } from "./db";
 import {
   addChecklistItem,
+  addDebtPayment,
+  createDebt,
+  deleteDebt,
+  getDebt,
+  updateDebt,
   createNote,
   getNote,
   listNotes,
@@ -246,6 +251,83 @@ describe("categories", () => {
   });
 });
 
+describe("debts", () => {
+  const newDebt = () =>
+    createDebt({ id: "d", direction: "owe", person: "דנה", amount: 1000 });
+
+  it("saves a debt and its payments, oldest payment first", async () => {
+    await newDebt();
+    await addDebtPayment("d", { id: "p2", amount: 200, date: "2026-10-20" });
+    await addDebtPayment("d", { id: "p1", amount: 300, date: "2026-10-10" });
+    const debt = await getDebt("d");
+    expect(debt?.payments.map((p) => p.id)).toEqual(["p1", "p2"]);
+    expect(debt?.payments[0]).toMatchObject({ debtId: "d", amount: 300 });
+  });
+
+  it("stays apart from income and expenses", async () => {
+    await newDebt();
+    await addDebtPayment("d", { amount: 300, date: "2026-10-10" });
+    expect((await readAll()).transactions).toEqual([]);
+  });
+
+  it("refuses a payment above what is left, and saves nothing", async () => {
+    await newDebt();
+    await addDebtPayment("d", { amount: 900, date: "2026-10-10" });
+    await expect(
+      addDebtPayment("d", { amount: 100.01, date: "2026-10-11" }),
+    ).rejects.toMatchObject({ rule: "overpaid" });
+    expect((await getDebt("d"))?.payments).toHaveLength(1);
+  });
+
+  it("refuses an amount below what was paid", async () => {
+    await newDebt();
+    await addDebtPayment("d", { amount: 300, date: "2026-10-10" });
+    await expect(updateDebt("d", { amount: 299 })).rejects.toMatchObject({
+      rule: "belowPaid",
+    });
+    expect((await getDebt("d"))?.amount).toBe(1000);
+    expect((await updateDebt("d", { amount: 300 }))?.amount).toBe(300);
+  });
+
+  it("clears a field given null, and leaves the others", async () => {
+    await createDebt({
+      id: "d",
+      person: "דנה",
+      amount: 10,
+      dueDate: "2026-12-01",
+      notes: "הערה",
+      closedAt: "2026-11-01T08:00:00.000Z",
+    });
+    const updated = await updateDebt("d", { dueDate: null, closedAt: null });
+    expect(updated?.dueDate).toBeUndefined();
+    expect(updated?.closedAt).toBeUndefined();
+    expect(updated?.notes).toBe("הערה");
+  });
+
+  it("answers null for a debt that isn't there", async () => {
+    expect(await updateDebt("no", { amount: 1 })).toBeNull();
+    expect(await addDebtPayment("no", { amount: 1 })).toBeNull();
+  });
+
+  it("takes its payments when deleted, and comes back whole on undo", async () => {
+    await newDebt();
+    await addDebtPayment("d", { id: "p", amount: 300, date: "2026-10-10" });
+    const before = await getDebt("d");
+    await deleteDebt("d");
+    expect(await getDebt("d")).toBeNull();
+    expect(
+      getDb().prepare("SELECT COUNT(*) AS n FROM debt_payments").get(),
+    ).toEqual({ n: 0 });
+    await createDebt(before!);
+    expect(await getDebt("d")).toEqual(before);
+  });
+
+  it("goes when everything is wiped", async () => {
+    await newDebt();
+    expect((await clearAll()).debts).toEqual([]);
+  });
+});
+
 describe("backup round trip", () => {
   it("export → wipe → import restores the same data", async () => {
     await createTask({ id: "t1", title: "להחליף סיסמה", priority: "high" });
@@ -259,6 +341,15 @@ describe("backup round trip", () => {
       recurring: { startMonth: "2026-09" },
       exceptions: [{ month: "2026-12", amount: 15000 }],
     });
+
+    await createDebt({
+      id: "d1",
+      direction: "owed",
+      person: "יוסי",
+      amount: 500,
+      dueDate: "2026-12-01",
+    });
+    await addDebtPayment("d1", { id: "p1", amount: 100, date: "2026-10-01" });
 
     const exported = JSON.parse(JSON.stringify(await readAll()));
     const wiped = await clearAll();

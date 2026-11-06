@@ -4,6 +4,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setRepoDb, type Db, type SqlValue } from "../db-adapter";
+import { debtRemaining } from "../finance";
 import { BASE_SCHEMA, MIGRATIONS } from "../schema";
 import * as repo from "../repo";
 import { disableSync, enableSync, syncOnce, syncStatus } from "./engine";
@@ -691,6 +692,63 @@ describe("keeping the folder small", () => {
     ).toMatchObject({ title: "set by B" });
     same(a, b);
     same(a, c);
+  });
+});
+
+describe("debts", () => {
+  it("payments made on two computers add up", async () => {
+    const { a, b } = await pair();
+    const debt = await a.do(() =>
+      repo.createDebt({ direction: "owe", person: "Dana", amount: 1000 }),
+    );
+    await settle(a, b);
+    await a.do(
+      () => repo.addDebtPayment(debt.id, { amount: 100, date: "2026-11-01" }),
+      T0 + 1000,
+    );
+    await b.do(
+      () => repo.addDebtPayment(debt.id, { amount: 250, date: "2026-11-02" }),
+      T0 + 2000,
+    );
+    await settle(a, b);
+    same(a, b);
+    const left = await b.do(() => repo.getDebt(debt.id));
+    expect(debtRemaining(left!)).toBe(650);
+  });
+
+  it("deleted on one, it goes from the other with its payments", async () => {
+    const { a, b } = await pair();
+    const debt = await a.do(() =>
+      repo.createDebt({ person: "Dana", amount: 1000 }),
+    );
+    await a.do(() =>
+      repo.addDebtPayment(debt.id, { amount: 100, date: "2026-11-01" }),
+    );
+    await settle(a, b);
+    expect(b.rows("debt_payments")).toHaveLength(1);
+    await a.do(() => repo.deleteDebt(debt.id), T0 + 1000);
+    await settle(a, b);
+    expect(b.rows("debts")).toEqual([]);
+    expect(b.rows("debt_payments")).toEqual([]);
+  });
+
+  it("is watched on a database that had sync on before the upgrade", async () => {
+    const sql = new DatabaseSync(":memory:");
+    sql.exec(BASE_SCHEMA);
+    MIGRATIONS.slice(0, 8).forEach((m) => sql.exec(m));
+    sql.exec("UPDATE _sync_meta SET v = '1' WHERE k = 'on'");
+    sql.exec("INSERT OR REPLACE INTO _sync_meta (k, v) VALUES ('dev', 'x')");
+
+    sql.exec(MIGRATIONS[8]);
+    sql
+      .prepare(
+        "INSERT INTO debts (id, direction, person, amount, createdAt, updatedAt) VALUES ('d', 'owe', 'Dana', 5, 'n', 'n')",
+      )
+      .run();
+
+    expect(sql.prepare("SELECT op, t, r FROM _sync_out").all()).toEqual([
+      { op: "ins", t: "debts", r: "d" },
+    ]);
   });
 });
 

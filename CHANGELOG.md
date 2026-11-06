@@ -17,6 +17,10 @@ The first public version: a Windows app.
   ahead, no date), or click its handle to pick a date — with undo.
 - Desktop app (Tauri): installs for the current user, no administrator rights;
   the installer follows Windows' language.
+- Open debts under Money: what you owe and what is owed to you, paid in parts,
+  with due dates shown on Today. Kept apart from income and expenses, so nothing
+  here changes a month's balance. A chat can read them, and change them with
+  `--write`.
 - Israel's holidays and memorial and national days, 2026 to 2028, on the
   calendar, Today and the morning brief, in English and Hebrew. Each group can
   be hidden or recoloured in Settings › Preferences.

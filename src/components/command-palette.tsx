@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   CalendarDays,
   CheckSquare,
+  HandCoins,
   ListChecks,
   NotebookPen,
   Plus,
@@ -46,6 +47,7 @@ function kindMeta(): Record<ResultKind, { label: string; icon: LucideIcon }> {
     transaction: { label: kinds.transaction, icon: Wallet },
     note: { label: kinds.note, icon: NotebookPen },
     list: { label: kinds.list, icon: ListChecks },
+    debt: { label: kinds.debt, icon: HandCoins },
   };
 }
 
@@ -101,6 +103,7 @@ function Palette({ onDone }: { onDone: () => void }) {
   const transactions = useAppStore((s) => s.transactions);
   const notes = useAppStore((s) => s.notes);
   const checklists = useAppStore((s) => s.checklists);
+  const debts = useAppStore((s) => s.debts);
 
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
@@ -198,7 +201,7 @@ function Palette({ onDone }: { onDone: () => void }) {
     const kinds = kindMeta();
     const found: Entry[] = searchAll(
       query,
-      { tasks, routines, events, transactions, notes, checklists },
+      { tasks, routines, events, transactions, notes, checklists, debts },
       todayKey(),
     ).map((r) => ({
       key: `${r.kind}-${r.id}`,
@@ -233,6 +236,7 @@ function Palette({ onDone }: { onDone: () => void }) {
     transactions,
     notes,
     checklists,
+    debts,
     onDone,
     openNew,
     openSmart,

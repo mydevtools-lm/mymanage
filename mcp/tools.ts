@@ -7,7 +7,9 @@ import { expandEvents } from "../src/lib/event-series";
 import {
   budgetStatus,
   categoryBreakdown,
+  debtTotals,
   getMonthTransactions,
+  isDebtOpen,
   summarize,
 } from "../src/lib/finance";
 import { occursOn } from "../src/lib/routines";
@@ -17,6 +19,7 @@ import {
   categoryName,
   result,
   shapeChecklist,
+  shapeDebt,
   shapeEvent,
   shapeRoutine,
   shapeTask,
@@ -196,6 +199,40 @@ export function createServer(
       return result({
         total: rows.length,
         events: rows.slice(0, cap(n)).map(shapeEvent),
+      });
+    },
+  );
+
+  server.registerTool(
+    "list_debts",
+    {
+      title: "List debts",
+      description:
+        "Debts: what the person owes (direction owe) and what is owed to them (direction owed), with payments and what remains. Debts are kept apart from income and expenses: they are in no transaction or balance. Defaults to open debts.",
+      inputSchema: {
+        status: z.enum(["open", "closed", "all"]).optional(),
+        direction: z.enum(["owe", "owed"]).optional(),
+        query: z.string().optional().describe("Words in the name or description."),
+        limit,
+      },
+      annotations: readOnly,
+    },
+    async ({ status = "open", direction, query, limit: n }) => {
+      const { debts, settings } = await snapshot();
+      const rows = (debts ?? []).filter((d) => {
+        if (direction && d.direction !== direction) return false;
+        if (status !== "all" && isDebtOpen(d) !== (status === "open")) return false;
+        return (
+          !query ||
+          includes(d.person, query) ||
+          (!!d.description && includes(d.description, query))
+        );
+      });
+      return result({
+        currency: settings.prefs?.currency ?? "ILS",
+        openTotals: debtTotals(debts ?? []),
+        total: rows.length,
+        debts: rows.slice(0, cap(n)).map(shapeDebt),
       });
     },
   );

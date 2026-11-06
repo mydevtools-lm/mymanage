@@ -136,6 +136,41 @@ export interface TransactionException {
 /** How far an edit or delete on one month of a recurring series reaches. */
 export type SeriesScope = "this" | "following" | "all";
 
+/** Which way a debt goes: I owe someone, or someone owes me. */
+export type DebtDirection = "owe" | "owed";
+
+export interface DebtPayment {
+  id: string;
+  debtId: string;
+  amount: number;
+  date: string; // yyyy-MM-dd
+  createdAt: string;
+}
+
+/** Kept apart from transactions: nothing here changes a month's balance. */
+export interface Debt {
+  id: string;
+  direction: DebtDirection;
+  /** Who the debt is with. */
+  person: string;
+  description?: string;
+  amount: number;
+  dueDate?: string; // yyyy-MM-dd
+  notes?: string;
+  /** Closed by hand, say a debt that was forgiven. Paid in full closes by itself. */
+  closedAt?: string;
+  payments: DebtPayment[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A debt's fields that can change. null clears an optional one. */
+export type DebtPatch = {
+  [K in "direction" | "person" | "amount"]?: Debt[K];
+} & {
+  [K in "description" | "dueDate" | "notes" | "closedAt"]?: Debt[K] | null;
+};
+
 export interface Note {
   id: string;
   title: string;
@@ -212,6 +247,7 @@ export interface DataSnapshot {
   checklists: Checklist[];
   routines?: Routine[];
   links?: Link[];
+  debts?: Debt[];
   categories: Category[];
   settings: Settings;
 }

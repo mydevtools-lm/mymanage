@@ -3,6 +3,9 @@ import type {
   CalendarEvent,
   Category,
   DataSnapshot,
+  Debt,
+  DebtPatch,
+  DebtPayment,
   Link,
   Note,
   Routine,
@@ -48,6 +51,18 @@ async function handle(fn: () => Promise<unknown>): Promise<ApiResult> {
 }
 
 const found = (value: unknown) => (value ? ok(value) : notFound());
+
+/** A debt's rules answer in the person's language; anything else is a failure. */
+async function debtRules(fn: () => Promise<ApiResult>): Promise<ApiResult> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (error instanceof repo.DebtRuleError) {
+      return badRequest(t().finance.debts[error.rule]);
+    }
+    return handle(() => Promise.reject(error));
+  }
+}
 const done = async (work: Promise<unknown>) => {
   await work;
   return { ok: true };
@@ -177,6 +192,28 @@ const ROUTES: Record<string, Handler> = {
     if (!isIdList(ids)) return badRequest(t().data.api.idsRequired);
     return handle(() => done(repo.deleteTransactions(ids)));
   },
+
+  /* ---------------------------------------------------------- debts */
+  "GET /api/debts": () => handle(() => repo.listDebts()),
+  "POST /api/debts": async (_, body) =>
+    body
+      ? handle(() => repo.createDebt(body as Partial<Debt>))
+      : badRequest(notJson()),
+  "PATCH /api/debts/:id": async ({ id }, body) =>
+    body
+      ? debtRules(async () =>
+          found(await repo.updateDebt(id, body as DebtPatch)),
+        )
+      : badRequest(notJson()),
+  "DELETE /api/debts/:id": ({ id }) => handle(() => done(repo.deleteDebt(id))),
+  "POST /api/debts/:id/payments": async ({ id }, body) =>
+    body
+      ? debtRules(async () =>
+          found(await repo.addDebtPayment(id, body as Partial<DebtPayment>)),
+        )
+      : badRequest(notJson()),
+  "DELETE /api/debts/:id/payments/:paymentId": ({ paymentId }) =>
+    handle(() => done(repo.deleteDebtPayment(paymentId))),
 
   /* ---------------------------------------------------------- notes */
   "GET /api/notes": () => handle(() => repo.listNotes()),

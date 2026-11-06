@@ -77,6 +77,37 @@ const data: Searchable = {
 const ids = (query: string) =>
   searchAll(query, data, "2026-09-28").map((r) => r.id);
 
+describe("debts", () => {
+  const withDebt: Searchable = {
+    tasks: [],
+    events: [],
+    transactions: [],
+    notes: [],
+    checklists: [],
+    debts: [
+      {
+        id: "d1",
+        direction: "owe",
+        person: "דנה כהן",
+        description: "הלוואה לרכב",
+        amount: 1000,
+        payments: [],
+        createdAt: "",
+        updatedAt: "",
+      },
+    ],
+  };
+
+  it("finds a debt by name and by what it is for", () => {
+    for (const query of ["דנה", "רכב"]) {
+      expect(searchAll(query, withDebt, "2026-11-06")[0]).toMatchObject({
+        kind: "debt",
+        id: "d1",
+      });
+    }
+  });
+});
+
 describe("normalize and matchScore", () => {
   it("ignores niqqud, geresh and punctuation", () => {
     expect(normalize("שָׁלוֹם, עוֹלָם!")).toBe("שלום עולם");

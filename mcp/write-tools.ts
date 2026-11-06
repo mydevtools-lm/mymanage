@@ -21,6 +21,7 @@ import {
   categoryName,
   result,
   shapeChecklist,
+  shapeDebt,
   shapeEvent,
   shapeRoutine,
   shapeTask,
@@ -108,6 +109,7 @@ const amount = z
   .number()
   .positive()
   .describe("Always positive; `type` says which way the money went.");
+const debtAmount = z.number().positive().describe("Always positive.");
 const linkKind = z.enum(["task", "event", "transaction", "note", "list"]);
 
 const orClear = "Pass null to clear.";
@@ -602,6 +604,118 @@ export function registerWriteTools(server: McpServer) {
       }
       return result({
         deleted: { id, title: series.title, scope: reach, occurrenceDate },
+      });
+    },
+  );
+
+  /* ------------------------------------------------------- transactions */
+
+  /* -------------------------------------------------------------- debts */
+
+  server.registerTool(
+    "create_debt",
+    {
+      title: "Add a debt",
+      description:
+        "Adds a debt: what the person owes someone (direction owe), or what someone owes them (direction owed). Debts are kept apart from income and expenses: neither the debt nor its payments change a balance.",
+      inputSchema: {
+        direction: z.enum(["owe", "owed"]),
+        person: text.describe("Who the debt is with."),
+        amount: debtAmount,
+        description: z.string().optional(),
+        dueDate: day.optional(),
+        notes: z.string().optional(),
+      },
+      annotations: adds,
+    },
+    async (fields) => result({ created: shapeDebt(await repo.createDebt(fields)) }),
+  );
+
+  server.registerTool(
+    "update_debt",
+    {
+      title: "Change a debt",
+      description: `Changes a debt: send only what changes. ${orClear} closed: true closes it by hand, say when it was forgiven; false reopens it. A debt paid in full closes by itself. The amount can't go below what was already paid.`,
+      inputSchema: {
+        id: z.string(),
+        direction: z.enum(["owe", "owed"]).optional(),
+        person: text.optional(),
+        amount: debtAmount.optional(),
+        description: z.string().nullable().optional(),
+        dueDate: day.nullable().optional(),
+        notes: z.string().nullable().optional(),
+        closed: z.boolean().optional(),
+      },
+      annotations: changes,
+    },
+    async ({ id, closed, ...fields }) => {
+      must(await repo.getDebt(id), "debt", id);
+      const updated = await repo.updateDebt(id, {
+        ...fields,
+        ...(closed !== undefined && {
+          closedAt: closed ? new Date().toISOString() : null,
+        }),
+      });
+      return result({ updated: shapeDebt(updated!) });
+    },
+  );
+
+  server.registerTool(
+    "add_debt_payment",
+    {
+      title: "Record a payment on a debt",
+      description:
+        "Records a payment, whole or part, on a debt. It lowers what remains and adds no income or expense. A payment above what remains is refused.",
+      inputSchema: {
+        debtId: z.string(),
+        amount: debtAmount,
+        date: day.optional().describe("Default today."),
+      },
+      annotations: adds,
+    },
+    async ({ debtId, ...payment }) => {
+      const debt = must(
+        await repo.addDebtPayment(debtId, payment),
+        "debt",
+        debtId,
+      );
+      return result({ updated: shapeDebt(debt) });
+    },
+  );
+
+  server.registerTool(
+    "delete_debt_payment",
+    {
+      title: "Delete a payment on a debt",
+      description: "Deletes a payment for good; what remains goes back up.",
+      inputSchema: { debtId: z.string(), paymentId: z.string() },
+      annotations: removes,
+    },
+    async ({ debtId, paymentId }) => {
+      const debt = must(await repo.getDebt(debtId), "debt", debtId);
+      must(
+        debt.payments.find((p) => p.id === paymentId),
+        "payment",
+        paymentId,
+      );
+      await repo.deleteDebtPayment(paymentId);
+      return result({ updated: shapeDebt((await repo.getDebt(debtId))!) });
+    },
+  );
+
+  server.registerTool(
+    "delete_debt",
+    {
+      title: "Delete a debt",
+      description: "Deletes a debt and its payments for good.",
+      inputSchema: { id: z.string() },
+      annotations: removes,
+    },
+    async ({ id }) => {
+      const debt = must(await repo.getDebt(id), "debt", id);
+      await repo.deleteDebt(id);
+      return result({
+        deleted: { id, person: debt.person, payments: debt.payments.length },
       });
     },
   );

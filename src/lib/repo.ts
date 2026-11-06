@@ -6,6 +6,9 @@ import type {
   Category,
   Checklist,
   DataSnapshot,
+  Debt,
+  DebtPatch,
+  DebtPayment,
   Note,
   Link,
   Routine,
@@ -14,6 +17,7 @@ import type {
   Task,
   Transaction,
 } from "./types";
+import { debtPaid, debtRemaining } from "./finance";
 import { instanceId, occursOn } from "./routines";
 import { SAMPLE_PREFIX, sampleData } from "./sample-data";
 
@@ -642,6 +646,191 @@ export async function deleteTransactions(ids: string[]) {
   );
 }
 
+/* ---------------------------------------------------------------- debts */
+
+interface DebtRow {
+  id: string;
+  direction: string;
+  person: string;
+  description: string | null;
+  amount: number;
+  dueDate: string | null;
+  notes: string | null;
+  closedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A change that a debt's rules don't allow. The message is for a chat; the
+ *  API answers in the person's language, by `rule`. */
+export class DebtRuleError extends Error {
+  constructor(
+    readonly rule: "overpaid" | "belowPaid",
+    message: string,
+  ) {
+    super(message);
+    this.name = "DebtRuleError";
+  }
+}
+
+function toDebt(r: DebtRow, payments: DebtPayment[]): Debt {
+  return {
+    id: r.id,
+    direction: r.direction as Debt["direction"],
+    person: r.person,
+    description: r.description ?? undefined,
+    amount: r.amount,
+    dueDate: r.dueDate ?? undefined,
+    notes: r.notes ?? undefined,
+    closedAt: r.closedAt ?? undefined,
+    payments,
+    createdAt: r.createdAt,
+    updatedAt: r.updatedAt,
+  };
+}
+
+export async function listDebts(): Promise<Debt[]> {
+  const rows = await db().all<DebtRow>(
+    "SELECT * FROM debts ORDER BY createdAt, id",
+  );
+  const payments = await db().all<DebtPayment>(
+    "SELECT * FROM debt_payments ORDER BY date, createdAt, id",
+  );
+  return rows.map((r) =>
+    toDebt(
+      r,
+      payments.filter((p) => p.debtId === r.id),
+    ),
+  );
+}
+
+export async function getDebt(id: string): Promise<Debt | null> {
+  const found = await db().get<DebtRow>("SELECT * FROM debts WHERE id = ?", [
+    id,
+  ]);
+  if (!found) return null;
+  const payments = await db().all<DebtPayment>(
+    "SELECT * FROM debt_payments WHERE debtId = ? ORDER BY date, createdAt, id",
+    [id],
+  );
+  return toDebt(found, payments);
+}
+
+function debtInsert(id: string, input: Partial<Debt>): Statement {
+  const stamp = input.createdAt ?? now();
+  return {
+    sql: `INSERT INTO debts
+       (id,direction,person,description,amount,dueDate,notes,closedAt,createdAt,updatedAt)
+       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    params: [
+      id,
+      input.direction ?? "owe",
+      input.person ?? "",
+      input.description ?? null,
+      input.amount ?? 0,
+      input.dueDate ?? null,
+      input.notes ?? null,
+      input.closedAt ?? null,
+      stamp,
+      input.updatedAt ?? stamp,
+    ],
+  };
+}
+
+function debtPaymentInsert(
+  id: string,
+  debtId: string,
+  input: Partial<DebtPayment>,
+): Statement {
+  return {
+    sql: "INSERT INTO debt_payments (id,debtId,amount,date,createdAt) VALUES (?,?,?,?,?)",
+    params: [
+      id,
+      debtId,
+      input.amount ?? 0,
+      input.date ?? localDateKey(),
+      input.createdAt ?? now(),
+    ],
+  };
+}
+
+/** A new debt; with payments too when undo brings a deleted one back. */
+export async function createDebt(input: Partial<Debt>): Promise<Debt> {
+  const id = input.id ?? newId();
+  await db().batch([
+    debtInsert(id, input),
+    ...(input.payments ?? []).map((p) =>
+      debtPaymentInsert(p.id ?? newId(), id, p),
+    ),
+  ]);
+  return (await getDebt(id))!;
+}
+
+export async function updateDebt(
+  id: string,
+  patch: DebtPatch,
+): Promise<Debt | null> {
+  const current = await getDebt(id);
+  if (!current) return null;
+  const next = { ...current, ...patch };
+  if (next.amount < debtPaid(current)) {
+    throw new DebtRuleError(
+      "belowPaid",
+      `The amount can't be below what was already paid (${debtPaid(current)}). Delete a payment first.`,
+    );
+  }
+  await db().run(
+    `UPDATE debts SET direction=?, person=?, description=?, amount=?, dueDate=?,
+       notes=?, closedAt=?, updatedAt=? WHERE id = ?`,
+    [
+      next.direction,
+      next.person,
+      next.description ?? null,
+      next.amount,
+      next.dueDate ?? null,
+      next.notes ?? null,
+      next.closedAt ?? null,
+      now(),
+      id,
+    ],
+  );
+  return getDebt(id);
+}
+
+export async function deleteDebt(id: string) {
+  await db().batch([
+    { sql: "DELETE FROM debt_payments WHERE debtId = ?", params: [id] },
+    { sql: "DELETE FROM debts WHERE id = ?", params: [id] },
+  ]);
+}
+
+/** The debt with the payment added, or null if there is no such debt. */
+export async function addDebtPayment(
+  debtId: string,
+  payment: Partial<DebtPayment>,
+): Promise<Debt | null> {
+  const debt = await getDebt(debtId);
+  if (!debt) return null;
+  const remaining = debtRemaining(debt);
+  if ((payment.amount ?? 0) > remaining) {
+    throw new DebtRuleError(
+      "overpaid",
+      `The payment is more than what is left to pay (${remaining}).`,
+    );
+  }
+  const { sql, params } = debtPaymentInsert(
+    payment.id ?? newId(),
+    debtId,
+    payment,
+  );
+  await db().run(sql, params);
+  return getDebt(debtId);
+}
+
+export async function deleteDebtPayment(id: string) {
+  await db().run("DELETE FROM debt_payments WHERE id = ?", [id]);
+}
+
 /* ---------------------------------------------------------------- notes */
 
 interface NoteRow {
@@ -1123,6 +1312,7 @@ export async function readAll(): Promise<DataSnapshot> {
     checklists: await listChecklists(),
     routines: await listRoutines(),
     links: await listLinks(),
+    debts: await listDebts(),
     categories: await listCategories(),
     settings: {
       startMonth: await getStartMonth(),
@@ -1134,6 +1324,8 @@ export async function readAll(): Promise<DataSnapshot> {
 }
 
 const USER_TABLES = [
+  "debt_payments",
+  "debts",
   "checklist_items",
   "checklists",
   "notes",
@@ -1169,6 +1361,13 @@ export async function replaceAll(snapshot: Partial<DataSnapshot>) {
   for (const t of snapshot.transactions ?? [])
     writes.push(transactionInsert(t.id ?? newId(), t));
   for (const n of snapshot.notes ?? []) writes.push(noteInsert(n.id ?? newId(), n));
+  for (const d of snapshot.debts ?? []) {
+    const debtId = d.id ?? newId();
+    writes.push(debtInsert(debtId, d));
+    for (const p of d.payments ?? []) {
+      writes.push(debtPaymentInsert(p.id ?? newId(), debtId, p));
+    }
+  }
   for (const l of snapshot.checklists ?? []) {
     writes.push({
       sql: "INSERT INTO checklists (id,title,pinned,createdAt,updatedAt) VALUES (?,?,?,?,?)",

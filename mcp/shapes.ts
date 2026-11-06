@@ -1,7 +1,9 @@
+import { debtRemaining, isDebtOpen } from "../src/lib/finance";
 import type {
   CalendarEvent,
   Category,
   Checklist,
+  Debt,
   Routine,
   Task,
 } from "../src/lib/types";
@@ -35,6 +37,26 @@ export function shapeTask(task: Task, categories: Category[]) {
       id: s.id,
       text: s.text,
       done: s.done,
+    })),
+  };
+}
+
+export function shapeDebt(debt: Debt) {
+  return {
+    id: debt.id,
+    direction: debt.direction,
+    person: debt.person,
+    description: debt.description,
+    amount: debt.amount,
+    remaining: debtRemaining(debt),
+    open: isDebtOpen(debt),
+    closedByHand: !!debt.closedAt,
+    dueDate: debt.dueDate,
+    notes: debt.notes,
+    payments: debt.payments.map((p) => ({
+      id: p.id,
+      amount: p.amount,
+      date: p.date,
     })),
   };
 }

@@ -40,6 +40,7 @@ export function BackupTab() {
       transactions: s.transactions.length,
       notes: s.notes.length,
       checklists: s.checklists.length,
+      debts: s.debts.length,
       startMonth: s.settings.startMonth,
     })),
   );
@@ -93,6 +94,7 @@ export function BackupTab() {
           <Row label={m.transactions} value={counts.transactions} />
           <Row label={m.notes} value={counts.notes} />
           <Row label={m.lists} value={counts.checklists} />
+          <Row label={m.debts} value={counts.debts} />
         </CardContent>
       </Card>
 

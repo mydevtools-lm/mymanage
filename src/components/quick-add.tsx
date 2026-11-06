@@ -33,17 +33,25 @@ import { EventDialog } from "@/components/calendar/event-dialog";
 import { TransactionDialog } from "@/components/finance/transaction-dialog";
 import { useAppStore } from "@/lib/store";
 import { todayKey } from "@/lib/format";
-import type { CalendarEvent, Routine, Task, Transaction } from "@/lib/types";
+import { DebtDialog } from "@/components/finance/debt-dialog";
+import type {
+  CalendarEvent,
+  Debt,
+  Routine,
+  Task,
+  Transaction,
+} from "@/lib/types";
 import { t } from "@/lib/i18n";
 
-type Kind = "task" | "event" | "transaction" | "item";
+type Kind = "task" | "event" | "transaction" | "item" | "debt";
 
 /** An existing item to open in its dialog — from search, or from a link. */
 export type EditTarget =
   | { kind: "task"; task: Task }
   | { kind: "routine"; routine: Routine }
   | { kind: "event"; event: CalendarEvent }
-  | { kind: "transaction"; transaction: Transaction };
+  | { kind: "transaction"; transaction: Transaction }
+  | { kind: "debt"; debt: Debt };
 
 interface QuickAddState {
   kind: Kind | null;
@@ -173,6 +181,11 @@ export function GlobalQuickAdd() {
         transaction={
           editing?.kind === "transaction" ? editing.transaction : null
         }
+      />
+      <DebtDialog
+        open={kind === "debt"}
+        onOpenChange={onOpenChange}
+        debt={editing?.kind === "debt" ? editing.debt : null}
       />
       <Dialog open={kind === "item"} onOpenChange={onOpenChange}>
         <DialogContent>

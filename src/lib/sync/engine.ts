@@ -47,6 +47,8 @@ const REQUIRED: Record<string, string[]> = {
   routines: ["title", "repeat", "startDate", "createdAt", "updatedAt"],
   links: ["aKind", "aId", "bKind", "bId", "createdAt"],
   settings: ["value"],
+  debts: ["direction", "person", "amount", "createdAt", "updatedAt"],
+  debt_payments: ["debtId", "amount", "date", "createdAt"],
 };
 
 const PENDING_MAX_AGE = 30 * 24 * 60 * 60 * 1000;

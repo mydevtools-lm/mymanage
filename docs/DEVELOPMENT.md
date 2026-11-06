@@ -104,6 +104,10 @@ triggers see every write, whoever makes it.
 `src/lib/sync/tables.ts`): add the column to its list, and add a migration that calls
 `syncTriggersSql()` again, so the triggers know the new column. A test fails until you do.
 
+**When you add a table:** add it to `SYNC_TABLES`, `ADDED_AFTER_V8` and `REQUIRED` in `engine.ts`, and create its triggers in the migration that makes it. Migration v8 runs on new databases too, before the table exists, so it must not name it.
+
+A computer on an older version skips changes to a table it doesn't know, and they don't come back after it upgrades. Upgrade every computer before using a new table.
+
 ```bash
 npx vitest run src/lib/sync        # the engine: several computers, one folder
 node scripts/desktop-smoke.mjs sync   # the real app and a second computer (a Node peer)
@@ -123,6 +127,8 @@ they count a month and split a series the way the screens do.
   own (it never migrates; the app does), and backs up before the day's first write.
 - **Nothing reads the secrets** (they're in an encrypted file outside the
   database), and no tool wipes or replaces everything. A new tool must stay that way.
+
+The server refuses to write to a database at another version, so after a migration the `mymanage-mcp.mjs` a chat uses has to be replaced too.
 
 The app sees these writes through `PRAGMA data_version`, which changes only when
 another connection commits: `src/lib/external-changes.ts` asks every 3 seconds and

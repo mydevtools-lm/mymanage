@@ -728,6 +728,91 @@ describe("living beside the app", () => {
   });
 });
 
+describe("debts", () => {
+  const newDebt = () =>
+    ok("create_debt", {
+      direction: "owe",
+      person: "דנה",
+      amount: 1000,
+      dueDate: "2026-12-01",
+    });
+
+  it("adds a debt and lists it as open", async () => {
+    const debt = await newDebt();
+    expect(debt.created).toMatchObject({ remaining: 1000, open: true });
+    const listed = await ok("list_debts");
+    expect(listed.total).toBe(1);
+    expect(listed.openTotals).toEqual({ owe: 1000, owed: 0 });
+  });
+
+  it("a payment lowers what is left and adds no transaction", async () => {
+    const { created } = await newDebt();
+    const { updated } = await ok("add_debt_payment", {
+      debtId: created.id,
+      amount: 300,
+      date: TODAY,
+    });
+    expect(updated.remaining).toBe(700);
+    expect(peek(file, "SELECT id FROM transactions")).toEqual([]);
+  });
+
+  it("refuses a payment above what is left, and saves nothing", async () => {
+    const { created } = await newDebt();
+    const answer = await call("add_debt_payment", {
+      debtId: created.id,
+      amount: 1000.5,
+    });
+    expect(answer.isError).toBe(true);
+    expect(answer.text).toMatch(/more than what is left/);
+    expect(peek(file, "SELECT id FROM debt_payments")).toEqual([]);
+  });
+
+  it("paid in full, it moves from open to closed", async () => {
+    const { created } = await newDebt();
+    await ok("add_debt_payment", { debtId: created.id, amount: 1000 });
+    expect((await ok("list_debts")).total).toBe(0);
+    expect((await ok("list_debts", { status: "closed" })).total).toBe(1);
+  });
+
+  it("closes by hand, reopens, and clears a date with null", async () => {
+    const { created } = await newDebt();
+    const closed = await ok("update_debt", { id: created.id, closed: true });
+    expect(closed.updated).toMatchObject({ open: false, closedByHand: true });
+    const reopened = await ok("update_debt", {
+      id: created.id,
+      closed: false,
+      dueDate: null,
+    });
+    expect(reopened.updated.open).toBe(true);
+    expect(reopened.updated.dueDate).toBeUndefined();
+    expect(reopened.updated.person).toBe("דנה");
+  });
+
+  it("deletes a payment, and a debt with its payments", async () => {
+    const { created } = await newDebt();
+    const { updated } = await ok("add_debt_payment", {
+      debtId: created.id,
+      amount: 300,
+    });
+    const after = await ok("delete_debt_payment", {
+      debtId: created.id,
+      paymentId: updated.payments[0].id,
+    });
+    expect(after.updated.remaining).toBe(1000);
+
+    await ok("add_debt_payment", { debtId: created.id, amount: 300 });
+    await ok("delete_debt", { id: created.id });
+    expect(peek(file, "SELECT id FROM debts")).toEqual([]);
+    expect(peek(file, "SELECT id FROM debt_payments")).toEqual([]);
+  });
+
+  it("says what to do when the id is wrong", async () => {
+    const answer = await call("add_debt_payment", { debtId: "no", amount: 1 });
+    expect(answer.isError).toBe(true);
+    expect(answer.text).toMatch(/No debt with id no/);
+  });
+});
+
 describe("the bundle", () => {
   it("writes with --write and not without", async () => {
     const bundle = await buildMcp(path.join(dir, "mymanage-mcp.mjs"));

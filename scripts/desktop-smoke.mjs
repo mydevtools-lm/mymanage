@@ -8,6 +8,7 @@
 //   node scripts/desktop-smoke.mjs screenshots [he]   README pictures (English, or Hebrew)
 //   node scripts/desktop-smoke.mjs sync               a second computer (a Node peer) through a shared folder
 //   node scripts/desktop-smoke.mjs chat [shot.png]    a chat writes through the MCP server, the open window follows
+//   node scripts/desktop-smoke.mjs debts [shot.png]   a debt is paid in part, stays after a restart, touches no balance
 // Every phase but English screenshots runs the app in Hebrew.
 // first-run and screenshots need a fresh data folder; services connects a public calendar
 // and a fake Claude key, and removes both at the end.
@@ -416,6 +417,61 @@ if (phase === "write") {
     console.log("failed:", failures.join(" | "));
     process.exitCode = 1;
   }
+} else if (phase === "debts") {
+  // A debt in the real app, on a database upgraded from an earlier version if
+  // the test app has run before: paid in part, kept over a restart, no balance
+  // touched. Removed at the end.
+  const ask = (target, sql) =>
+    target.evaluate(
+      (query) => window.__TAURI_INTERNALS__.invoke("db_all", { sql: query, params: [] }),
+      sql,
+    );
+  const transactions = async (target) =>
+    (await ask(target, "SELECT COUNT(*) AS n FROM transactions"))[0].n;
+  const person = `עשן חוב ${Date.now()}`;
+  const row = (target) => target.locator(".group").filter({ hasText: person });
+  const seen = {
+    schema: (await ask(page, "PRAGMA user_version"))[0].user_version,
+  };
+  const before = await transactions(page);
+
+  await goto(page, "/finance/?view=debts");
+  await page.getByRole("button", { name: "חוב חדש" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "חוב חדש" });
+  await dialog.getByLabel("מול מי").fill(person);
+  await dialog.getByLabel("סכום").fill("100");
+  await dialog.getByRole("button", { name: "הוספה" }).click();
+  await row(page).waitFor();
+
+  await row(page).hover();
+  await row(page).getByRole("button", { name: "רישום תשלום" }).click();
+  const pay = page.getByRole("dialog", { name: `תשלום: ${person}` });
+  await pay.getByLabel("סכום").fill("40");
+  await pay.getByRole("button", { name: "רישום תשלום" }).click();
+  await pay.waitFor({ state: "hidden" });
+  seen.left = (await row(page).innerText()).includes("60");
+  seen.transactionsAdded = (await transactions(page)) - before;
+  if (process.argv[3]) await page.screenshot({ path: process.argv[3] });
+  await page.waitForLoadState("networkidle").catch(() => {});
+
+  const again = await launch();
+  await goto(again.page, "/finance/?view=debts");
+  await row(again.page).waitFor();
+  seen.keptAfterRestart = (await row(again.page).innerText()).includes("60");
+
+  await row(again.page).hover();
+  await row(again.page).getByRole("button", { name: "מחיקה" }).click();
+  await again.page.getByRole("alertdialog").getByRole("button", { name: "מחיקה" }).click();
+  await row(again.page).waitFor({ state: "detached" });
+  await again.page.waitForTimeout(1000);
+  seen.paymentsLeft = (
+    await ask(
+      again.page,
+      "SELECT COUNT(*) AS n FROM debt_payments WHERE debtId NOT IN (SELECT id FROM debts)",
+    )
+  )[0].n;
+  console.log("seen:", seen);
+  await again.browser.close().catch(() => {});
 } else if (phase === "first-run") {
   const seen = {};
   // This device may have answered on an earlier run; forget that here (the

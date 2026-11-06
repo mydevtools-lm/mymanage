@@ -8,6 +8,9 @@ import type {
   Category,
   Checklist,
   DataSnapshot,
+  Debt,
+  DebtPatch,
+  DebtPayment,
   Link,
   LinkKind,
   Note,
@@ -70,10 +73,22 @@ interface AppState {
   checklists: Checklist[];
   routines: Routine[];
   links: Link[];
+  debts: Debt[];
   categories: Category[];
   settings: Settings;
 
   load: () => Promise<void>;
+
+  addDebt: (
+    input: Omit<Debt, "id" | "payments" | "createdAt" | "updatedAt">,
+  ) => void;
+  updateDebt: (id: string, patch: DebtPatch) => void;
+  deleteDebt: (id: string) => void;
+  addDebtPayment: (
+    debtId: string,
+    payment: Pick<DebtPayment, "amount" | "date">,
+  ) => void;
+  deleteDebtPayment: (debtId: string, paymentId: string) => void;
 
   /** Tie two items together; the same pair twice is one link. */
   addLink: (
@@ -277,6 +292,7 @@ function applySnapshot(snapshot: DataSnapshot) {
     checklists: snapshot.checklists ?? [],
     routines: snapshot.routines ?? [],
     links: snapshot.links ?? [],
+    debts: snapshot.debts ?? [],
     categories: snapshot.categories ?? [],
     settings: snapshot.settings ?? { startMonth: toMonthKey(new Date()) },
     hydrated: true,
@@ -337,6 +353,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
   checklists: [],
   routines: [],
   links: [],
+  debts: [],
   categories: [],
   settings: { startMonth: toMonthKey(new Date()) },
 
@@ -824,6 +841,77 @@ export const useAppStore = create<AppState>()((set, get) => ({
     if (t) applySeriesPlan(planSeriesEdit(t, month, scope, fields));
   },
 
+  /* ---------------------------------------------------------- debts */
+
+  addDebt: (input) => {
+    const row: Debt = {
+      ...input,
+      id: crypto.randomUUID(),
+      payments: [],
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    set((s) => ({ debts: [...s.debts, row] }));
+    push(api("/api/debts", "POST", row));
+  },
+  updateDebt: (id, patch) => {
+    // null clears a field in the database; in the mirror the field just goes.
+    const cleared = Object.fromEntries(
+      Object.entries(patch).map(([k, v]) => [k, v ?? undefined]),
+    );
+    set((s) => ({
+      debts: s.debts.map((d) =>
+        d.id === id ? { ...d, ...cleared, updatedAt: now() } : d,
+      ),
+    }));
+    push(api(`/api/debts/${id}`, "PATCH", patch));
+  },
+  deleteDebt: (id) => {
+    const debts = get().debts;
+    const index = debts.findIndex((d) => d.id === id);
+    if (index < 0) return;
+    const debt = debts[index];
+    set((s) => ({ debts: s.debts.filter((d) => d.id !== id) }));
+    offerUndo(
+      t().finance.debts.deleted,
+      api(`/api/debts/${id}`, "DELETE"),
+      () => set((s) => ({ debts: insertAt(s.debts, index, debt) })),
+      () => api("/api/debts", "POST", debt),
+    );
+  },
+  addDebtPayment: (debtId, payment) => {
+    const row: DebtPayment = {
+      ...payment,
+      id: crypto.randomUUID(),
+      debtId,
+      createdAt: now(),
+    };
+    set((s) => ({
+      debts: s.debts.map((d) =>
+        d.id === debtId ? { ...d, payments: [...d.payments, row] } : d,
+      ),
+    }));
+    push(api(`/api/debts/${debtId}/payments`, "POST", row));
+  },
+  deleteDebtPayment: (debtId, paymentId) => {
+    const debt = get().debts.find((d) => d.id === debtId);
+    const payment = debt?.payments.find((p) => p.id === paymentId);
+    if (!payment) return;
+    const setPayments = (change: (rows: DebtPayment[]) => DebtPayment[]) =>
+      set((s) => ({
+        debts: s.debts.map((d) =>
+          d.id === debtId ? { ...d, payments: change(d.payments) } : d,
+        ),
+      }));
+    setPayments((rows) => rows.filter((p) => p.id !== paymentId));
+    offerUndo(
+      t().finance.debts.paymentDeleted,
+      api(`/api/debts/${debtId}/payments/${paymentId}`, "DELETE"),
+      () => setPayments((rows) => [...rows, payment]),
+      () => api(`/api/debts/${debtId}/payments`, "POST", payment),
+    );
+  },
+
   /* ---------------------------------------------------------- notes */
 
   addNote: (input) => {
@@ -1042,6 +1130,7 @@ export const useAppStore = create<AppState>()((set, get) => ({
       checklists: s.checklists,
       routines: s.routines,
       links: s.links,
+      debts: s.debts,
       categories: s.categories,
       settings: s.settings,
     };

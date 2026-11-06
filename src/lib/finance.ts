@@ -1,4 +1,5 @@
 import {
+  addDays,
   addMonths,
   differenceInCalendarMonths,
   getDaysInMonth,
@@ -6,11 +7,13 @@ import {
 } from "date-fns";
 import type {
   Category,
+  Debt,
+  DebtDirection,
   SeriesScope,
   Transaction,
   TransactionException,
 } from "./types";
-import { toMonthKey } from "./format";
+import { parseDateKey, toDateKey, toMonthKey } from "./format";
 import { t } from "./i18n";
 
 export interface MonthTransaction extends Transaction {
@@ -328,4 +331,47 @@ export function transactionsToCsv(rows: Transaction[], categories: Category[]) {
       ]),
   ];
   return "﻿" + lines.map((l) => l.map(csvCell).join(",")).join("\r\n");
+}
+
+/* ---------------------------------------------------------------- debts */
+
+/** Whole agorot, so adding up payments leaves no 0.30000000000000004. */
+const cents = (amount: number) => Math.round(amount * 100);
+
+export function debtPaid(debt: Pick<Debt, "payments">) {
+  return debt.payments.reduce((sum, p) => sum + cents(p.amount), 0) / 100;
+}
+
+/** What is left to pay. Never below zero, even if two computers both paid. */
+export function debtRemaining(debt: Pick<Debt, "amount" | "payments">) {
+  return Math.max(0, cents(debt.amount) - cents(debtPaid(debt))) / 100;
+}
+
+export function isDebtOpen(debt: Debt) {
+  return !debt.closedAt && debtRemaining(debt) > 0;
+}
+
+export function debtTotals(debts: Debt[]): Record<DebtDirection, number> {
+  const total = { owe: 0, owed: 0 };
+  for (const debt of debts) {
+    if (isDebtOpen(debt)) total[debt.direction] += cents(debtRemaining(debt));
+  }
+  return { owe: total.owe / 100, owed: total.owed / 100 };
+}
+
+/** Open debts, the nearest date first; those with no date last, oldest first. */
+export function openDebts(debts: Debt[]) {
+  return debts.filter(isDebtOpen).sort((a, b) => {
+    if (a.dueDate && b.dueDate && a.dueDate !== b.dueDate) {
+      return a.dueDate < b.dueDate ? -1 : 1;
+    }
+    if (!!a.dueDate !== !!b.dueDate) return a.dueDate ? -1 : 1;
+    return a.createdAt < b.createdAt ? -1 : 1;
+  });
+}
+
+/** Open debts past their date, or due within the coming week. */
+export function debtsDueSoon(debts: Debt[], today: string, days = 7) {
+  const until = toDateKey(addDays(parseDateKey(today), days));
+  return openDebts(debts).filter((d) => d.dueDate && d.dueDate <= until);
 }
