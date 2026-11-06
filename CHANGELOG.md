@@ -9,7 +9,7 @@ The first public version: a Windows app.
 
 ### Added
 
-- Today, tasks, calendar, money, notes and lists — with search and "add in a
+- Today, tasks, calendar, notes and lists — with search and "add in a
   sentence" (`Ctrl+K`), in English and Hebrew.
 - English and Hebrew interface: Windows' language on first launch, switchable
   in Settings › Preferences; Hebrew right to left.
@@ -32,7 +32,7 @@ The first public version: a Windows app.
   account and no server of ours; changes merge field by field, a deleted item stays
   deleted, and a backup is made before the first merge.
 - `mymanage-mcp.mjs`, an optional MCP server: a chat on your computer can read
-  your tasks, calendar, money, notes and lists, and never sees your secrets. It
+  your tasks, calendar, notes and lists, and never sees your secrets. It
   only reads unless you start it with `--write`; then the chat can also add,
   change and delete, the open app follows within seconds, and a backup is made
   before the day's first change. Attached to each release.

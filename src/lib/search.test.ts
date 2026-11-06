@@ -41,16 +41,6 @@ const data: Searchable = {
       createdAt: "",
     },
   ],
-  transactions: [
-    {
-      id: "x1",
-      type: "expense",
-      amount: 4500,
-      description: "שכירות",
-      date: "2026-09-01",
-      createdAt: "",
-    },
-  ],
   notes: [
     {
       id: "n1",
@@ -96,7 +86,6 @@ describe("searchAll", () => {
   it("finds across kinds", () => {
     expect(ids("מרכנתיל")).toEqual(["t1"]);
     expect(ids("חממה")).toEqual(["e1"]);
-    expect(ids("שכירות")).toEqual(["x1"]);
     expect(ids("רעיונות")).toEqual(["n1"]);
   });
 
@@ -115,9 +104,6 @@ describe("searchAll", () => {
     expect(ids("גינה")).toEqual(["n1"]);
   });
 
-  it("finds an amount by its digits", () => {
-    expect(ids("450")).toEqual(["x1"]);
-  });
 
   it("returns nothing for an empty query", () => {
     expect(ids("  ")).toEqual([]);

@@ -9,7 +9,6 @@ import { SIDEBAR_KEY } from "@/components/layout/nav";
 import { GlobalQuickAdd, QuickAddFab } from "@/components/quick-add";
 import { Shortcuts } from "@/components/layout/shortcuts";
 import { SeriesPrompt } from "@/components/series-prompt";
-import { BudgetWatch } from "@/components/finance/budget-watch";
 import { CommandPalette } from "@/components/command-palette";
 import { SmartAdd } from "@/components/smart-add";
 import { BriefDialog } from "@/components/brief-dialog";
@@ -29,7 +28,7 @@ const heebo = Heebo({
 
 export const metadata: Metadata = {
   title: APP_NAME,
-  description: "Today, tasks, calendar, money, notes and lists — in one place",
+  description: "Today, tasks, calendar, notes and lists — in one place",
 };
 
 export const viewport: Viewport = {
@@ -88,7 +87,6 @@ export default function RootLayout({
           <GlobalQuickAdd />
           <Shortcuts />
           <SeriesPrompt />
-          <BudgetWatch />
           <CommandPalette />
           <SmartAdd />
           <BriefDialog />

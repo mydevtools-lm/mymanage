@@ -38,7 +38,6 @@ const SCREENS = [
   { path: "/", heading: "Today" },
   { path: "/tasks", heading: "Tasks" },
   { path: "/calendar", heading: "Calendar" },
-  { path: "/finance", heading: "Money" },
   { path: "/notes", heading: "Notes & lists" },
   { path: "/settings", heading: "Settings" },
 ];
@@ -63,7 +62,6 @@ async function dataTexts(request: APIRequestContext) {
     "/api/categories",
     "/api/tasks",
     "/api/events",
-    "/api/transactions",
     "/api/routines",
     "/api/notes",
     "/api/checklists",

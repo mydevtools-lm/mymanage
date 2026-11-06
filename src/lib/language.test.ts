@@ -23,20 +23,17 @@ describe("switchLanguage", () => {
   it("names default categories in the chosen language, from either one", () => {
     // A database created in English on a Hebrew interface (and the reverse).
     categories = [
-      { id: "a", name: "Food", kind: "finance" },
+      { id: "a", name: "Home", kind: "task" },
       { id: "b", name: "עבודה", kind: "task" },
     ];
     switchLanguage("he");
     expect(setLanguage).toHaveBeenCalledWith("he");
     expect(updateCategory).toHaveBeenCalledTimes(1);
-    expect(updateCategory).toHaveBeenCalledWith("a", { name: "אוכל" });
+    expect(updateCategory).toHaveBeenCalledWith("a", { name: "בית" });
   });
 
-  it("leaves categories the person named, and the other kind's names", () => {
-    categories = [
-      { id: "a", name: "Groceries", kind: "finance" },
-      { id: "b", name: "Food", kind: "task" },
-    ];
+  it("leaves categories the person named", () => {
+    categories = [{ id: "a", name: "Groceries", kind: "task" }];
     switchLanguage("he");
     expect(updateCategory).not.toHaveBeenCalled();
   });

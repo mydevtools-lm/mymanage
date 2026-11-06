@@ -7,7 +7,7 @@ import type { CalendarEvent, EventException, SeriesScope } from "./types";
  * Recurring events: one stored row, many days on screen. Expansion turns the
  * row into the occurrences inside a window; the plans below turn an edit or a
  * delete on one occurrence into a change to stored rows, for each scope — the
- * same "this / from here on / all" model as recurring transactions.
+ * "this / from here on / all" model.
  */
 
 /** The fields a person edits on one event. */

@@ -29,9 +29,9 @@ test("shortcuts stay out of the way while typing", async ({ page }) => {
 });
 
 test("/ jumps to the screen's search field", async ({ page }) => {
-  await ready(page, "/finance");
+  await ready(page, "/tasks");
   await page.keyboard.press("Slash");
-  await expect(page.getByPlaceholder("חיפוש תיאור או סכום...")).toBeFocused();
+  await expect(page.getByPlaceholder("חיפוש...")).toBeFocused();
 });
 
 test("? lists the shortcuts", async ({ page }) => {

@@ -8,7 +8,6 @@ import type {
   Routine,
   Settings,
   Task,
-  Transaction,
 } from "./types";
 import { t } from "./i18n";
 
@@ -58,7 +57,7 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 const isIdList = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((id) => typeof id === "string");
 
-const LINK_KINDS = ["task", "event", "transaction", "note", "list"];
+const LINK_KINDS = ["task", "event", "note", "list"];
 
 /** "METHOD /api/path/:param" → handler. */
 const ROUTES: Record<string, Handler> = {
@@ -147,36 +146,6 @@ const ROUTES: Record<string, Handler> = {
       : badRequest(notJson()),
   "DELETE /api/events/:id": ({ id }) =>
     handle(() => done(repo.deleteEvent(id))),
-
-  /* --------------------------------------------------- transactions */
-  "GET /api/transactions": () => handle(() => repo.listTransactions()),
-  "POST /api/transactions": async (_, body) =>
-    body
-      ? handle(() => repo.createTransaction(body as Partial<Transaction>))
-      : badRequest(notJson()),
-  "GET /api/transactions/:id": async ({ id }) =>
-    found(await repo.getTransaction(id)),
-  "PATCH /api/transactions/:id": async ({ id }, body) =>
-    body
-      ? found(await repo.updateTransaction(id, body as Partial<Transaction>))
-      : badRequest(notJson()),
-  "DELETE /api/transactions/:id": ({ id }) =>
-    handle(() => done(repo.deleteTransaction(id))),
-  /* Body: { transactions } — all saved together, or none. */
-  "POST /api/transactions/bulk": async (_, body) => {
-    const rows = isObject(body) ? body.transactions : undefined;
-    if (!Array.isArray(rows))
-      return badRequest(t().data.api.transactionsRequired);
-    return handle(() =>
-      repo.createTransactions(rows as Partial<Transaction>[]),
-    );
-  },
-  /* Body: { ids } — undoing an import. */
-  "DELETE /api/transactions/bulk": async (_, body) => {
-    const ids = isObject(body) ? body.ids : undefined;
-    if (!isIdList(ids)) return badRequest(t().data.api.idsRequired);
-    return handle(() => done(repo.deleteTransactions(ids)));
-  },
 
   /* ---------------------------------------------------------- notes */
   "GET /api/notes": () => handle(() => repo.listNotes()),
@@ -295,8 +264,8 @@ const ROUTES: Record<string, Handler> = {
    * in; { budgets } — every monthly budget, replacing the old set; and/or
    * { prefs } — preferences, merged in (null clears one). */
   "PATCH /api/settings": async (_, body) => {
-    const { calendars, budgets, prefs } = (body ?? {}) as Partial<Settings>;
-    if (!isObject(calendars) && !isObject(budgets) && !isObject(prefs)) {
+    const { calendars, prefs } = (body ?? {}) as Partial<Settings>;
+    if (!isObject(calendars) && !isObject(prefs)) {
       return badRequest(t().data.api.nothingToUpdate);
     }
     return handle(async () => ({
@@ -306,7 +275,6 @@ const ROUTES: Record<string, Handler> = {
             ...calendars,
           })
         : await repo.getCalendarPrefs(),
-      ...(budgets ? { budgets: await repo.setBudgets(budgets) } : {}),
       ...(prefs ? { prefs: await repo.setPrefs({ ...prefs }) } : {}),
     }));
   },

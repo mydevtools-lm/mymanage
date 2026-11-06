@@ -11,7 +11,6 @@ const SCREENS = [
   { name: "today", path: "/" },
   { name: "tasks", path: "/tasks" },
   { name: "calendar", path: "/calendar" },
-  { name: "finance", path: "/finance" },
   { name: "notes", path: "/notes" },
   { name: "settings", path: "/settings" },
 ];
@@ -35,7 +34,6 @@ test.beforeAll(async ({ request }) => {
   ).json();
   if (tasks.some((t) => t.id === "e2e-t1")) return;
   const day = today();
-  const month = day.slice(0, 7);
   const post = (url: string, data: object) => request.post(url, { data });
   await post("/api/tasks", {
     id: "e2e-t1",
@@ -57,21 +55,6 @@ test.beforeAll(async ({ request }) => {
     endTime: "10:00",
     allDay: false,
     color: "lavender",
-  });
-  await post("/api/transactions", {
-    id: "e2e-x1",
-    type: "income",
-    amount: 12000,
-    description: "משכורת",
-    date: `${month}-10`,
-    recurring: { startMonth: month },
-  });
-  await post("/api/transactions", {
-    id: "e2e-x2",
-    type: "expense",
-    amount: 480,
-    description: "סופר",
-    date: day,
   });
   await post("/api/checklists", {
     id: "e2e-l1",

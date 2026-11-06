@@ -2,7 +2,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import type { Db, SqlValue, Statement } from "./db-adapter";
-import { localDateKey, localMonthKey, newId } from "./keys";
+import { localDateKey, newId } from "./keys";
 import { BASE_SCHEMA, defaultCategories, MIGRATIONS } from "./schema";
 import { useDevicePrefs } from "./device-prefs";
 
@@ -58,10 +58,6 @@ export async function openLocalDb() {
         })),
       );
     }
-    await tauriDb.run(
-      "INSERT OR IGNORE INTO settings (key, value) VALUES ('startMonth', ?)",
-      [localMonthKey()],
-    );
   })();
   await ready;
   await backupIfDue();

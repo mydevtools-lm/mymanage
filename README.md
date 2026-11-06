@@ -1,6 +1,6 @@
 # mymanage
 
-A Windows desktop app for running your day — tasks, calendar, money, notes and
+A Windows desktop app for running your day — tasks, calendar, notes and
 lists, in one place, in English or Hebrew. Everything stays on your computer:
 no account, no server, no tracking.
 
@@ -12,10 +12,9 @@ no account, no server, no tracking.
 
 | Screen            | What it's for                                                                                                                                        |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Today**         | The day on a timeline — events and tasks by the hour, what's carried over, the week ahead and the month's balance. A morning brief                   |
+| **Today**         | The day on a timeline — events and tasks by the hour, what's carried over and the week ahead. A morning brief                   |
 | **Tasks**         | By when they're due, subtasks, routines, reminders, an archive; drag a task to another day                                                           |
 | **Calendar**      | Month, week and list. Recurring events, drag and drop, and up to 9 Google calendars (read only), and Israel's holidays and memorial days (2026–2028) |
-| **Money**         | Month and year, recurring transactions, budgets, bank statement import, CSV and a printable report                                                   |
 | **Notes & lists** | Reusable lists, and notes with colours and pins                                                                                                      |
 
 Everywhere: `Ctrl+K` searches everything and adds in a sentence — type "meeting
@@ -25,7 +24,7 @@ shows the keyboard shortcuts.
 |                                        |                                            |
 | -------------------------------------- | ------------------------------------------ |
 | ![Tasks](docs/screenshots/tasks.png)   | ![Calendar](docs/screenshots/calendar.png) |
-| ![Money](docs/screenshots/finance.png) | ![Settings](docs/screenshots/settings.png) |
+| ![Settings](docs/screenshots/settings.png) | |
 
 ## Install
 
@@ -84,15 +83,15 @@ in another's. Secrets (calendar addresses, the Claude key) are not synced.
 
 `mymanage-mcp.mjs`, attached to each release, is a small
 [MCP](https://modelcontextprotocol.io) server. It lets a chat that runs on your
-computer (Claude Code, Claude Desktop) answer "what's on today?" or "how much did
-I spend this month?" from your real data and, if you allow it, act on "add a
+computer (Claude Code, Claude Desktop) answer "what's on today?" or "what's still
+open this week?" from your real data and, if you allow it, act on "add a
 dentist appointment on Tuesday at 10". It needs [Node.js](https://nodejs.org) 22
 or later.
 
 - **By default it only reads:** the database is opened read-only and there is no
   tool that changes anything.
 - **With `--write` it can also add, change and delete** tasks, routines, events,
-  income and expenses, notes, lists, categories, budgets, links and preferences.
+  notes, lists, categories, links and preferences.
   The open app shows the change within seconds, and sync carries it to your other
   computers. A backup is made before the day's first change. Wiping or replacing
   everything is not on offer.

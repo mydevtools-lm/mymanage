@@ -33,24 +33,12 @@ async function serious(page: Page, include: string) {
 
 test.beforeAll(async ({ request }) => {
   const { date } = israelNow();
-  const tomorrow = israelNow(24 * 60).date;
   await request.post("/api/tasks", {
     data: {
       id: "b-task",
       title: "לשלוח דוח",
       dueDate: date,
       priority: "normal",
-    },
-  });
-  // A monthly bill that falls tomorrow.
-  await request.post("/api/transactions", {
-    data: {
-      id: "b-bill",
-      type: "expense",
-      amount: 320,
-      description: "חשבון חשמל",
-      date: tomorrow,
-      recurring: { startMonth: tomorrow.slice(0, 7) },
     },
   });
 });
@@ -79,11 +67,11 @@ test.describe("on the first visit of the day", () => {
     test.skip(new Date().getHours() < 5, "The brief waits for the morning.");
     await ready(page, "/");
     const brief = page.getByRole("dialog");
-    await expect(brief.getByRole("tab", { name: "תדריך בוקר" })).toBeVisible();
+    // On Fridays it opens on the week; the day is one tab away.
+    await brief.getByRole("tab", { name: "תדריך בוקר" }).click();
     await expect(brief.getByText("לשלוח דוח")).toBeVisible();
     // Google events are part of the day too.
     await expect(brief.getByText("פגישה מגוגל")).toBeVisible();
-    await expect(brief.getByText("חשבון חשמל")).toBeVisible();
     expect(await serious(page, "[role=dialog]")).toEqual([]);
     await page.screenshot({ path: "e2e/screenshots/desktop-light-brief.png" });
 
@@ -97,7 +85,7 @@ test("the brief and the week summary open from Today", async ({ page }) => {
   await ready(page, "/");
   await page.getByRole("button", { name: "תדריך" }).click();
   const brief = page.getByRole("dialog");
-  await expect(brief.getByText("החודש עד עכשיו")).toBeVisible();
+  await expect(brief.getByText("משימות להיום")).toBeVisible();
   await brief.getByRole("tab", { name: "סיכום שבוע" }).click();
   await expect(brief.getByText("משימות שהושלמו")).toBeVisible();
   expect(await serious(page, "[role=dialog]")).toEqual([]);

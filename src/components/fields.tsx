@@ -99,8 +99,7 @@ export function CategorySelect({
 }
 
 /**
- * Categories as tappable chips — one tap instead of open-scroll-pick, which
- * matters when logging an expense standing at the till.
+ * Categories as tappable chips: one tap instead of open-scroll-pick.
  */
 export function CategoryChips({
   kind,

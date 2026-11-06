@@ -69,7 +69,6 @@ function Questions() {
     (s) =>
       s.tasks.length +
         s.events.length +
-        s.transactions.length +
         s.notes.length +
         s.checklists.length ===
       0,
@@ -212,7 +211,6 @@ export function SampleBanner() {
     (s) =>
       s.tasks.some((t) => isSample(t.id)) ||
       s.events.some((e) => isSample(e.id)) ||
-      s.transactions.some((t) => isSample(t.id)) ||
       s.notes.some((n) => isSample(n.id)),
   );
   const removeSampleData = useAppStore((s) => s.removeSampleData);

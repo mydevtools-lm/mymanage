@@ -100,6 +100,8 @@ folder and merges other computers' files, the later stamp winning field by field
 it. Sync is off until a folder is chosen, and then nothing else in the app changes: the
 triggers see every write, whoever makes it.
 
+**Money is gone from the app, not from the file.** Money moved to a system of its own, so nothing reads the `transactions` table or the `finance` categories any more, but existing databases still hold them: `SYNC_TABLES` and `schema.ts` are unchanged. An import leaves them alone; wiping everything takes them too.
+
 **When you change a table** that is synchronised (`SYNC_TABLES` in
 `src/lib/sync/tables.ts`): add the column to its list, and add a migration that calls
 `syncTriggersSql()` again, so the triggers know the new column. A test fails until you do.
@@ -113,8 +115,8 @@ node scripts/desktop-smoke.mjs sync   # the real app and a second computer (a No
 
 `mcp/` is a small [MCP](https://modelcontextprotocol.io) server over the app's
 database (DESKTOP.md ד9, ד11). `server.ts` starts it over stdio. Tools reuse
-`repo.ts` and the pure helpers (`finance.ts`, `event-series.ts`, `search.ts`), so
-they count a month and split a series the way the screens do.
+`repo.ts` and the pure helpers (`event-series.ts`, `search.ts`), so they split a
+series and search the way the screens do.
 
 - **Reading is the default.** `tools.ts` has the reading tools and `readonly-db.ts`
   opens the file with SQLite's own read-only mode, so nothing can write.
@@ -148,6 +150,8 @@ node scripts/desktop-smoke.mjs chat    # the real app and the bundle: the open w
 Reading goes wrong in the same row: with a private `data.db` the chat answers from that copy ("no tasks" while the app has some), and with a `-wal` left there by an earlier read it misses what the open app still has in its own WAL. Elsewhere it reads what the app sees, its WAL included.
 
 `privateFolderInUse` in `readonly-db.ts` catches the third row, and both kinds of server then refuse every tool call, with or without `--write`: from inside, the folder it opens and the private one are the same folder; from outside, they are two. Renaming the private folder ends it, so no junction is needed. A `--db` that names the private path itself is allowed. Package identity doesn't tell any of this: a session has none and is redirected, while a process started with `Invoke-CommandInDesktopPackage` has one and isn't.
+
+`desktop-smoke.mjs chat` from such a session needs the test app's folder to exist outside the package, or the server refuses, as it should.
 
 To test any of this, make the file from outside with `Invoke-CimMethod Win32_Process Create`, under a folder name of its own, and check the result the same way: a check from inside sees the merged view.
 

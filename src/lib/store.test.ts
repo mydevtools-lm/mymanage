@@ -130,58 +130,6 @@ describe("toJsonBody", () => {
   });
 });
 
-describe("recurring series", () => {
-  it("deleting one month skips it instead of deleting the series", async () => {
-    const store = await freshStore();
-    store.setState({
-      transactions: [
-        {
-          id: "rent",
-          type: "expense",
-          amount: 4500,
-          description: "שכר דירה",
-          date: "2026-09-01",
-          recurring: { startMonth: "2026-09" },
-          createdAt: "2026-09-01T00:00:00.000Z",
-        },
-      ],
-    });
-    store.getState().deleteTransactionInSeries("rent", "2026-10", "this");
-
-    expect(store.getState().transactions).toHaveLength(1);
-    expect(calls.map((c) => c.method)).toEqual(["PATCH"]);
-    expect(calls[0].body?.exceptions).toEqual([
-      { month: "2026-10", skip: true },
-    ]);
-  });
-
-  it("editing from a month onwards splits the series", async () => {
-    const store = await freshStore();
-    store.setState({
-      transactions: [
-        {
-          id: "rent",
-          type: "expense",
-          amount: 4500,
-          description: "שכר דירה",
-          date: "2026-09-01",
-          recurring: { startMonth: "2026-09" },
-          createdAt: "2026-09-01T00:00:00.000Z",
-        },
-      ],
-    });
-    store.getState().editTransactionInSeries("rent", "2027-01", "following", {
-      amount: 4800,
-    });
-
-    const [oldSeries, newSeries] = store.getState().transactions;
-    expect(oldSeries.recurring?.endMonth).toBe("2026-12");
-    expect(newSeries.amount).toBe(4800);
-    expect(newSeries.recurring?.startMonth).toBe("2027-01");
-    expect(calls.map((c) => c.method)).toEqual(["PATCH", "POST"]);
-  });
-});
-
 describe("undo delete", () => {
   it("puts the task back in place and re-creates it with the same id", async () => {
     const store = await freshStore();

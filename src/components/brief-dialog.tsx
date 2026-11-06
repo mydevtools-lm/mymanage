@@ -7,11 +7,7 @@ import {
   CheckSquare,
   History,
   Lock,
-  Receipt,
-  Scale,
   Sunrise,
-  TrendingDown,
-  TrendingUp,
 } from "lucide-react";
 import {
   Dialog,
@@ -28,7 +24,7 @@ import { useDevicePrefs } from "@/lib/device-prefs";
 import { useGoogleEvents } from "@/lib/use-google-events";
 import { useHolidays } from "@/lib/use-holidays";
 import { morningBrief, weekSummary } from "@/lib/brief";
-import { formatCurrency, formatDate, todayKey } from "@/lib/format";
+import { formatDate, todayKey } from "@/lib/format";
 import { greeting } from "@/lib/greeting";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
@@ -82,11 +78,10 @@ function Section({
 function DayBrief() {
   const tasks = useAppStore((s) => s.tasks);
   const events = useAppStore((s) => s.events);
-  const transactions = useAppStore((s) => s.transactions);
   const today = todayKey();
   const brief = useMemo(
-    () => morningBrief({ tasks, events, transactions }, today),
-    [tasks, events, transactions, today],
+    () => morningBrief({ tasks, events }, today),
+    [tasks, events, today],
   );
   // Today's Google events belong in the day too, in time order.
   const google = useGoogleEvents(today, today);
@@ -100,9 +95,8 @@ function DayBrief() {
       ].sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? "")),
     [brief.events, holidays.events, google.events],
   );
-  const { common, today: area } = t();
+  const { today: area } = t();
   const text = area.briefDialog;
-  const money = area.month;
 
   return (
     <div className="grid gap-4">
@@ -155,69 +149,18 @@ function DayBrief() {
           ))}
         </Section>
       )}
-      {brief.bills.length > 0 && (
-        <Section icon={Receipt} title={text.bills}>
-          {brief.bills.map((b) => (
-            <li
-              key={`${b.id}-${b.date}`}
-              className="flex justify-between gap-2"
-            >
-              <span>
-                {b.description}
-                <span className="ms-2 text-xs text-muted-foreground">
-                  {b.daysLeft === 0
-                    ? common.today
-                    : b.daysLeft === 1
-                      ? common.tomorrow
-                      : formatDate(b.date, "d.M")}
-                </span>
-              </span>
-              <span className="text-expense tabular-nums">
-                {formatCurrency(b.amount)}
-              </span>
-            </li>
-          ))}
-        </Section>
-      )}
-      <Section icon={Scale} title={text.monthSoFar}>
-        <li className="flex justify-between">
-          <span className="text-muted-foreground">{money.income}</span>
-          <span className="text-income tabular-nums">
-            {formatCurrency(brief.month.income)}
-          </span>
-        </li>
-        <li className="flex justify-between">
-          <span className="text-muted-foreground">{money.expenses}</span>
-          <span className="text-expense tabular-nums">
-            {formatCurrency(brief.month.expense)}
-          </span>
-        </li>
-        <li className="flex justify-between font-medium">
-          <span>{money.balance}</span>
-          <span
-            className={cn(
-              "tabular-nums",
-              brief.month.balance >= 0 ? "text-income" : "text-expense",
-            )}
-          >
-            {formatCurrency(brief.month.balance)}
-          </span>
-        </li>
-      </Section>
     </div>
   );
 }
 
 function WeekBrief() {
   const tasks = useAppStore((s) => s.tasks);
-  const transactions = useAppStore((s) => s.transactions);
   const today = todayKey();
   const weekStart = useAppStore((s) => s.settings.prefs?.weekStart ?? 0);
   const week = useMemo(
-    () => weekSummary({ tasks, transactions }, today, weekStart),
-    [tasks, transactions, today, weekStart],
+    () => weekSummary({ tasks }, today, weekStart),
+    [tasks, today, weekStart],
   );
-  const change = week.expense - week.lastWeekExpense;
   const text = t().today.briefDialog;
 
   return (
@@ -244,40 +187,13 @@ function WeekBrief() {
           </div>
         </div>
       </div>
-      <div className="rounded-lg border p-3">
-        <div className="text-xs text-muted-foreground">
-          {text.spentThisWeek}
-        </div>
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="text-2xl font-semibold text-expense tabular-nums">
-            {formatCurrency(week.expense)}
-          </span>
-          <span
-            className={cn(
-              "flex items-center gap-1 text-sm",
-              change > 0 ? "text-expense" : "text-income",
-            )}
-          >
-            {change > 0 ? (
-              <TrendingUp className="size-4" />
-            ) : (
-              <TrendingDown className="size-4" />
-            )}
-            {change === 0
-              ? text.sameAsLastWeek
-              : change > 0
-                ? text.moreThanLastWeek(formatCurrency(Math.abs(change)))
-                : text.lessThanLastWeek(formatCurrency(Math.abs(change)))}
-          </span>
-        </div>
-      </div>
     </div>
   );
 }
 
 /**
- * The morning brief: today's events and tasks, what slipped, bills coming
- * up, and the month so far — plus, on Fridays, how the week went. Opens by
+ * The morning brief: today's events and tasks and what slipped, plus, on
+ * Fridays, how the week went. Opens by
  * itself on the first visit of the day (can be turned off in settings).
  */
 export function BriefDialog() {

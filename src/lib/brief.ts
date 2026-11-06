@@ -1,50 +1,13 @@
 import { addDays, parseISO, subDays } from "date-fns";
 import { expandEvents } from "./event-series";
-import { getMonthTransactions, summarize } from "./finance";
 import { localDayOf, toDateKey } from "./format";
 import { t } from "./i18n";
-import type { CalendarEvent, Task, Transaction } from "./types";
+import type { CalendarEvent, Task } from "./types";
 
 /**
  * What the morning brief, the Friday summary and the reminders are made of.
  * Pure: everything takes "today" and "now" from the caller.
  */
-
-/* --------------------------------------------------------------- bills */
-
-export interface Bill {
-  id: string;
-  description: string;
-  amount: number;
-  date: string;
-  daysLeft: number;
-}
-
-/** Recurring expenses that fall due in the next `days` days, today included. */
-export function upcomingBills(
-  transactions: Transaction[],
-  today: string,
-  days = 3,
-): Bill[] {
-  const end = toDateKey(addDays(parseISO(today), days));
-  const months = [...new Set([today.slice(0, 7), end.slice(0, 7)])];
-  return months
-    .flatMap((m) => getMonthTransactions(transactions, m))
-    .filter(
-      (t) =>
-        t.recurring && t.type === "expense" && t.date >= today && t.date <= end,
-    )
-    .map((t) => ({
-      id: t.id,
-      description: t.description,
-      amount: t.amount,
-      date: t.date,
-      daysLeft: Math.round(
-        (Date.parse(t.date) - Date.parse(today)) / 86_400_000,
-      ),
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date));
-}
 
 /* --------------------------------------------------------- morning brief */
 
@@ -52,21 +15,13 @@ export interface MorningBrief {
   tasks: Task[];
   events: CalendarEvent[];
   carriedOver: Task[];
-  bills: Bill[];
-  month: { income: number; expense: number; balance: number };
 }
 
 export function morningBrief(
-  data: { tasks: Task[]; events: CalendarEvent[]; transactions: Transaction[] },
+  data: { tasks: Task[]; events: CalendarEvent[] },
   today: string,
 ): MorningBrief {
   const open = data.tasks.filter((t) => !t.archivedAt);
-  // The month so far: what has happened, not what is planned for later.
-  const month = summarize(
-    getMonthTransactions(data.transactions, today.slice(0, 7)).filter(
-      (t) => t.date <= today,
-    ),
-  );
   return {
     tasks: open
       .filter((t) => t.dueDate === today)
@@ -75,8 +30,6 @@ export function morningBrief(
       (a.startTime ?? "").localeCompare(b.startTime ?? ""),
     ),
     carriedOver: open.filter((t) => t.dueDate && t.dueDate < today),
-    bills: upcomingBills(data.transactions, today),
-    month,
   };
 }
 
@@ -87,23 +40,19 @@ export interface WeekSummary {
   done: number;
   /** Open tasks whose day has passed. */
   slipped: number;
-  expense: number;
-  lastWeekExpense: number;
 }
 
 /**
- * The week so far — from its first day (Sunday unless the preferences say
- * otherwise) to today — against the same days a week before.
+ * The week so far, from its first day (Sunday unless the preferences say
+ * otherwise) to today.
  */
 export function weekSummary(
-  data: { tasks: Task[]; transactions: Transaction[] },
+  data: { tasks: Task[] },
   today: string,
   weekStart = 0,
 ): WeekSummary {
   const day = parseISO(today);
   const from = toDateKey(subDays(day, (day.getDay() - weekStart + 7) % 7));
-  const lastFrom = toDateKey(subDays(parseISO(from), 7));
-  const lastTo = toDateKey(subDays(day, 7));
 
   const done = data.tasks.filter((t) => {
     if (!t.completed || !t.completedAt) return false;
@@ -114,20 +63,10 @@ export function weekSummary(
     (t) => !t.archivedAt && t.dueDate && t.dueDate < today,
   ).length;
 
-  const spent = (start: string, end: string) => {
-    const months = [...new Set([start.slice(0, 7), end.slice(0, 7)])];
-    return months
-      .flatMap((m) => getMonthTransactions(data.transactions, m))
-      .filter((t) => t.type === "expense" && t.date >= start && t.date <= end)
-      .reduce((sum, t) => sum + t.amount, 0);
-  };
-
   return {
     from,
     done,
     slipped,
-    expense: spent(from, today),
-    lastWeekExpense: spent(lastFrom, lastTo),
   };
 }
 

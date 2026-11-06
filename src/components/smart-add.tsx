@@ -51,11 +51,8 @@ async function fetchProposals(text: string) {
   return data as { source: "claude" | "local"; proposals: Proposal[] };
 }
 
-// A transaction needs an amount; everything needs a title.
-const ready = (r: Row) =>
-  r.include &&
-  !!r.title.trim() &&
-  (r.kind !== "transaction" || (r.amount ?? 0) > 0);
+// Everything needs a title.
+const ready = (r: Row) => r.include && !!r.title.trim();
 
 export function SmartAdd() {
   const text = useSmartAdd((s) => s.text);
@@ -78,7 +75,6 @@ function SmartAddForm({
 }) {
   const addTask = useAppStore((s) => s.addTask);
   const addEvent = useAppStore((s) => s.addEvent);
-  const addTransaction = useAppStore((s) => s.addTransaction);
 
   const [text, setText] = useState(initial);
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -139,7 +135,7 @@ function SmartAddForm({
           dueTime: r.date ? r.time : undefined,
           priority: "normal",
         });
-      } else if (r.kind === "event") {
+      } else {
         addEvent({
           title,
           date: r.date ?? todayKey(),
@@ -147,13 +143,6 @@ function SmartAddForm({
           startTime: r.time,
           endTime: r.time ? r.endTime : undefined,
           color: "teal",
-        });
-      } else {
-        addTransaction({
-          type: r.type ?? "expense",
-          amount: r.amount ?? 0,
-          description: title,
-          date: r.date ?? todayKey(),
         });
       }
     }
@@ -260,7 +249,6 @@ function SmartAddForm({
                   }
                   className="h-8 w-40"
                 />
-                {r.kind !== "transaction" ? (
                   <Input
                     type="time"
                     aria-label={m.time}
@@ -270,35 +258,6 @@ function SmartAddForm({
                     }
                     className="h-8 w-28"
                   />
-                ) : (
-                  <>
-                    <Input
-                      type="number"
-                      inputMode="decimal"
-                      aria-label={m.amount}
-                      value={r.amount ?? ""}
-                      onChange={(e) =>
-                        update(i, {
-                          amount: Number(e.target.value) || undefined,
-                        })
-                      }
-                      className="h-8 w-28"
-                    />
-                    <select
-                      aria-label={m.direction}
-                      value={r.type ?? "expense"}
-                      onChange={(e) =>
-                        update(i, {
-                          type: e.target.value as "income" | "expense",
-                        })
-                      }
-                      className="h-8 rounded-md border bg-background px-2 text-sm"
-                    >
-                      <option value="expense">{m.expense}</option>
-                      <option value="income">{m.income}</option>
-                    </select>
-                  </>
-                )}
                 <span className="text-xs text-muted-foreground">
                   {r.date ? formatDate(r.date) : t().common.noDate}
                   {r.time

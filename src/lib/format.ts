@@ -1,40 +1,5 @@
 import { format, parseISO, isValid } from "date-fns";
-import { dateLocale, intlLocale, t } from "./i18n";
-
-let currencyCode = "ILS";
-const formatters = new Map<string, Intl.NumberFormat>();
-
-/** Set from the preferences when they load or change. */
-export function setCurrency(code: string) {
-  currencyCode = code;
-}
-
-/** In the currency from the preferences, written the current language's way. */
-export function formatCurrency(amount: number) {
-  const tag = `${intlLocale()}|${currencyCode}`;
-  let formatter = formatters.get(tag);
-  if (!formatter) {
-    formatter = new Intl.NumberFormat(intlLocale(), {
-      style: "currency",
-      currency: currencyCode,
-      maximumFractionDigits: 0,
-    });
-    formatters.set(tag, formatter);
-  }
-  return formatter.format(amount);
-}
-
-/** The currency's sign alone — ₪, $, € — for a field's adornment. */
-export function currencySymbol() {
-  return (
-    new Intl.NumberFormat(intlLocale(), {
-      style: "currency",
-      currency: currencyCode,
-    })
-      .formatToParts(0)
-      .find((part) => part.type === "currency")?.value ?? currencyCode
-  );
-}
+import { dateLocale, t } from "./i18n";
 
 export function toDateKey(date: Date) {
   return format(date, "yyyy-MM-dd");

@@ -50,23 +50,14 @@ describe("parseHebrew", () => {
     ]);
   });
 
-  it("an amount makes a transaction, dated today unless said", () => {
-    expect(parse("סופר 250 ש״ח")).toEqual([
+  it("a sum of money is part of the words, and it stays a task", () => {
+    expect(parse("שילמתי 250 ש״ח על חשמל")).toEqual([
       {
-        kind: "transaction",
-        title: "סופר",
-        date: TODAY,
-        amount: 250,
-        type: "expense",
-      },
-    ]);
-    expect(parse("קיבלתי החזר ₪1,200 מחר")).toEqual([
-      {
-        kind: "transaction",
-        title: "החזר",
-        date: "2026-09-28",
-        amount: 1200,
-        type: "income",
+        kind: "task",
+        title: "שילמתי 250 ש״ח על חשמל",
+        date: undefined,
+        time: undefined,
+        endTime: undefined,
       },
     ]);
   });

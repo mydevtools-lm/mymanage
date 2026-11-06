@@ -148,15 +148,6 @@ if (phase === "write") {
     await dialog.waitFor({ state: "hidden" });
   }
 
-  await goto(page, "/finance/");
-  if (!(await page.getByText("עשן תנועה").count())) {
-    await page.getByRole("button", { name: "תנועה חדשה" }).first().click();
-    const dialog = page.getByRole("dialog", { name: "תנועה חדשה" });
-    await dialog.getByLabel("סכום (₪)").fill("150");
-    await dialog.getByLabel("תיאור (רשות)").fill("עשן תנועה");
-    await dialog.getByRole("button", { name: "הוספה" }).click();
-    await dialog.waitFor({ state: "hidden" });
-  }
   if (process.argv[3]) await page.screenshot({ path: process.argv[3] });
   console.log("write done");
 } else if (phase === "screenshots") {
@@ -184,7 +175,7 @@ if (phase === "write") {
   await page.getByRole("button", { name: words.sample }).click();
   await page.getByText(words.shown).waitFor();
   const out = fileURLToPath(new URL(`../docs/screenshots/${LANGUAGE === "he" ? "he/" : ""}`, import.meta.url));
-  const shots = { today: "/", tasks: "/tasks/", calendar: "/calendar/", finance: "/finance/", settings: "/settings/?tab=connections" };
+  const shots = { today: "/", tasks: "/tasks/", calendar: "/calendar/", settings: "/settings/?tab=connections" };
   for (const [name, route] of Object.entries(shots)) {
     await goto(page, route);
     await page.waitForTimeout(800);
@@ -388,17 +379,8 @@ if (phase === "write") {
     await page.getByText(`רשימה ${stamp}`, { exact: true }).first().waitFor({ timeout: 8000 }).catch(() => {});
     await tool("delete_checklist", { id: list.id });
 
-    await goto(page, "/finance/");
-    const expense = `הוצאה ${stamp}`;
     const today = new Date();
     const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-    const { created } = await tool("create_transactions", {
-      transactions: [{ type: "expense", amount: 42, description: expense, date }],
-    });
-    ok("an expense added in the chat shows on the money screen", true, `${await appears(expense)}ms`);
-    await tool("delete_transaction", { id: created[0].id });
-    await goes(expense);
-
     await goto(page, "/");
     const meeting = `פגישה ${stamp}`;
     const event = await tool("create_event", { title: meeting, date, startTime: "23:30" });
@@ -578,7 +560,7 @@ if (phase === "write") {
 } else {
   // After a restart: what was written is still there, on every screen.
   const seen = {};
-  for (const path of ["/", "/tasks/", "/calendar/", "/finance/", "/notes/", "/settings/"]) {
+  for (const path of ["/", "/tasks/", "/calendar/", "/notes/", "/settings/"]) {
     await goto(page, path);
     seen[path] = "ok";
   }
@@ -588,8 +570,6 @@ if (phase === "write") {
   // The calendar, not Today: the write phase may have run on another day.
   await goto(page, "/calendar/");
   seen.event = await page.getByText("עשן אירוע").count();
-  await goto(page, "/finance/");
-  seen.transaction = await page.getByText("עשן תנועה").count();
   if (process.argv[3]) await page.screenshot({ path: process.argv[3] });
   console.log("seen:", seen);
 }

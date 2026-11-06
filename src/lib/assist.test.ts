@@ -12,15 +12,13 @@ describe("sanitizeProposals", () => {
       sanitizeProposals({
         items: [
           { kind: "event", title: " חממה ", date: "2026-09-28", time: "9:00" },
-          { kind: "transaction", title: "סופר", amount: 250 },
-          { kind: "transaction", title: "בלי סכום" },
+          { kind: "transaction", title: "כבר לא קיים", amount: 250 },
           { kind: "meeting", title: "סוג לא מוכר" },
           { kind: "task", title: "" },
         ],
       }),
     ).toEqual([
       { kind: "event", title: "חממה", date: "2026-09-28" },
-      { kind: "transaction", title: "סופר", amount: 250, type: "expense" },
     ]);
     expect(sanitizeProposals(null)).toEqual([]);
   });

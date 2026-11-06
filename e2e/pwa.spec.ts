@@ -59,7 +59,7 @@ test("a home-screen shortcut opens a new task", async ({ page }) => {
   expect(new URL(page.url()).search).toBe("");
 });
 
-test("preferences: the week starts on Monday, amounts in dollars", async ({
+test("preferences: the week starts on Monday", async ({
   page,
 }) => {
   await ready(page, "/settings?tab=preferences");
@@ -78,7 +78,6 @@ test("preferences: the week starts on Monday, amounts in dollars", async ({
     await page.getByRole("option", { name: option }).click();
   };
   await pick("השבוע מתחיל ביום", "שני");
-  await pick("מטבע", "דולר ($)");
 
   await ready(page, "/calendar");
   await page.getByRole("tab", { name: "תצוגת חודש" }).click();
@@ -89,13 +88,7 @@ test("preferences: the week starts on Monday, amounts in dollars", async ({
     .first();
   await expect(firstHeader).toHaveText("ב׳");
 
-  await ready(page, "/finance");
-  await expect(page.getByText("$").first()).toBeVisible();
-
   // Back to the defaults, for the screens that run after this.
   await ready(page, "/settings?tab=preferences");
   await pick("השבוע מתחיל ביום", "ראשון");
-  await pick("מטבע", "שקל (₪)");
-  await ready(page, "/finance");
-  await expect(page.getByText("₪").first()).toBeVisible();
 });

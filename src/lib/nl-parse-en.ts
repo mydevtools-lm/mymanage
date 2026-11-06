@@ -42,9 +42,6 @@ const TASK_WORDS =
   /^(?:to\s+)?(?:call|buy|pay|book|send|write|check|fix|pick\s+up|bring|clean|renew|submit|fill|cancel|order|email|text|reply|finish|prepare|return|remember|remind|need\s+to|have\s+to)\b/i;
 const EVENT_WORDS =
   /\b(?:meeting|meet|lunch|dinner|breakfast|brunch|wedding|birthday|doctor|dentist|appointment|flight|show|concert|gym|workout|training|class|lesson|party|conference|interview|visit|ceremony|game|date)\b/i;
-const INCOME_WORDS =
-  /\b(?:received|got\s+paid|salary|income|refund|bonus|grant|paycheck)\b/i;
-
 function nextWeekday(today: string, weekday: number) {
   const base = parseISO(today);
   // "on Monday" (or "next Monday") said on a Monday means next week, as in
@@ -61,7 +58,6 @@ interface Found {
   date?: string;
   time?: string;
   endTime?: string;
-  amount?: number;
   rest: string;
 }
 
@@ -230,19 +226,8 @@ function takeTime(text: string): Found {
   return { rest };
 }
 
-function takeAmount(text: string): Found {
-  const m = text.match(
-    /(?:^|\s)(?:[$₪€£]\s*(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s*(?:[$₪€£]|dollars?|bucks|shekels?|nis|ils|euros?|eur|usd|pounds?|gbp)\b)/i,
-  );
-  if (!m) return { rest: text };
-  return {
-    amount: Number((m[1] ?? m[2]).replace(/,/g, "")),
-    rest: text.replace(m[0], " "),
-  };
-}
-
 const FILLER =
-  /^(?:i\s+(?:am\s+|'m\s+)?|i'm\s+)?(?:going\s+to|have\s+an?|have|need\s+to|have\s+to|got\s+to|remember\s+to|paid\s+for|paid|spent\s+on|spent|bought|got|received)?\s*/i;
+  /^(?:i\s+(?:am\s+|'m\s+)?|i'm\s+)?(?:going\s+to|have\s+an?|have|need\s+to|have\s+to|got\s+to|remember\s+to)?\s*/i;
 
 function cleanTitle(text: string) {
   let title = text.replace(/\s+/g, " ").trim();
@@ -261,8 +246,7 @@ export function parseEnglish(text: string, today: string): Proposal[] {
 
   for (const piece of text.split(SPLIT)) {
     if (!piece?.trim()) continue;
-    const paid = takeAmount(piece);
-    const dated = takeDate(paid.rest, today);
+    const dated = takeDate(piece, today);
     const timed = takeTime(dated.rest);
     // A day said once holds for what follows: "on Monday gym, then lunch".
     const date = dated.date ?? carriedDate;
@@ -270,8 +254,7 @@ export function parseEnglish(text: string, today: string): Proposal[] {
 
     const words = timed.rest;
     let kind: ProposalKind;
-    if (paid.amount !== undefined) kind = "transaction";
-    else if (TASK_WORDS.test(words.trim().replace(FILLER, ""))) kind = "task";
+    if (TASK_WORDS.test(words.trim().replace(FILLER, ""))) kind = "task";
     else if (timed.time || EVENT_WORDS.test(words) || date) kind = "event";
     else kind = "task";
 
@@ -280,16 +263,9 @@ export function parseEnglish(text: string, today: string): Proposal[] {
     proposals.push({
       kind,
       title,
-      date: kind === "transaction" ? (date ?? today) : date,
+      date,
       time: timed.time,
       endTime: timed.endTime,
-      amount: paid.amount,
-      type:
-        kind === "transaction"
-          ? INCOME_WORDS.test(piece)
-            ? "income"
-            : "expense"
-          : undefined,
     });
   }
   return proposals;

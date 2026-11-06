@@ -32,8 +32,8 @@ export async function install() {
   return outcome === "accepted";
 }
 
-type NewKind = "task" | "event" | "transaction" | "item";
-const NEW_KINDS: NewKind[] = ["task", "event", "transaction", "item"];
+type NewKind = "task" | "event" | "item";
+const NEW_KINDS: NewKind[] = ["task", "event", "item"];
 
 /**
  * Registers the service worker (production builds only — in development it
