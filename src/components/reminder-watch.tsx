@@ -5,16 +5,14 @@ import { toast } from "sonner";
 import { BellRing } from "lucide-react";
 import { useAppStore } from "@/lib/store";
 import { useDevicePrefs } from "@/lib/device-prefs";
-import { dueReminders, upcomingBills } from "@/lib/brief";
-import { formatCurrency, todayKey } from "@/lib/format";
+import { dueReminders } from "@/lib/brief";
+import { todayKey } from "@/lib/format";
 import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "@/lib/platform";
-import { dirOf, getLocale, t } from "@/lib/i18n";
+import { dirOf, getLocale } from "@/lib/i18n";
 import { desktopNotify } from "@/lib/desktop-notify";
 
 const CHECK_MS = 30_000;
-// Bills are mentioned once a day, from this hour.
-const BILL_HOUR = 8;
 
 function notify(title: string, body: string, tag: string) {
   // The desktop app: a Windows notification unless the window is in front —
@@ -57,9 +55,8 @@ function notify(title: string, body: string, tag: string) {
 }
 
 /**
- * Reminders for tasks and events at their set time, and a word about
- * recurring bills due within three days — while the app is open, in this
- * tab or in the background. (Push to a closed phone needs FCM: sprint 1.)
+ * Reminders for tasks and events at their set time, while the app is open,
+ * in this tab or in the background. (Push to a closed phone needs FCM: sprint 1.)
  */
 export function ReminderWatch() {
   const hydrated = useAppStore((s) => s.hydrated);
@@ -70,7 +67,7 @@ export function ReminderWatch() {
     if (!prefs.loaded) prefs.load();
 
     const check = () => {
-      const { tasks, events, transactions } = useAppStore.getState();
+      const { tasks, events } = useAppStore.getState();
       const { fired, markFired } = useDevicePrefs.getState();
       const done = new Set(Object.keys(fired));
       const now = new Date();
@@ -85,25 +82,6 @@ export function ReminderWatch() {
         });
         notify(r.title, r.body, r.key);
         shown.push(r.key);
-      }
-
-      if (now.getHours() >= BILL_HOUR) {
-        for (const bill of upcomingBills(transactions, today)) {
-          const key = `bill:${bill.id}@${bill.date}`;
-          if (done.has(key)) continue;
-          const m = t().common;
-          const when =
-            bill.daysLeft === 0
-              ? m.today
-              : bill.daysLeft === 1
-                ? m.tomorrow
-                : m.reminders.inDays(bill.daysLeft);
-          const text = `${formatCurrency(bill.amount)} · ${when}`;
-          const title = m.reminders.recurringBill(bill.description);
-          toast(title, { description: text });
-          notify(title, text, key);
-          shown.push(key);
-        }
       }
 
       if (shown.length > 0) markFired(shown, today);

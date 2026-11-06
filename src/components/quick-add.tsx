@@ -9,7 +9,6 @@ import {
   ListChecks,
   Plus,
   Sparkles,
-  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,20 +29,18 @@ import { Field, SimpleSelect } from "@/components/fields";
 import { TaskDialog } from "@/components/tasks/task-dialog";
 import { useSmartAdd } from "@/components/smart-add";
 import { EventDialog } from "@/components/calendar/event-dialog";
-import { TransactionDialog } from "@/components/finance/transaction-dialog";
 import { useAppStore } from "@/lib/store";
 import { todayKey } from "@/lib/format";
-import type { CalendarEvent, Routine, Task, Transaction } from "@/lib/types";
+import type { CalendarEvent, Routine, Task } from "@/lib/types";
 import { t } from "@/lib/i18n";
 
-type Kind = "task" | "event" | "transaction" | "item";
+type Kind = "task" | "event" | "item";
 
 /** An existing item to open in its dialog — from search, or from a link. */
 export type EditTarget =
   | { kind: "task"; task: Task }
   | { kind: "routine"; routine: Routine }
-  | { kind: "event"; event: CalendarEvent }
-  | { kind: "transaction"; transaction: Transaction };
+  | { kind: "event"; event: CalendarEvent };
 
 interface QuickAddState {
   kind: Kind | null;
@@ -167,13 +164,6 @@ export function GlobalQuickAdd() {
         onOpenChange={onOpenChange}
         event={editing?.kind === "event" ? editing.event : null}
       />
-      <TransactionDialog
-        open={kind === "transaction"}
-        onOpenChange={onOpenChange}
-        transaction={
-          editing?.kind === "transaction" ? editing.transaction : null
-        }
-      />
       <Dialog open={kind === "item"} onOpenChange={onOpenChange}>
         <DialogContent>
           <ListItemForm onDone={close} />
@@ -188,7 +178,6 @@ function options(): { kind: Kind; label: string; icon: typeof Plus }[] {
   return [
     { kind: "task", label: m.task, icon: CheckSquare },
     { kind: "event", label: m.event, icon: CalendarDays },
-    { kind: "transaction", label: m.transaction, icon: Wallet },
     { kind: "item", label: m.listItemTitle, icon: ListChecks },
   ];
 }

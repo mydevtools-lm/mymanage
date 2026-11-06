@@ -99,21 +99,17 @@ describe.each(ADAPTERS)("repo.ts on %s", (_name, make) => {
     expect(await repo.getTask("t")).toBeNull();
   });
 
-  it("saves an import all or nothing", async () => {
-    const row = (id: string) => ({
-      id,
-      type: "expense" as const,
-      amount: 12.5,
-      description: id,
-      date: "2026-10-01",
-    });
-    await repo.createTransactions([row("a"), row("b")]);
-    await expect(repo.createTransactions([row("c"), row("a")])).rejects.toThrow();
-    expect((await repo.listTransactions()).map((t) => t.id).sort()).toEqual([
-      "a",
-      "b",
-    ]);
-    expect((await repo.getTransaction("a"))?.amount).toBe(12.5);
+  it("saves a whole import or none of it", async () => {
+    await repo.createTask({ id: "kept", title: "נשארת" });
+    await expect(
+      repo.replaceAll({
+        tasks: [
+          { id: "a", title: "א" },
+          { id: "a", title: "כפולה" },
+        ] as DataSnapshot["tasks"],
+      }),
+    ).rejects.toThrow();
+    expect((await repo.listTasks()).map((t) => t.id)).toEqual(["kept"]);
   });
 
   it("restores a deleted list item to its old place", async () => {
@@ -180,11 +176,7 @@ describe.each(ADAPTERS)("repo.ts on %s", (_name, make) => {
         { id: "k", aKind: "task", aId: "t", bKind: "note", bId: "n", createdAt: "2026-10-01T08:00:00.000Z" },
         { id: "k2", aKind: "note", aId: "n", bKind: "task", bId: "t", createdAt: "2026-10-01T08:00:00.000Z" },
       ],
-      settings: {
-        startMonth: "2026-01",
-        budgets: { c: 500 },
-        prefs: { currency: "ILS" } as never,
-      },
+      settings: { prefs: { weekStart: 1 } },
     };
     const saved = await repo.replaceAll(snapshot);
     // An import stamps updatedAt anew, as it always has; the rest comes back.
@@ -196,18 +188,13 @@ describe.each(ADAPTERS)("repo.ts on %s", (_name, make) => {
     expect(saved.checklists[0].items).toEqual([{ id: "i", text: "חלב", done: true }]);
     // The same pair linked twice is one link.
     expect(saved.links?.map((l) => l.id)).toEqual(["k"]);
-    expect(saved.settings).toMatchObject({
-      startMonth: "2026-01",
-      budgets: { c: 500 },
-      prefs: { currency: "ILS" },
-    });
+    expect(saved.settings).toMatchObject({ prefs: { weekStart: 1 } });
   });
 
   it("puts the defaults back after a wipe", async () => {
     await repo.createTask({ title: "x" });
     const wiped = await repo.clearAll();
     expect(wiped.tasks).toEqual([]);
-    expect(wiped.categories).toHaveLength(12);
-    expect(wiped.settings.startMonth).toMatch(/^\d{4}-\d{2}$/);
+    expect(wiped.categories).toHaveLength(4);
   });
 });

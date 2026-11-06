@@ -12,7 +12,7 @@ import { parseEnglish } from "./nl-parse-en";
  * before anything is saved.
  */
 
-export type ProposalKind = "task" | "event" | "transaction";
+export type ProposalKind = "task" | "event";
 
 export interface Proposal {
   kind: ProposalKind;
@@ -20,8 +20,6 @@ export interface Proposal {
   date?: string; // yyyy-MM-dd
   time?: string; // HH:mm
   endTime?: string;
-  amount?: number;
-  type?: "income" | "expense";
 }
 
 const WEEKDAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
@@ -34,7 +32,6 @@ const TASK_WORDS =
   /^(?:ל(?:התקשר|קנות|שלם|סדר|החליף|הזמין|שלוח|כתוב|בדוק|תקן|אסוף|הביא|נקות|חדש|הגיש|מלא|לבטל|בטל)|צריך|צריכה|לזכור|תזכורת)/;
 const EVENT_WORDS =
   /(?:פגישה|ארוחת|ארוחה|חתונה|יום הולדת|רופא|טיפול|טיסה|הופעה|הצגה|אימון|שיעור|חוג|מסיבה|כנס|ראיון|ביקור|חממה|טקס)/;
-const INCOME_WORDS = /(?:קיבלתי|משכורת|הכנסה|החזר|זיכוי|מענק)/;
 
 function nextWeekday(today: string, weekday: number) {
   const base = parseISO(today);
@@ -47,7 +44,6 @@ interface Found {
   date?: string;
   time?: string;
   endTime?: string;
-  amount?: number;
   rest: string;
 }
 
@@ -143,19 +139,8 @@ function takeTime(text: string): Found {
   return { rest };
 }
 
-function takeAmount(text: string): Found {
-  const m = text.match(
-    /(?:^|\s)(?:₪\s*(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s*(?:₪|ש["״]ח|שקלים|שקל|ש״ח))(?=\s|$)/,
-  );
-  if (!m) return { rest: text };
-  return {
-    amount: Number((m[1] ?? m[2]).replace(/,/g, "")),
-    rest: text.replace(m[0], " "),
-  };
-}
-
 const FILLER =
-  /^(?:אני\s+)?(?:הולך|הולכת|נוסע|נוסעת|יש\s+לי|יש|צריך|צריכה|לזכור|שילמתי|קיבלתי|הוצאתי)?\s*/;
+  /^(?:אני\s+)?(?:הולך|הולכת|נוסע|נוסעת|יש\s+לי|יש|צריך|צריכה|לזכור)?\s*/;
 
 function cleanTitle(text: string, kind: ProposalKind) {
   let title = text.replace(/\s+/g, " ").trim();
@@ -182,15 +167,13 @@ export function parseHebrew(text: string, today: string): Proposal[] {
     if (!piece?.trim()) continue;
     const dated = takeDate(piece, today);
     const timed = takeTime(dated.rest);
-    const paid = takeAmount(timed.rest);
     // A day said once holds for what follows: "ביום שני חממה ואחרי זה …".
     const date = dated.date ?? carriedDate;
     if (dated.date) carriedDate = dated.date;
 
-    const words = paid.rest;
+    const words = timed.rest;
     let kind: ProposalKind;
-    if (paid.amount !== undefined) kind = "transaction";
-    else if (TASK_WORDS.test(words.trim().replace(FILLER, ""))) kind = "task";
+    if (TASK_WORDS.test(words.trim().replace(FILLER, ""))) kind = "task";
     else if (timed.time || EVENT_WORDS.test(words) || date) kind = "event";
     else kind = "task";
 
@@ -199,16 +182,9 @@ export function parseHebrew(text: string, today: string): Proposal[] {
     proposals.push({
       kind,
       title,
-      date: kind === "transaction" ? (date ?? today) : date,
+      date,
       time: timed.time,
       endTime: timed.endTime,
-      amount: paid.amount,
-      type:
-        kind === "transaction"
-          ? INCOME_WORDS.test(piece)
-            ? "income"
-            : "expense"
-          : undefined,
     });
   }
   return proposals;

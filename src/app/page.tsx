@@ -9,7 +9,6 @@ import {
   ChevronDown,
   Inbox,
   Plus,
-  Wallet,
   Sunrise,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,11 +26,9 @@ import { SortableList } from "@/components/sortable-list";
 import { useBrief } from "@/components/brief-dialog";
 import { TaskRow } from "@/components/tasks/task-row";
 import { EventDialog } from "@/components/calendar/event-dialog";
-import { TransactionDialog } from "@/components/finance/transaction-dialog";
 import { DayPicker } from "@/components/today/day-picker";
 import { AllDayStrip, DayTimeline } from "@/components/today/day-timeline";
 import { DaySwipe } from "@/components/today/day-swipe";
-import { MonthBalanceCard } from "@/components/today/month-balance-card";
 import { WeekAheadCard } from "@/components/today/week-ahead-card";
 import { useAppStore } from "@/lib/store";
 import { useGoogleEvents } from "@/lib/use-google-events";
@@ -60,7 +57,6 @@ export default function TodayPage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [eventDialog, setEventDialog] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
-  const [txDialog, setTxDialog] = useState(false);
   const [showUndated, setShowUndated] = useState(false);
 
   const today = todayKey();
@@ -121,9 +117,6 @@ export default function TodayPage() {
               }}
             >
               <CalendarDays /> {text.addEvent}
-            </Button>
-            <Button variant="secondary" onClick={() => setTxDialog(true)}>
-              <Wallet /> {text.addTransaction}
             </Button>
             <Button variant="ghost" onClick={() => useBrief.getState().open()}>
               <Sunrise /> {text.brief}
@@ -323,9 +316,8 @@ export default function TodayPage() {
           </div>
         </DaySwipe>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+        <div className="mt-4">
           <WeekAheadCard />
-          <MonthBalanceCard />
         </div>
       </Hydrated>
 
@@ -341,7 +333,6 @@ export default function TodayPage() {
         event={editingEvent}
         defaultDate={date}
       />
-      <TransactionDialog open={txDialog} onOpenChange={setTxDialog} />
     </>
   );
 }

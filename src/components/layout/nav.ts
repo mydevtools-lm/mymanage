@@ -4,7 +4,6 @@ import {
   NotebookPen,
   Settings2,
   Sun,
-  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { t } from "@/lib/i18n";
@@ -28,7 +27,6 @@ export function mainNav(): NavItem[] {
     { href: "/", label: nav.today, icon: Sun },
     { href: "/tasks", label: nav.tasks, icon: CheckSquare },
     { href: "/calendar", label: nav.calendar, icon: CalendarDays },
-    { href: "/finance", label: nav.finance, icon: Wallet },
     {
       href: "/notes",
       label: nav.notes,

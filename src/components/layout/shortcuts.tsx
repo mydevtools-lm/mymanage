@@ -13,12 +13,11 @@ import { useQuickAdd } from "@/components/quick-add";
 import { t } from "@/lib/i18n";
 
 // What "N" creates depends on where you are.
-const NEW_BY_ROUTE: Record<string, "task" | "event" | "transaction" | "item"> =
+const NEW_BY_ROUTE: Record<string, "task" | "event" | "item"> =
   {
     "/": "task",
     "/tasks": "task",
     "/calendar": "event",
-    "/finance": "transaction",
     "/notes": "item",
   };
 

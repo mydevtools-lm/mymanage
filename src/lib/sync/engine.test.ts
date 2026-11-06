@@ -548,17 +548,26 @@ describe("joining", () => {
   it("budgets follow the category across computers", async () => {
     const a = new Computer(T0);
     const b = new Computer(T0);
+    // The screens are gone, but a file can still hold budgets from before.
     const onA = await a.do(() =>
-      repo.createCategory({ name: "Food", color: "amber", kind: "finance" }),
+      repo.createCategory({ name: "Food", color: "amber", kind: "task" }),
     );
     const onB = await b.do(() =>
-      repo.createCategory({ name: "Food", color: "amber", kind: "finance" }),
+      repo.createCategory({ name: "Food", color: "amber", kind: "task" }),
     );
     await a.on();
     await b.on();
-    await a.do(() => repo.setBudgets({ [onA.id]: 800 }), T0 + 1000);
+    await a.do(
+      () =>
+        a.db.run("INSERT INTO settings (key, value) VALUES ('budgets', ?)", [
+          JSON.stringify({ [onA.id]: 800 }),
+        ]),
+      T0 + 1000,
+    );
     await settle(a, b);
-    expect(await b.do(() => repo.getBudgets())).toEqual({ [onB.id]: 800 });
+    expect(
+      b.sql.prepare("SELECT value FROM settings WHERE key = 'budgets'").get(),
+    ).toEqual({ value: JSON.stringify({ [onB.id]: 800 }) });
   });
 
   it("settings follow too, the later write winning as a whole", async () => {

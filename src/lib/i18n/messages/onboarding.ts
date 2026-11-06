@@ -10,7 +10,7 @@ export const en = {
   next: "Continue",
   startTitle: "Start empty or with sample data?",
   startHint:
-    "The sample is a few tasks, events and transactions, to see how everything looks. It's removed with one click.",
+    "The sample is a few tasks and events, to see how everything looks. It's removed with one click.",
   startEmpty: "Start empty",
   withSample: "With sample data",
   sampleFailed: "Couldn't add the sample data",
@@ -35,7 +35,7 @@ export const he: typeof en = {
   next: "המשך",
   startTitle: "להתחיל ריק או עם נתוני דוגמה?",
   startHint:
-    "הדוגמה היא כמה משימות, אירועים ותנועות כדי לראות איך הכול נראה. אפשר למחוק אותה בלחיצה אחת.",
+    "הדוגמה היא כמה משימות ואירועים כדי לראות איך הכול נראה. אפשר למחוק אותה בלחיצה אחת.",
   startEmpty: "להתחיל ריק",
   withSample: "עם נתוני דוגמה",
   sampleFailed: "לא הצלחנו להוסיף את נתוני הדוגמה",

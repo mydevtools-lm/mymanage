@@ -1,5 +1,5 @@
 import { db, type SqlValue, type Statement } from "./db-adapter";
-import { localDateKey, localMonthKey, newId } from "./keys";
+import { localDateKey, newId } from "./keys";
 import { defaultCategories } from "./schema";
 import type {
   CalendarEvent,
@@ -12,7 +12,6 @@ import type {
   Settings,
   Subtask,
   Task,
-  Transaction,
 } from "./types";
 import { instanceId, occursOn } from "./routines";
 import { SAMPLE_PREFIX, sampleData } from "./sample-data";
@@ -494,154 +493,6 @@ export async function deleteEvent(id: string) {
   await db().run("DELETE FROM events WHERE id = ?", [id]);
 }
 
-/* --------------------------------------------------------- transactions */
-
-interface TransactionRow {
-  id: string;
-  type: string;
-  amount: number;
-  description: string;
-  date: string;
-  categoryId: string | null;
-  notes: string | null;
-  recurringStartMonth: string | null;
-  recurringEndMonth: string | null;
-  exceptions: string | null;
-  createdAt: string;
-}
-
-function parseExceptions(raw: string | null): Transaction["exceptions"] {
-  if (!raw) return undefined;
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function serializeExceptions(value: Transaction["exceptions"] | null) {
-  return value && value.length > 0 ? JSON.stringify(value) : null;
-}
-
-function toTransaction(r: TransactionRow): Transaction {
-  return {
-    id: r.id,
-    type: r.type as Transaction["type"],
-    amount: r.amount,
-    description: r.description,
-    date: r.date,
-    categoryId: r.categoryId ?? undefined,
-    notes: r.notes ?? undefined,
-    recurring: r.recurringStartMonth
-      ? {
-          startMonth: r.recurringStartMonth,
-          endMonth: r.recurringEndMonth ?? undefined,
-        }
-      : undefined,
-    exceptions: parseExceptions(r.exceptions),
-    createdAt: r.createdAt,
-  };
-}
-
-export async function listTransactions(): Promise<Transaction[]> {
-  const rows = await db().all<TransactionRow>(
-    "SELECT * FROM transactions ORDER BY date DESC",
-  );
-  return rows.map(toTransaction);
-}
-
-function transactionInsert(
-  id: string,
-  input: Partial<Transaction>,
-): Statement {
-  return {
-    sql: `INSERT INTO transactions
-       (id,type,amount,description,date,categoryId,notes,recurringStartMonth,recurringEndMonth,exceptions,createdAt)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-    params: [
-      id,
-      input.type ?? "expense",
-      input.amount ?? 0,
-      input.description ?? "",
-      input.date ?? "",
-      input.categoryId ?? null,
-      input.notes ?? null,
-      input.recurring?.startMonth ?? null,
-      input.recurring?.endMonth ?? null,
-      serializeExceptions(input.exceptions),
-      input.createdAt ?? now(),
-    ],
-  };
-}
-
-export async function createTransaction(
-  input: Partial<Transaction>,
-): Promise<Transaction> {
-  const id = input.id ?? newId();
-  const { sql, params } = transactionInsert(id, input);
-  await db().run(sql, params);
-  return (await getTransaction(id))!;
-}
-
-export async function getTransaction(id: string): Promise<Transaction | null> {
-  const found = await db().get<TransactionRow>(
-    "SELECT * FROM transactions WHERE id = ?",
-    [id],
-  );
-  return found ? toTransaction(found) : null;
-}
-
-export async function updateTransaction(
-  id: string,
-  patch: Partial<Transaction>,
-): Promise<Transaction | null> {
-  const current = await getTransaction(id);
-  if (!current) return null;
-  const next = { ...current, ...patch };
-  await db().run(
-    `UPDATE transactions SET type=?, amount=?, description=?, date=?,
-       categoryId=?, notes=?, recurringStartMonth=?, recurringEndMonth=?,
-       exceptions=?
-       WHERE id = ?`,
-    [
-      next.type,
-      next.amount,
-      next.description,
-      next.date,
-      next.categoryId ?? null,
-      next.notes ?? null,
-      next.recurring?.startMonth ?? null,
-      next.recurring?.endMonth ?? null,
-      serializeExceptions(next.exceptions),
-      id,
-    ],
-  );
-  return getTransaction(id);
-}
-
-export async function deleteTransaction(id: string) {
-  await db().run("DELETE FROM transactions WHERE id = ?", [id]);
-}
-
-/** Many rows in one database transaction — a bank statement import. */
-export async function createTransactions(inputs: Partial<Transaction>[]) {
-  const ids = inputs.map((input) => input.id ?? newId());
-  await db().batch(inputs.map((input, i) => transactionInsert(ids[i], input)));
-  const created: Transaction[] = [];
-  for (const id of ids) created.push((await getTransaction(id))!);
-  return created;
-}
-
-export async function deleteTransactions(ids: string[]) {
-  await db().batch(
-    ids.map((id) => ({
-      sql: "DELETE FROM transactions WHERE id = ?",
-      params: [id],
-    })),
-  );
-}
-
 /* ---------------------------------------------------------------- notes */
 
 interface NoteRow {
@@ -936,7 +787,10 @@ export async function clearDoneChecklistItems(listId: string) {
 /* ----------------------------------------------------------- categories */
 
 export async function listCategories(): Promise<Category[]> {
-  return db().all<Category>("SELECT * FROM categories ORDER BY kind, name");
+  // Money categories stay in the file with the transactions, unseen (schema.ts).
+  return db().all<Category>(
+    "SELECT * FROM categories WHERE kind = 'task' ORDER BY name",
+  );
 }
 
 function categoryInsert(c: Category): Statement {
@@ -980,7 +834,9 @@ export async function deleteCategory(id: string) {
 /* ---------------------------------------------------------------- links */
 
 export async function listLinks(): Promise<Link[]> {
-  return db().all<Link>("SELECT * FROM links ORDER BY createdAt, rowid");
+  return db().all<Link>(
+    "SELECT * FROM links WHERE aKind <> 'transaction' AND bKind <> 'transaction' ORDER BY createdAt, rowid",
+  );
 }
 
 function linkInsert(id: string, input: Partial<Link>): Statement {
@@ -1067,39 +923,6 @@ export async function setPrefs(patch: Record<string, unknown>) {
   return getPrefs();
 }
 
-export async function getBudgets(): Promise<Settings["budgets"]> {
-  return (await readSetting<Settings["budgets"]>("budgets")) ?? {};
-}
-
-function cleanBudgets(value: Settings["budgets"]) {
-  return Object.fromEntries(
-    Object.entries(value ?? {}).filter(
-      ([, amount]) => typeof amount === "number" && amount > 0,
-    ),
-  );
-}
-
-/** Replaces all budgets; a category left out has none. */
-export async function setBudgets(value: Settings["budgets"]) {
-  await writeSetting("budgets", cleanBudgets(value));
-  return getBudgets();
-}
-
-export async function getStartMonth(): Promise<string> {
-  // Stored as plain text, not JSON, since the first version.
-  const found = await db().get<{ value: string }>(
-    "SELECT value FROM settings WHERE key='startMonth'",
-  );
-  return found?.value ?? new Date().toISOString().slice(0, 7);
-}
-
-function startMonthWrite(month: string): Statement {
-  return {
-    sql: "INSERT OR REPLACE INTO settings (key,value) VALUES ('startMonth', ?)",
-    params: [month],
-  };
-}
-
 /* ------------------------------------------------------- whole snapshot */
 
 /**
@@ -1118,31 +941,28 @@ export async function readAll(): Promise<DataSnapshot> {
     exportedAt: now(),
     tasks: await listTasks(),
     events: await listEvents(),
-    transactions: await listTransactions(),
     notes: await listNotes(),
     checklists: await listChecklists(),
     routines: await listRoutines(),
     links: await listLinks(),
     categories: await listCategories(),
     settings: {
-      startMonth: await getStartMonth(),
       calendars: await getCalendarPrefs(),
-      budgets: await getBudgets(),
       prefs: await getPrefs(),
     },
   };
 }
 
+/** What an import replaces. The money tables are not here: the app no longer
+ *  shows them, and what is in them stays until everything is wiped. */
 const USER_TABLES = [
   "checklist_items",
   "checklists",
   "notes",
-  "transactions",
   "events",
   "tasks",
   "routines",
   "links",
-  "categories",
 ];
 
 /** Replaces everything, in one transaction. Used by both the JSON import and
@@ -1151,13 +971,19 @@ export async function replaceAll(snapshot: Partial<DataSnapshot>) {
   const writes: Statement[] = USER_TABLES.map((table) => ({
     sql: `DELETE FROM ${table}`,
   }));
+  writes.push({ sql: "DELETE FROM categories WHERE kind = 'task'" });
 
-  for (const c of snapshot.categories ?? []) writes.push(categoryInsert(c));
+  // A backup from before the money screens went has money in it: left out.
+  for (const c of snapshot.categories ?? []) {
+    if (c.kind === "task") writes.push(categoryInsert(c));
+  }
   for (const r of snapshot.routines ?? [])
     writes.push(routineInsert(r.id ?? newId(), r));
   // The same pair linked twice keeps the first link, as createLink does.
   const linked = new Set<string>();
   for (const l of snapshot.links ?? []) {
+    if ((l.aKind as string) === "transaction") continue;
+    if ((l.bKind as string) === "transaction") continue;
     const pair = [l.aId ?? "", l.bId ?? ""].sort().join("|");
     if (linked.has(pair)) continue;
     linked.add(pair);
@@ -1166,8 +992,6 @@ export async function replaceAll(snapshot: Partial<DataSnapshot>) {
   for (const t of snapshot.tasks ?? []) writes.push(taskInsert(t.id ?? newId(), t));
   for (const e of snapshot.events ?? [])
     writes.push(eventInsert(e.id ?? newId(), e));
-  for (const t of snapshot.transactions ?? [])
-    writes.push(transactionInsert(t.id ?? newId(), t));
   for (const n of snapshot.notes ?? []) writes.push(noteInsert(n.id ?? newId(), n));
   for (const l of snapshot.checklists ?? []) {
     writes.push({
@@ -1178,12 +1002,8 @@ export async function replaceAll(snapshot: Partial<DataSnapshot>) {
   }
 
   const settings = snapshot.settings;
-  if (settings?.startMonth) writes.push(startMonthWrite(settings.startMonth));
   if (settings?.calendars) {
     writes.push(settingWrite("calendars", settings.calendars));
-  }
-  if (settings?.budgets) {
-    writes.push(settingWrite("budgets", cleanBudgets(settings.budgets)));
   }
   if (settings?.prefs) {
     writes.push(
@@ -1198,8 +1018,7 @@ export async function replaceAll(snapshot: Partial<DataSnapshot>) {
   return readAll();
 }
 
-/** What a database needs before anyone uses it: the default categories and
- *  the month the books start. */
+/** What a database needs before anyone uses it: the default categories. */
 export function seedStatements(): Statement[] {
   return [
     ...defaultCategories().map(([name, color, kind]) =>
@@ -1210,17 +1029,15 @@ export function seedStatements(): Statement[] {
         kind,
       }),
     ),
-    startMonthWrite(localMonthKey()),
   ];
 }
 
 /** First-run sample data (sample-data.ts), in one transaction. */
 export async function addSampleData(today: string) {
-  const sample = sampleData(today, await listCategories());
+  const sample = sampleData(today);
   await db().batch([
     ...sample.tasks.map((t) => taskInsert(t.id!, t)),
     ...sample.events.map((e) => eventInsert(e.id!, e)),
-    ...sample.transactions.map((t) => transactionInsert(t.id!, t)),
     ...sample.notes.map((n) => noteInsert(n.id!, n)),
   ]);
   return readAll();
@@ -1243,10 +1060,10 @@ export async function removeSampleData() {
 }
 
 export async function clearAll() {
-  // Categories and the start month are structural, not user content —
-  // put them straight back so the app is usable after a wipe.
+  // Categories are structural, not user content: put them straight back so the
+  // app is usable after a wipe. A wipe means everything, the money tables too.
   await db().batch([
-    ...[...USER_TABLES, "settings"].map((table) => ({
+    ...[...USER_TABLES, "transactions", "categories", "settings"].map((table) => ({
       sql: `DELETE FROM ${table}`,
     })),
     ...seedStatements(),

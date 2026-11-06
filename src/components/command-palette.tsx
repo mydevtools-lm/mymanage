@@ -14,7 +14,6 @@ import {
   Settings,
   Sparkles,
   Sun,
-  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -43,7 +42,6 @@ function kindMeta(): Record<ResultKind, { label: string; icon: LucideIcon }> {
     task: { label: kinds.task, icon: CheckSquare },
     routine: { label: kinds.routine, icon: Repeat },
     event: { label: kinds.event, icon: CalendarDays },
-    transaction: { label: kinds.transaction, icon: Wallet },
     note: { label: kinds.note, icon: NotebookPen },
     list: { label: kinds.list, icon: ListChecks },
   };
@@ -98,7 +96,6 @@ function Palette({ onDone }: { onDone: () => void }) {
   const tasks = useAppStore((s) => s.tasks);
   const routines = useAppStore((s) => s.routines);
   const events = useAppStore((s) => s.events);
-  const transactions = useAppStore((s) => s.transactions);
   const notes = useAppStore((s) => s.notes);
   const checklists = useAppStore((s) => s.checklists);
 
@@ -128,13 +125,6 @@ function Palette({ onDone }: { onDone: () => void }) {
         icon: Plus,
         title: m.newEvent,
         run: go(() => openNew("event")),
-      },
-      {
-        key: "new-tx",
-        group: m.groupNew,
-        icon: Plus,
-        title: m.newTransaction,
-        run: go(() => openNew("transaction")),
       },
       {
         key: "new-item",
@@ -172,13 +162,6 @@ function Palette({ onDone }: { onDone: () => void }) {
         run: go(() => router.push("/calendar")),
       },
       {
-        key: "go-fin",
-        group: m.groupGo,
-        icon: Wallet,
-        title: nav.finance,
-        run: go(() => router.push("/finance")),
-      },
-      {
         key: "go-notes",
         group: m.groupGo,
         icon: NotebookPen,
@@ -198,7 +181,7 @@ function Palette({ onDone }: { onDone: () => void }) {
     const kinds = kindMeta();
     const found: Entry[] = searchAll(
       query,
-      { tasks, routines, events, transactions, notes, checklists },
+      { tasks, routines, events, notes, checklists },
       todayKey(),
     ).map((r) => ({
       key: `${r.kind}-${r.id}`,
@@ -230,7 +213,6 @@ function Palette({ onDone }: { onDone: () => void }) {
     tasks,
     routines,
     events,
-    transactions,
     notes,
     checklists,
     onDone,

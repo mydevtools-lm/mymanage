@@ -4,19 +4,17 @@ import type {
   Note,
   Routine,
   Task,
-  Transaction,
 } from "./types";
-import { formatCurrency } from "./format";
 import { t } from "./i18n";
 
 /**
- * One search over everything: tasks, routines, events, transactions, notes,
+ * One search over everything: tasks, routines, events, notes,
  * lists and the items in them. Pure, so the palette and the link picker share
  * it and it can be tested without a screen.
  */
 
 export type ResultKind =
-  "task" | "routine" | "event" | "transaction" | "note" | "list";
+  "task" | "routine" | "event" | "note" | "list";
 
 export interface SearchResult {
   kind: ResultKind;
@@ -33,7 +31,6 @@ export interface Searchable {
   tasks: Task[];
   routines?: Routine[];
   events: CalendarEvent[];
-  transactions: Transaction[];
   notes: Note[];
   checklists: Checklist[];
 }
@@ -66,11 +63,6 @@ export function matchScore(query: string, text: string) {
 }
 
 /** Digits in the query also find amounts: "450" finds ₪4,500. */
-function amountMatches(query: string, amount: number) {
-  const digits = query.replace(/[^\d]/g, "");
-  return digits.length >= 2 && String(amount).includes(digits);
-}
-
 export function searchAll(
   query: string,
   data: Searchable,
@@ -121,17 +113,6 @@ export function searchAll(
       e.location,
       e.notes,
     );
-  }
-  for (const t of data.transactions) {
-    const base = {
-      kind: "transaction" as const,
-      id: t.id,
-      title: t.description,
-      detail: `${t.type === "income" ? "+" : "−"}${formatCurrency(t.amount)} · ${t.date}`,
-      date: t.date,
-    };
-    if (amountMatches(query, t.amount)) results.push({ ...base, score: 50 });
-    else add(base, t.description, t.notes);
   }
   for (const n of data.notes) {
     add(

@@ -46,8 +46,7 @@ function CategoryGroup({ kind }: { kind: CategoryKind }) {
   const common = t().common;
   const usage = useAppStore((s) =>
     deleting
-      ? s.tasks.filter((t) => t.categoryId === deleting.id).length +
-        s.transactions.filter((t) => t.categoryId === deleting.id).length
+      ? s.tasks.filter((t) => t.categoryId === deleting.id).length
       : 0,
   );
 
@@ -167,7 +166,6 @@ export function CategoriesTab() {
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <CategoryGroup kind="task" />
-      <CategoryGroup kind="finance" />
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { mkdirSync, readdirSync, rmSync, existsSync } from "node:fs";
 import path from "node:path";
 import { BASE_SCHEMA, defaultCategories, MIGRATIONS } from "./schema";
-import { localDateKey, localMonthKey, newId } from "./keys";
+import { localDateKey, newId } from "./keys";
 
 export { SCHEMA_VERSION } from "./schema";
 export { localDateKey, localMonthKey, newId } from "./keys";
@@ -62,15 +62,6 @@ export function seedDefaults(db: DatabaseSync = getDb()) {
     }
   }
 
-  const startMonth = db
-    .prepare("SELECT value FROM settings WHERE key = 'startMonth'")
-    .get();
-  if (!startMonth) {
-    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run(
-      "startMonth",
-      localMonthKey(),
-    );
-  }
 }
 
 /**

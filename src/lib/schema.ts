@@ -153,6 +153,10 @@ export const MIGRATIONS: string[] = [
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
 /**
+ * The money screens are gone (money moved to a system of its own), but the
+ * `transactions` table and the `finance` categories stay in existing files.
+ * Nothing reads them; dropping them can't be undone and waits for a decision.
+ *
  * The categories a new database starts with, named in both languages. A new
  * database gets the names of the language of the moment; after a switch,
  * defaults nobody renamed follow it (language.ts).
@@ -161,30 +165,17 @@ export const DEFAULT_CATEGORY_SET: {
   en: string;
   he: string;
   color: string;
-  kind: "task" | "finance";
+  kind: "task";
 }[] = [
   { en: "Work", he: "עבודה", color: "teal", kind: "task" },
   { en: "Home", he: "בית", color: "amber", kind: "task" },
   { en: "Personal", he: "אישי", color: "lavender", kind: "task" },
   { en: "Studies", he: "לימודים", color: "sky", kind: "task" },
-  { en: "Salary", he: "משכורת", color: "mint", kind: "finance" },
-  { en: "Other income", he: "הכנסה נוספת", color: "teal", kind: "finance" },
-  {
-    en: "Rent / mortgage",
-    he: "שכירות / משכנתא",
-    color: "coral",
-    kind: "finance",
-  },
-  { en: "Food", he: "אוכל", color: "amber", kind: "finance" },
-  { en: "Transport", he: "תחבורה", color: "sky", kind: "finance" },
-  { en: "Bills", he: "חשבונות", color: "rose", kind: "finance" },
-  { en: "Going out", he: "בילויים", color: "lavender", kind: "finance" },
-  { en: "Other", he: "אחר", color: "slate", kind: "finance" },
 ];
 
 /** [name, colour, kind] in the given language (default: the current one). */
 export function defaultCategories(
   locale: Locale = getLocale(),
-): [string, string, "task" | "finance"][] {
+): [string, string, "task"][] {
   return DEFAULT_CATEGORY_SET.map((c) => [c[locale], c.color, c.kind]);
 }

@@ -13,8 +13,6 @@ describe("parseEnglish", () => {
         date: "2026-09-29",
         time: "13:00",
         endTime: undefined,
-        amount: undefined,
-        type: undefined,
       },
     ]);
   });
@@ -36,20 +34,10 @@ describe("parseEnglish", () => {
     expect(item.date).toBeUndefined();
   });
 
-  it("reads money: expense by default, income by its words", () => {
-    expect(parseEnglish("groceries $40", TODAY)[0]).toMatchObject({
-      kind: "transaction",
-      title: "Groceries",
-      amount: 40,
-      type: "expense",
-      date: TODAY,
-    });
-    expect(
-      parseEnglish("received salary 12,000 shekels", TODAY)[0],
-    ).toMatchObject({
-      kind: "transaction",
-      amount: 12000,
-      type: "income",
+  it("a sum of money is part of the words, and it stays a task", () => {
+    expect(parseEnglish("paid $40 for groceries", TODAY)[0]).toMatchObject({
+      kind: "task",
+      title: "Paid $40 for groceries",
     });
   });
 

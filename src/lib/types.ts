@@ -1,6 +1,5 @@
 export type Priority = "low" | "normal" | "high" | "urgent";
-export type CategoryKind = "task" | "finance";
-export type TransactionType = "income" | "expense";
+export type CategoryKind = "task";
 
 export type ColorKey =
   "teal" | "coral" | "lavender" | "amber" | "sky" | "mint" | "rose" | "slate";
@@ -108,31 +107,6 @@ export interface EventException {
   color?: ColorKey;
 }
 
-export interface Transaction {
-  id: string;
-  type: TransactionType;
-  amount: number;
-  description: string;
-  date: string; // yyyy-MM-dd
-  categoryId?: string;
-  notes?: string;
-  recurring?: {
-    startMonth: string; // yyyy-MM
-    endMonth?: string; // yyyy-MM (inclusive)
-  };
-  /** Per-month changes to a recurring series: skip a month, or override it. */
-  exceptions?: TransactionException[];
-  createdAt: string;
-}
-
-export interface TransactionException {
-  month: string; // yyyy-MM
-  skip?: boolean;
-  amount?: number;
-  description?: string;
-  categoryId?: string;
-}
-
 /** How far an edit or delete on one month of a recurring series reaches. */
 export type SeriesScope = "this" | "following" | "all";
 
@@ -162,7 +136,7 @@ export interface Checklist {
   updatedAt: string;
 }
 
-export type LinkKind = "task" | "event" | "transaction" | "note" | "list";
+export type LinkKind = "task" | "event" | "note" | "list";
 
 /** Two items that belong together. Either end can be read as the start. */
 export interface Link {
@@ -175,22 +149,16 @@ export interface Link {
 }
 
 export interface Settings {
-  startMonth: string; // yyyy-MM
   /** Per Google calendar (by its number in .env.local): colour, hidden. */
   calendars?: Record<string, CalendarPref>;
-  /** Monthly budget per expense category id, in shekels. */
-  budgets?: Record<string, number>;
   prefs?: Preferences;
 }
-
-export type CurrencyCode = "ILS" | "USD" | "EUR";
 
 export interface Preferences {
   /** How the app greets the person; asked on the first run. */
   userName?: string;
   /** 0 Sunday (default), 1 Monday, 6 Saturday. */
   weekStart?: 0 | 1 | 6;
-  currency?: CurrencyCode;
   /** Minutes before, for new timed tasks and events; unset is none. */
   defaultReminder?: number;
 }
@@ -207,7 +175,6 @@ export interface DataSnapshot {
   exportedAt: string;
   tasks: Task[];
   events: CalendarEvent[];
-  transactions: Transaction[];
   notes: Note[];
   checklists: Checklist[];
   routines?: Routine[];

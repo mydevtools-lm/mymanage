@@ -24,7 +24,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useAppStore } from "@/lib/store";
-import { formatMonth, toDateKey } from "@/lib/format";
+import { toDateKey } from "@/lib/format";
 import type { DataSnapshot } from "@/lib/types";
 import { APP_SLUG } from "@/lib/app-info";
 import { t } from "@/lib/i18n";
@@ -37,10 +37,8 @@ export function BackupTab() {
     useShallow((s) => ({
       tasks: s.tasks.length,
       events: s.events.length,
-      transactions: s.transactions.length,
       notes: s.notes.length,
       checklists: s.checklists.length,
-      startMonth: s.settings.startMonth,
     })),
   );
   const fileRef = useRef<HTMLInputElement>(null);
@@ -87,10 +85,8 @@ export function BackupTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-1.5 text-sm">
-          <Row label={m.startMonth} value={formatMonth(counts.startMonth)} />
           <Row label={m.tasks} value={counts.tasks} />
           <Row label={m.events} value={counts.events} />
-          <Row label={m.transactions} value={counts.transactions} />
           <Row label={m.notes} value={counts.notes} />
           <Row label={m.lists} value={counts.checklists} />
         </CardContent>

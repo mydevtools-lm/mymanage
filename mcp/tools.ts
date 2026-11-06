@@ -2,14 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { setRepoDb, type Db } from "../src/lib/db-adapter";
 import { readAll } from "../src/lib/repo";
-import { localDateKey, localMonthKey } from "../src/lib/keys";
+import { localDateKey } from "../src/lib/keys";
 import { expandEvents } from "../src/lib/event-series";
-import {
-  budgetStatus,
-  categoryBreakdown,
-  getMonthTransactions,
-  summarize,
-} from "../src/lib/finance";
 import { occursOn } from "../src/lib/routines";
 import { searchAll } from "../src/lib/search";
 import type { DataSnapshot, Task } from "../src/lib/types";
@@ -32,15 +26,10 @@ import { registerWriteTools } from "./write-tools";
  */
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
-const MONTH = /^\d{4}-\d{2}$/;
 const date = z
   .string()
   .regex(DATE, "yyyy-MM-dd")
   .describe("A day, as yyyy-MM-dd.");
-const month = z
-  .string()
-  .regex(MONTH, "yyyy-MM")
-  .describe("A month, as yyyy-MM.");
 const limit = z
   .number()
   .int()
@@ -56,13 +45,13 @@ const isOpen = (task: Task) => !task.completed && !task.archivedAt;
 const includes = (haystack: string | undefined, needle: string) =>
   (haystack ?? "").toLowerCase().includes(needle.toLowerCase());
 
-const INSTRUCTIONS = `mymanage is one person's organiser: tasks, routines, calendar events, income and expenses, notes and lists.
-Use the today tool for today's date and a view of the day. Dates are yyyy-MM-dd, months yyyy-MM, times HH:mm.`;
+const INSTRUCTIONS = `mymanage is one person's organiser: tasks, routines, calendar events, notes and lists.
+Use the today tool for today's date and a view of the day. Dates are yyyy-MM-dd, times HH:mm.`;
 
 const WRITE_INSTRUCTIONS = `${INSTRUCTIONS}
 Changes show in the app within seconds, and on the person's other computers if they sync.
 Find an item's id with a list_ tool or search before changing it. If more than one item could be meant, ask which.
-Before deleting anything, say what will go and wait for a yes. A repeating event or transaction needs a scope: if the person did not say whether they mean one occurrence, from then on, or all of them, ask.`;
+Before deleting anything, say what will go and wait for a yes. A repeating event needs a scope: if the person did not say whether they mean one occurrence, from then on, or all of them, ask.`;
 
 export function createServer(
   database: Db,
@@ -83,7 +72,7 @@ export function createServer(
     {
       title: "What's on today",
       description:
-        "A day at a glance: overdue tasks, the day's tasks, events, routines due, and the month's income, expenses and balance so far. Defaults to today.",
+        "A day at a glance: overdue tasks, the day's tasks, events, and routines due. Defaults to today.",
       inputSchema: { date: date.optional() },
       annotations: readOnly,
     },
@@ -94,7 +83,6 @@ export function createServer(
       const dueToday = data.tasks.filter(
         (t) => !t.archivedAt && t.dueDate === today,
       );
-      const month = today.slice(0, 7);
       return result({
         date: today,
         overdue: data.tasks
@@ -112,11 +100,6 @@ export function createServer(
               (t) => t.routineId === r.id && t.dueDate === today,
             ),
           })),
-        month: {
-          month,
-          ...summarize(getMonthTransactions(data.transactions, month)),
-          currency: data.settings.prefs?.currency ?? "ILS",
-        },
       });
     },
   );
@@ -201,91 +184,11 @@ export function createServer(
   );
 
   server.registerTool(
-    "list_transactions",
-    {
-      title: "List transactions",
-      description:
-        "A month's income and expenses, newest first, with repeating ones as they fall in that month. Amounts are positive; `type` says which way. Defaults to this month.",
-      inputSchema: {
-        month: month.optional(),
-        type: z.enum(["income", "expense"]).optional(),
-        category: z.string().optional().describe("A category name."),
-        query: z.string().optional().describe("Words in the description."),
-        limit,
-      },
-      annotations: readOnly,
-    },
-    async ({ month: m = localMonthKey(), type, category, query, limit: n }) => {
-      const { transactions, categories, settings } = await snapshot();
-      const rows = getMonthTransactions(transactions, m).filter((t) => {
-        if (type && t.type !== type) return false;
-        if (query && !includes(t.description, query)) return false;
-        if (
-          category &&
-          categoryName(categories, t.categoryId)?.toLowerCase() !==
-            category.toLowerCase()
-        )
-          return false;
-        return true;
-      });
-      return result({
-        month: m,
-        currency: settings.prefs?.currency ?? "ILS",
-        total: rows.length,
-        transactions: rows.slice(0, cap(n)).map((t) => ({
-          id: t.id,
-          date: t.date,
-          type: t.type,
-          amount: t.amount,
-          description: t.description,
-          category: categoryName(categories, t.categoryId),
-          notes: t.notes,
-          recurring: !!t.recurring,
-        })),
-      });
-    },
-  );
-
-  server.registerTool(
-    "finance_summary",
-    {
-      title: "Month summary",
-      description:
-        "A month's income, expenses and balance, expenses and income by category, and each budgeted category against what was spent. Defaults to this month.",
-      inputSchema: { month: month.optional() },
-      annotations: readOnly,
-    },
-    async ({ month: m = localMonthKey() }) => {
-      const { transactions, categories, settings } = await snapshot();
-      const rows = getMonthTransactions(transactions, m);
-      const byCategory = (type: "expense" | "income") =>
-        categoryBreakdown(rows, categories, type).map((c) => ({
-          category: c.category?.name ?? null,
-          amount: c.amount,
-          share: Math.round(c.share * 1000) / 10,
-        }));
-      return result({
-        month: m,
-        currency: settings.prefs?.currency ?? "ILS",
-        ...summarize(rows),
-        expensesByCategory: byCategory("expense"),
-        incomeByCategory: byCategory("income"),
-        budgets: budgetStatus(rows, settings.budgets).map((b) => ({
-          category: categoryName(categories, b.categoryId),
-          budget: b.budget,
-          spent: b.spent,
-          over: b.over,
-        })),
-      });
-    },
-  );
-
-  server.registerTool(
     "search",
     {
       title: "Search everything",
       description:
-        "One search across tasks, routines, events, transactions, notes and lists (including the items inside lists). Words in any order; Hebrew and English.",
+        "One search across tasks, routines, events, notes and lists (including the items inside lists). Words in any order; Hebrew and English.",
       inputSchema: { query: z.string().min(1), limit },
       annotations: readOnly,
     },
@@ -395,7 +298,7 @@ export function createServer(
     "list_categories",
     {
       title: "List categories",
-      description: "The task and money categories, by name.",
+      description: "The task categories, by name.",
       annotations: readOnly,
     },
     async () => {

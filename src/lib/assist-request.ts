@@ -22,7 +22,7 @@ const TOOL = {
         items: {
           type: "object",
           properties: {
-            kind: { type: "string", enum: ["task", "event", "transaction"] },
+            kind: { type: "string", enum: ["task", "event"] },
             title: {
               type: "string",
               description:
@@ -37,12 +37,6 @@ const TOOL = {
               type: "string",
               description: "HH:mm, if an end is said",
             },
-            amount: {
-              type: "number",
-              description:
-                "For a transaction: the number, in the currency the user means",
-            },
-            type: { type: "string", enum: ["income", "expense"] },
           },
           required: ["kind", "title"],
         },
@@ -59,7 +53,6 @@ function systemPrompt(today: string) {
     "The user writes in Hebrew or English. Split the text into separate items and call propose_items.",
     "- event: something that happens at a time or on a day (meeting, lunch, a visit, a class).",
     "- task: something to do (verbs like call, buy, pay, replace — להתקשר, לקנות, לשלם, להחליף).",
-    "- transaction: money spent or received; set amount and type.",
     "A day mentioned once applies to the items that follow it.",
     "A weekday means its next occurrence after today.",
     "Titles stay in the language the user wrote in, and drop filler like 'I'm going to' or 'אני הולך ל'.",
@@ -77,14 +70,7 @@ export function sanitizeProposals(raw: unknown): Proposal[] {
     const i = item as Record<string, unknown>;
     const kind = i.kind;
     const title = typeof i.title === "string" ? i.title.trim() : "";
-    if (
-      !title ||
-      (kind !== "task" && kind !== "event" && kind !== "transaction")
-    )
-      return [];
-    const amount =
-      typeof i.amount === "number" && i.amount > 0 ? i.amount : undefined;
-    if (kind === "transaction" && amount === undefined) return [];
+    if (!title || (kind !== "task" && kind !== "event")) return [];
     return [
       {
         kind,
@@ -96,13 +82,6 @@ export function sanitizeProposals(raw: unknown): Proposal[] {
         endTime:
           typeof i.endTime === "string" && TIME.test(i.endTime)
             ? i.endTime
-            : undefined,
-        amount: kind === "transaction" ? amount : undefined,
-        type:
-          kind === "transaction"
-            ? i.type === "income"
-              ? "income"
-              : "expense"
             : undefined,
       },
     ];

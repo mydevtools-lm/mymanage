@@ -7,7 +7,6 @@ import {
   Link2,
   ListChecks,
   NotebookPen,
-  Wallet,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -23,7 +22,6 @@ import { t } from "@/lib/i18n";
 const ICONS: Record<LinkKind, LucideIcon> = {
   task: CheckSquare,
   event: CalendarDays,
-  transaction: Wallet,
   note: NotebookPen,
   list: ListChecks,
 };
@@ -31,7 +29,6 @@ const ICONS: Record<LinkKind, LucideIcon> = {
 function useTitleOf() {
   const tasks = useAppStore((s) => s.tasks);
   const events = useAppStore((s) => s.events);
-  const transactions = useAppStore((s) => s.transactions);
   const notes = useAppStore((s) => s.notes);
   const checklists = useAppStore((s) => s.checklists);
   return (kind: LinkKind, id: string): string | undefined => {
@@ -40,8 +37,6 @@ function useTitleOf() {
         return tasks.find((t) => t.id === id)?.title;
       case "event":
         return events.find((e) => e.id === id)?.title;
-      case "transaction":
-        return transactions.find((t) => t.id === id)?.description;
       case "note": {
         const n = notes.find((x) => x.id === id);
         return n
@@ -55,8 +50,7 @@ function useTitleOf() {
 }
 
 /**
- * What this item is tied to — the payment for a bill, the task that
- * prepares a meeting — with a search to tie on more. Clicking a link opens
+ * What this item is tied to, such as the task that prepares a meeting, with a search to tie on more. Clicking a link opens
  * that item; `onLeave` closes the current dialog first.
  */
 export function LinksSection({
@@ -79,7 +73,6 @@ export function LinksSection({
 
   const tasks = useAppStore((s) => s.tasks);
   const events = useAppStore((s) => s.events);
-  const transactions = useAppStore((s) => s.transactions);
   const notes = useAppStore((s) => s.notes);
   const checklists = useAppStore((s) => s.checklists);
 
@@ -100,11 +93,11 @@ export function LinksSection({
     const taken = new Set([id, ...linked.map((l) => l.id)]);
     return searchAll(
       query,
-      { tasks, events, transactions, notes, checklists },
+      { tasks, events, notes, checklists },
       todayKey(),
       8,
     ).filter((r) => r.kind !== "routine" && !taken.has(r.id));
-  }, [query, id, linked, tasks, events, transactions, notes, checklists]);
+  }, [query, id, linked, tasks, events, notes, checklists]);
 
   return (
     <div className="grid gap-2">

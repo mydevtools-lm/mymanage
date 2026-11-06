@@ -114,6 +114,7 @@ describe("--write is a choice", () => {
     const names = (await reading.listTools()).tools.map((t) => t.name);
     expect(names).toContain("list_tasks");
     expect(names).toContain("list_routines");
+    expect(names.filter((n) => /transaction|finance|budget/.test(n))).toEqual([]);
     expect(names.filter((n) => /^(create|update|delete|add|set|link|unlink)_/.test(n))).toEqual([]);
   });
 
@@ -124,10 +125,7 @@ describe("--write is a choice", () => {
       expect(names).toContain(`update_${kind}`);
       expect(names).toContain(`delete_${kind}`);
     }
-    expect(names).toContain("create_transactions");
-    expect(names).toContain("update_transaction");
-    expect(names).toContain("delete_transaction");
-    for (const name of ["add_checklist_items", "set_budget", "update_preferences", "link_items"]) {
+    for (const name of ["add_checklist_items", "update_preferences", "link_items"]) {
       expect(names).toContain(name);
     }
   });
@@ -229,11 +227,6 @@ describe("tasks", () => {
     const wrong = await call("create_task", { title: "a", category: "Nope" });
     expect(wrong.text).toMatch(/No task category "Nope"\. There are: .*עבודה/);
     expect(count()).toBe(before);
-  });
-
-  it("a category of the other kind doesn't count", async () => {
-    const answer = await call("create_task", { title: "a", category: "אוכל" });
-    expect(answer.isError).toBe(true);
   });
 
   it("deletes, and says so when there is no such task", async () => {
@@ -398,124 +391,6 @@ describe("events", () => {
   });
 });
 
-describe("transactions", () => {
-  const summary = (month: string) => ok("finance_summary", { month });
-
-  it("adds several together, with categories by name", async () => {
-    const { created } = await ok("create_transactions", {
-      transactions: [
-        { type: "expense", amount: 240, description: "סופר", date: "2026-11-02", category: "אוכל" },
-        { type: "income", amount: 12000, description: "משכורת", date: "2026-11-01", category: "משכורת" },
-      ],
-    });
-    expect(created).toHaveLength(2);
-    expect(created[0].category).toBe("אוכל");
-    expect(await summary("2026-11")).toMatchObject({ income: 12000, expense: 240 });
-  });
-
-  it("all of them or none", async () => {
-    const answer = await call("create_transactions", {
-      transactions: [
-        { type: "expense", amount: 1, description: "a", date: "2026-11-02" },
-        { type: "expense", amount: 2, description: "b", date: "2026-11-02", category: "Nope" },
-      ],
-    });
-    expect(answer.isError).toBe(true);
-    expect(peek(file, "SELECT id FROM transactions")).toEqual([]);
-    const negative = await call("create_transactions", {
-      transactions: [{ type: "expense", amount: -5, description: "a", date: "2026-11-02" }],
-    });
-    expect(negative.isError).toBe(true);
-  });
-
-  const rent = async () =>
-    (
-      await ok("create_transactions", {
-        transactions: [
-          {
-            type: "expense",
-            amount: 3000,
-            description: "שכירות",
-            date: "2026-09-02",
-            recurring: {},
-          },
-        ],
-      })
-    ).created[0];
-
-  it("a monthly one fills the months, and starts from its date", async () => {
-    const { id, recurring } = await rent();
-    expect(recurring).toEqual({ startMonth: "2026-09" });
-    expect((await summary("2026-12")).expense).toBe(3000);
-    expect((await summary("2026-08")).expense).toBe(0);
-    const noScope = await call("update_transaction", { id, amount: 1 });
-    expect(noScope.text).toMatch(/Pass scope/);
-  });
-
-  it("changes one month, or from a month on, or all", async () => {
-    const { id } = await rent();
-    await ok("update_transaction", { id, scope: "this", month: "2026-10", amount: 3100 });
-    expect((await summary("2026-10")).expense).toBe(3100);
-    expect((await summary("2026-11")).expense).toBe(3000);
-
-    const split = await ok("update_transaction", {
-      id,
-      scope: "following",
-      month: "2026-12",
-      amount: 3500,
-    });
-    expect(split.startedAsNewSeries.recurring.startMonth).toBe("2026-12");
-    expect((await summary("2026-11")).expense).toBe(3000);
-    expect((await summary("2027-01")).expense).toBe(3500);
-
-    await ok("update_transaction", { id, scope: "all", description: "דירה" });
-    const { transactions } = await ok("list_transactions", { month: "2026-11" });
-    expect(transactions[0].description).toBe("דירה");
-  });
-
-  it("one month can't take what only the series has", async () => {
-    const { id } = await rent();
-    for (const change of [{ date: "2026-10-05" }, { recurring: null }, { type: "income" }, { category: null }]) {
-      const answer = await call("update_transaction", {
-        id,
-        scope: "this",
-        month: "2026-10",
-        ...change,
-      });
-      expect(answer.isError).toBe(true);
-    }
-    const outside = await call("update_transaction", {
-      id,
-      scope: "this",
-      month: "2026-01",
-      amount: 1,
-    });
-    expect(outside.text).toMatch(/doesn't include 2026-01/);
-  });
-
-  it("a one-off can become monthly, and back", async () => {
-    const { created } = await ok("create_transactions", {
-      transactions: [{ type: "expense", amount: 50, description: "a", date: "2026-11-05" }],
-    });
-    const { id } = created[0];
-    const monthly = await ok("update_transaction", { id, recurring: {} });
-    expect(monthly.updated.recurring.startMonth).toBe("2026-11");
-    const once = await ok("update_transaction", { id, scope: "all", recurring: null });
-    expect(once.updated.recurring).toBeNull();
-  });
-
-  it("deletes a month, stops from a month, or removes it", async () => {
-    const { id } = await rent();
-    await ok("delete_transaction", { id, scope: "this", month: "2026-10" });
-    expect((await summary("2026-10")).expense).toBe(0);
-    await ok("delete_transaction", { id, scope: "following", month: "2026-12" });
-    expect((await summary("2026-11")).expense).toBe(3000);
-    expect((await summary("2026-12")).expense).toBe(0);
-    await ok("delete_transaction", { id, scope: "all" });
-    expect(peek(file, "SELECT id FROM transactions")).toEqual([]);
-  });
-});
-
 describe("notes and lists", () => {
   it("notes: add, change, pin keeps the date, delete", async () => {
     const empty = await call("create_note", {});
@@ -578,7 +453,7 @@ describe("notes and lists", () => {
   });
 });
 
-describe("categories, budgets, preferences, links", () => {
+describe("categories, preferences, links", () => {
   it("deleting a category keeps what was in it", async () => {
     const category = await ok("create_category", { name: "כלב", kind: "task", color: "amber" });
     const duplicate = await call("create_category", { name: "כלב", kind: "task" });
@@ -596,32 +471,11 @@ describe("categories, budgets, preferences, links", () => {
     expect((await ok("list_tasks")).tasks[0].category).toBeNull();
   });
 
-  it("a budget changes one category and leaves the others", async () => {
-    await ok("set_budget", { category: "אוכל", amount: 2000 });
-    const both = await ok("set_budget", { category: "חשבונות", amount: 500 });
-    expect(both).toHaveLength(2);
-    await ok("create_transactions", {
-      transactions: [
-        { type: "expense", amount: 2500, description: "a", date: "2026-11-02", category: "אוכל" },
-      ],
-    });
-    const { budgets } = await ok("finance_summary", { month: "2026-11" });
-    expect(budgets.find((b: { category: string }) => b.category === "אוכל")).toMatchObject({
-      budget: 2000,
-      spent: 2500,
-      over: true,
-    });
-    const one = await ok("set_budget", { category: "חשבונות", amount: null });
-    expect(one).toEqual([{ category: "אוכל", budget: 2000 }]);
-  });
-
   it("preferences merge, and null clears", async () => {
-    await ok("update_preferences", { userName: "ליאור", currency: "USD" });
+    await ok("update_preferences", { userName: "ליאור" });
     const next = await ok("update_preferences", { weekStart: 1 });
-    expect(next).toMatchObject({ userName: "ליאור", currency: "USD", weekStart: 1 });
+    expect(next).toMatchObject({ userName: "ליאור", weekStart: 1 });
     expect((await ok("update_preferences", { userName: null })).userName).toBeUndefined();
-    expect((await ok("get_preferences")).currency).toBe("USD");
-    expect((await ok("today")).month.currency).toBe("USD");
     expect((await call("update_preferences", { weekStart: 3 })).isError).toBe(true);
   });
 

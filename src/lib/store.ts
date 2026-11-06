@@ -16,13 +16,11 @@ import type {
   SeriesScope,
   Settings,
   Task,
-  Transaction,
 } from "./types";
 import { instanceId, occursOn } from "./routines";
-import { setCurrency, todayKey, toDateKey, toMonthKey } from "./format";
+import { todayKey, toDateKey } from "./format";
 import { toJsonBody } from "./json-body";
 import { isTauri } from "./platform";
-import { planSeriesDelete, planSeriesEdit, type SeriesPlan } from "./finance";
 import {
   planEventDelete,
   planEventEdit,
@@ -51,7 +49,6 @@ type TaskInput = Omit<
   "id" | "createdAt" | "updatedAt" | "completed" | "archivedAt"
 >;
 type EventInput = Omit<CalendarEvent, "id" | "createdAt">;
-type TransactionInput = Omit<Transaction, "id" | "createdAt">;
 type NoteInput = Pick<Note, "title" | "body"> &
   Partial<Pick<Note, "pinned" | "color">>;
 type CategoryInput = Omit<Category, "id">;
@@ -65,7 +62,6 @@ interface AppState {
   syncing: boolean;
   tasks: Task[];
   events: CalendarEvent[];
-  transactions: Transaction[];
   notes: Note[];
   checklists: Checklist[];
   routines: Routine[];
@@ -119,29 +115,7 @@ interface AppState {
   deleteEventInSeries: (event: CalendarEvent, scope: SeriesScope) => void;
 
   setCalendarPref: (calendarId: string, pref: CalendarPref) => void;
-  /** Monthly budget per category; 0 or missing means none. */
-  setBudgets: (budgets: Record<string, number>) => void;
   setPrefs: (patch: Partial<Preferences>) => void;
-  /** Add many rows at once (a bank statement), with one "undo". */
-  importTransactions: (rows: TransactionInput[]) => void;
-
-  addTransaction: (input: TransactionInput) => void;
-  updateTransaction: (id: string, input: Partial<TransactionInput>) => void;
-  deleteTransaction: (id: string) => void;
-  /** Delete one month, this month onwards, or the whole recurring series. */
-  deleteTransactionInSeries: (
-    id: string,
-    month: string,
-    scope: SeriesScope,
-  ) => void;
-  /** Edit one month, this month onwards, or the whole recurring series. */
-  editTransactionInSeries: (
-    id: string,
-    month: string,
-    scope: SeriesScope,
-    fields: Partial<TransactionInput>,
-  ) => void;
-
   addNote: (input: NoteInput) => void;
   updateNote: (id: string, input: Partial<NoteInput>) => void;
   deleteNote: (id: string) => void;
@@ -268,17 +242,15 @@ function tomorrowKey() {
 }
 
 function applySnapshot(snapshot: DataSnapshot) {
-  setCurrency(snapshot.settings?.prefs?.currency ?? "ILS");
   useAppStore.setState({
     tasks: snapshot.tasks ?? [],
     events: snapshot.events ?? [],
-    transactions: snapshot.transactions ?? [],
     notes: snapshot.notes ?? [],
     checklists: snapshot.checklists ?? [],
     routines: snapshot.routines ?? [],
     links: snapshot.links ?? [],
     categories: snapshot.categories ?? [],
-    settings: snapshot.settings ?? { startMonth: toMonthKey(new Date()) },
+    settings: snapshot.settings ?? {},
     hydrated: true,
   });
 }
@@ -297,7 +269,6 @@ async function migrateLegacyData(current: DataSnapshot) {
   const alreadyHasData =
     current.tasks.length > 0 ||
     current.events.length > 0 ||
-    current.transactions.length > 0 ||
     current.notes.length > 0 ||
     current.checklists.length > 0;
   if (alreadyHasData) return current;
@@ -308,7 +279,6 @@ async function migrateLegacyData(current: DataSnapshot) {
     const count =
       (legacy.tasks?.length ?? 0) +
       (legacy.events?.length ?? 0) +
-      (legacy.transactions?.length ?? 0) +
       (legacy.notes?.length ?? 0);
     if (count === 0) return current;
 
@@ -332,13 +302,12 @@ export const useAppStore = create<AppState>()((set, get) => ({
   syncing: false,
   tasks: [],
   events: [],
-  transactions: [],
   notes: [],
   checklists: [],
   routines: [],
   links: [],
   categories: [],
-  settings: { startMonth: toMonthKey(new Date()) },
+  settings: {},
 
   addLink: (a, b) => {
     if (a.id === b.id) return;
@@ -704,126 +673,10 @@ export const useAppStore = create<AppState>()((set, get) => ({
 
   setPrefs: (patch) => {
     const prefs = { ...get().settings.prefs, ...patch };
-    if (patch.currency) setCurrency(patch.currency);
     set((s) => ({ settings: { ...s.settings, prefs } }));
     // undefined → null, so clearing a preference reaches the server.
     push(api("/api/settings", "PATCH", { prefs: patch }));
   },
-  setBudgets: (budgets) => {
-    const clean = Object.fromEntries(
-      Object.entries(budgets).filter(([, amount]) => amount > 0),
-    );
-    set((s) => ({ settings: { ...s.settings, budgets: clean } }));
-    push(api("/api/settings", "PATCH", { budgets: clean }));
-  },
-
-  /* --------------------------------------------------- transactions */
-
-  importTransactions: (rows) => {
-    const created: Transaction[] = rows.map((input) => ({
-      ...input,
-      id: crypto.randomUUID(),
-      createdAt: now(),
-    }));
-    const ids = new Set(created.map((t) => t.id));
-    set((s) => ({ transactions: [...s.transactions, ...created] }));
-    const saving = api("/api/transactions/bulk", "POST", {
-      transactions: created,
-    });
-    push(saving);
-    toast.success(t().data.store.transactionsImported(created.length), {
-      duration: UNDO_MS,
-      action: {
-        label: t().data.store.undo,
-        onClick: () => {
-          set((s) => ({
-            transactions: s.transactions.filter((t) => !ids.has(t.id)),
-          }));
-          // Wait for the import to land, so the delete can't overtake it.
-          push(
-            saving
-              .catch(() => undefined)
-              .then(() =>
-                api("/api/transactions/bulk", "DELETE", { ids: [...ids] }),
-              ),
-          );
-        },
-      },
-    });
-  },
-  addTransaction: (input) => {
-    const row: Transaction = {
-      ...input,
-      id: crypto.randomUUID(),
-      createdAt: now(),
-    };
-    set((s) => ({ transactions: [...s.transactions, row] }));
-    push(api("/api/transactions", "POST", row));
-  },
-  updateTransaction: (id, input) => {
-    set((s) => ({
-      transactions: s.transactions.map((t) =>
-        t.id === id ? { ...t, ...input } : t,
-      ),
-    }));
-    push(api(`/api/transactions/${id}`, "PATCH", input));
-  },
-  deleteTransaction: (id) => {
-    const transactions = get().transactions;
-    const index = transactions.findIndex((t) => t.id === id);
-    if (index < 0) return;
-    const transaction = transactions[index];
-    set((s) => ({ transactions: s.transactions.filter((t) => t.id !== id) }));
-    offerUndo(
-      t().data.store.transactionDeleted,
-      api(`/api/transactions/${id}`, "DELETE"),
-      () =>
-        set((s) => ({
-          transactions: insertAt(s.transactions, index, transaction),
-        })),
-      () => api("/api/transactions", "POST", transaction),
-    );
-  },
-  deleteTransactionInSeries: (id, month, scope) => {
-    const transactions = get().transactions;
-    const index = transactions.findIndex((x) => x.id === id);
-    if (index < 0) return;
-    const before = transactions[index];
-    const plan = planSeriesDelete(before, month, scope);
-
-    if (plan.kind === "delete") {
-      get().deleteTransaction(id);
-      return;
-    }
-
-    // Skipping a month or ending the series is an update; undo writes the
-    // series back exactly as it was.
-    set((s) => ({
-      transactions: s.transactions.map((t) =>
-        t.id === id ? { ...t, ...plan.patch } : t,
-      ),
-    }));
-    offerUndo(
-      scope === "this"
-        ? t().data.store.monthRemoved
-        : t().data.store.seriesStopped,
-      api(`/api/transactions/${id}`, "PATCH", plan.patch),
-      () =>
-        set((s) => ({
-          transactions: s.transactions.map((t) => (t.id === id ? before : t)),
-        })),
-      () =>
-        api(`/api/transactions/${id}`, "PATCH", {
-          recurring: before.recurring,
-          exceptions: before.exceptions,
-        }),
-    );
-  },
-  editTransactionInSeries: (id, month, scope, fields) => {
-    const t = get().transactions.find((x) => x.id === id);
-    if (t) applySeriesPlan(planSeriesEdit(t, month, scope, fields));
-  },
-
   /* ---------------------------------------------------------- notes */
 
   addNote: (input) => {
@@ -1018,9 +871,6 @@ export const useAppStore = create<AppState>()((set, get) => ({
       tasks: s.tasks.map((t) =>
         t.categoryId === id ? { ...t, categoryId: undefined } : t,
       ),
-      transactions: s.transactions.map((t) =>
-        t.categoryId === id ? { ...t, categoryId: undefined } : t,
-      ),
       routines: s.routines.map((r) =>
         r.categoryId === id ? { ...r, categoryId: undefined } : r,
       ),
@@ -1037,7 +887,6 @@ export const useAppStore = create<AppState>()((set, get) => ({
       exportedAt: now(),
       tasks: s.tasks,
       events: s.events,
-      transactions: s.transactions,
       notes: s.notes,
       checklists: s.checklists,
       routines: s.routines,
@@ -1082,36 +931,6 @@ function applyEventPlan(plan: EventPlan) {
     };
     set((s) => ({ events: [...s.events, created] }));
     push(api("/api/events", "POST", created));
-  }
-}
-
-/** Carry out a plan from planSeriesDelete / planSeriesEdit. */
-function applySeriesPlan(plan: SeriesPlan) {
-  const set = useAppStore.setState;
-
-  if (plan.kind === "delete") {
-    set((s) => ({
-      transactions: s.transactions.filter((t) => t.id !== plan.id),
-    }));
-    push(api(`/api/transactions/${plan.id}`, "DELETE"));
-    return;
-  }
-
-  set((s) => ({
-    transactions: s.transactions.map((t) =>
-      t.id === plan.id ? { ...t, ...plan.patch } : t,
-    ),
-  }));
-  push(api(`/api/transactions/${plan.id}`, "PATCH", plan.patch));
-
-  if (plan.kind === "split") {
-    const created: Transaction = {
-      ...plan.create,
-      id: crypto.randomUUID(),
-      createdAt: now(),
-    };
-    set((s) => ({ transactions: [...s.transactions, created] }));
-    push(api("/api/transactions", "POST", created));
   }
 }
 

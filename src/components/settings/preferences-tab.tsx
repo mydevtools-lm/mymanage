@@ -8,7 +8,6 @@ import {
   Palette,
   SlidersHorizontal,
 } from "lucide-react";
-import { toast } from "sonner";
 import {
   Card,
   CardContent,
@@ -27,7 +26,6 @@ import { cn } from "@/lib/utils";
 import { ReminderField } from "@/components/reminder-field";
 import { install, useInstall } from "@/components/pwa";
 import { useAppStore } from "@/lib/store";
-import type { CurrencyCode } from "@/lib/types";
 import { useIsTauri } from "@/lib/platform";
 import { DesktopSettings } from "./desktop-settings";
 import { LOCALES, t, type Locale } from "@/lib/i18n";
@@ -40,15 +38,6 @@ const weekStarts = () => {
     { value: "0", label: m.sunday },
     { value: "1", label: m.monday },
     { value: "6", label: m.saturday },
-  ];
-};
-
-const currencies = () => {
-  const m = t().settings.preferences.currencies;
-  return [
-    { value: "ILS", label: m.ils },
-    { value: "USD", label: m.usd },
-    { value: "EUR", label: m.eur },
   ];
 };
 
@@ -101,17 +90,6 @@ export function PreferencesTab() {
               value={String(prefs.weekStart ?? 0)}
               options={weekStarts()}
               onChange={(v) => setPrefs({ weekStart: Number(v) as 0 | 1 | 6 })}
-            />
-          </Field>
-          <Field label={m.currency}>
-            <SimpleSelect
-              label={m.currency}
-              value={prefs.currency ?? "ILS"}
-              options={currencies()}
-              onChange={(v) => {
-                setPrefs({ currency: v as CurrencyCode });
-                toast.success(m.currencyUpdated);
-              }}
             />
           </Field>
           <Field label={m.defaultReminder}>

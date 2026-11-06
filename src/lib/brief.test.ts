@@ -2,10 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   dueReminders,
   morningBrief,
-  upcomingBills,
   weekSummary,
 } from "./brief";
-import type { CalendarEvent, Task, Transaction } from "./types";
+import type { CalendarEvent, Task } from "./types";
 
 // Monday 28 September 2026, Israel.
 const TODAY = "2026-09-28";
@@ -30,57 +29,8 @@ const event = (fields: Partial<CalendarEvent>): CalendarEvent => ({
   ...fields,
 });
 
-const tx = (fields: Partial<Transaction>): Transaction => ({
-  id: Math.random().toString(36).slice(2),
-  type: "expense",
-  amount: 100,
-  description: "x",
-  date: TODAY,
-  createdAt: "",
-  ...fields,
-});
-
-describe("upcomingBills", () => {
-  it("finds recurring expenses due within three days, across a month end", () => {
-    const bills = upcomingBills(
-      [
-        tx({
-          id: "rent",
-          description: "שכירות",
-          amount: 5000,
-          date: "2026-01-01",
-          recurring: { startMonth: "2026-01" },
-        }),
-        tx({
-          id: "phone",
-          description: "טלפון",
-          date: "2026-01-29",
-          recurring: { startMonth: "2026-01" },
-        }),
-        tx({
-          id: "far",
-          date: "2026-01-15",
-          recurring: { startMonth: "2026-01" },
-        }),
-        tx({
-          id: "salary",
-          type: "income",
-          date: "2026-01-29",
-          recurring: { startMonth: "2026-01" },
-        }),
-        tx({ id: "once", date: "2026-09-29" }),
-      ],
-      TODAY,
-    );
-    expect(bills.map((b) => [b.id, b.date, b.daysLeft])).toEqual([
-      ["phone", "2026-09-29", 1],
-      ["rent", "2026-10-01", 3],
-    ]);
-  });
-});
-
 describe("morningBrief", () => {
-  it("gathers today's tasks and events, what slipped, and the month so far", () => {
+  it("gathers today's tasks and events, and what slipped", () => {
     const brief = morningBrief(
       {
         tasks: [
@@ -98,23 +48,17 @@ describe("morningBrief", () => {
           }),
           event({ id: "other", date: "2026-09-29" }),
         ],
-        transactions: [
-          tx({ amount: 300, date: "2026-09-10" }),
-          tx({ amount: 999, date: "2026-09-30" }),
-          tx({ type: "income", amount: 1000, date: "2026-09-01" }),
-        ],
       },
       TODAY,
     );
     expect(brief.tasks.map((t) => t.id)).toEqual(["early", "later"]);
     expect(brief.events.map((e) => e.seriesId ?? e.id)).toEqual(["gym"]);
     expect(brief.carriedOver.map((t) => t.id)).toEqual(["old"]);
-    expect(brief.month).toEqual({ income: 1000, expense: 300, balance: 700 });
   });
 });
 
 describe("weekSummary", () => {
-  it("counts from Sunday, and compares spending with the same days last week", () => {
+  it("counts from Sunday", () => {
     const summary = weekSummary(
       {
         tasks: [
@@ -130,12 +74,6 @@ describe("weekSummary", () => {
           }),
           task({ dueDate: "2026-09-25" }),
         ],
-        transactions: [
-          tx({ amount: 200, date: "2026-09-27" }),
-          tx({ amount: 50, date: "2026-09-28" }),
-          tx({ amount: 70, date: "2026-09-21" }),
-          tx({ amount: 999, date: "2026-09-22" }),
-        ],
       },
       TODAY,
     );
@@ -143,8 +81,6 @@ describe("weekSummary", () => {
       from: "2026-09-27",
       done: 1,
       slipped: 1,
-      expense: 250,
-      lastWeekExpense: 70,
     });
   });
 });
@@ -213,10 +149,10 @@ describe("dueReminders", () => {
 
 describe("weekSummary with another first day", () => {
   it("starts on Monday when asked", () => {
-    expect(weekSummary({ tasks: [], transactions: [] }, TODAY, 1).from).toBe(
+    expect(weekSummary({ tasks: [] }, TODAY, 1).from).toBe(
       "2026-09-28",
     );
-    expect(weekSummary({ tasks: [], transactions: [] }, TODAY, 6).from).toBe(
+    expect(weekSummary({ tasks: [] }, TODAY, 6).from).toBe(
       "2026-09-26",
     );
   });

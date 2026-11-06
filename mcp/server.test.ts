@@ -21,7 +21,6 @@ import { createServer } from "./tools";
  */
 
 const TODAY = "2026-10-18";
-const MONTH = "2026-10";
 
 let dir: string;
 let file: string;
@@ -116,28 +115,6 @@ beforeAll(async () => {
     color: "teal",
     repeat: { kind: "weekly", days: [0] },
   });
-  await repo.createTransaction({
-    id: "x-1",
-    type: "expense",
-    amount: 240,
-    description: "Groceries",
-    date: "2026-10-12",
-  });
-  await repo.createTransaction({
-    id: "x-2",
-    type: "income",
-    amount: 12000,
-    description: "Salary",
-    date: "2026-10-01",
-  });
-  await repo.createTransaction({
-    id: "x-3",
-    type: "expense",
-    amount: 3000,
-    description: "Rent",
-    date: "2026-10-02",
-    recurring: { startMonth: "2026-09" },
-  });
   await repo.createNote({
     id: "n-1",
     title: "Gift ideas",
@@ -193,7 +170,6 @@ describe("tools", () => {
     const client = await connect();
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual([
-      "finance_summary",
       "get_note",
       "list_categories",
       "list_checklists",
@@ -202,7 +178,6 @@ describe("tools", () => {
       "list_notes",
       "list_routines",
       "list_tasks",
-      "list_transactions",
       "search",
       "today",
     ]);
@@ -213,7 +188,7 @@ describe("tools", () => {
     );
   });
 
-  it("today: overdue, the day's tasks, events with repeats, routines, the month", async () => {
+  it("today: overdue, the day's tasks, events with repeats, routines", async () => {
     const client = await connect();
     const { json } = await call(client, "today", { date: TODAY });
     expect(json.overdue.map((t: { id: string }) => t.id)).toEqual([
@@ -231,12 +206,6 @@ describe("tools", () => {
     expect(json.routinesDue).toEqual([
       { title: "Take the pills", taskCreated: false },
     ]);
-    expect(json.month).toMatchObject({
-      month: MONTH,
-      income: 12000,
-      expense: 3240,
-      balance: 8760,
-    });
   });
 
   it("list_tasks filters by status, dates, words and category", async () => {
@@ -281,35 +250,6 @@ describe("tools", () => {
       "2026-10-18",
       "2026-10-25",
     ]);
-  });
-
-  it("list_transactions and finance_summary count a repeating one in its month", async () => {
-    const client = await connect();
-    const list = (
-      await call(client, "list_transactions", { month: MONTH, type: "expense" })
-    ).json;
-    expect(
-      list.transactions
-        .map((t: { description: string }) => t.description)
-        .sort(),
-    ).toEqual(["Groceries", "Rent"]);
-    const summary = (await call(client, "finance_summary", { month: MONTH }))
-      .json;
-    expect(summary).toMatchObject({
-      month: MONTH,
-      income: 12000,
-      expense: 3240,
-      balance: 8760,
-    });
-    // Neither has a category: they add up under none.
-    expect(summary.expensesByCategory).toMatchObject([
-      { category: null, amount: 3240 },
-    ]);
-    // September has the rent too — it starts there.
-    const september = (
-      await call(client, "finance_summary", { month: "2026-09" })
-    ).json;
-    expect(september.expense).toBe(3000);
   });
 
   it("search, notes and lists", async () => {
@@ -362,7 +302,6 @@ describe("read only", () => {
     for (const name of [
       "today",
       "list_tasks",
-      "finance_summary",
       "list_categories",
       "list_checklists_PLACEHOLDER",
     ]) {
@@ -395,7 +334,7 @@ describe("the bundle", () => {
     );
     try {
       const { tools } = await client.listTools();
-      expect(tools).toHaveLength(12);
+      expect(tools).toHaveLength(10);
       const { json } = await call(client, "today", { date: TODAY });
       expect(json.tasks).toHaveLength(2);
     } finally {

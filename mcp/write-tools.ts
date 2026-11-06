@@ -7,7 +7,6 @@ import {
   planEventEdit,
   type EventFields,
 } from "../src/lib/event-series";
-import { planSeriesDelete, planSeriesEdit } from "../src/lib/finance";
 import type {
   CalendarEvent,
   CategoryKind,
@@ -15,10 +14,8 @@ import type {
   SeriesScope,
   Subtask,
   Task,
-  Transaction,
 } from "../src/lib/types";
 import {
-  categoryName,
   result,
   shapeChecklist,
   shapeEvent,
@@ -55,10 +52,6 @@ const day = z
   .regex(/^\d{4}-\d{2}-\d{2}$/, "yyyy-MM-dd")
   .refine(isRealDay, "Not a day on the calendar.")
   .describe("A day, as yyyy-MM-dd.");
-const month = z
-  .string()
-  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "yyyy-MM")
-  .describe("A month, as yyyy-MM.");
 const time = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "HH:mm")
@@ -103,12 +96,7 @@ const scope = z
     "For a repeating item: only this occurrence, this one and those after it, or all of them. Required for a repeating item, ignored otherwise.",
   );
 const taskCategory = z.string().describe("A task category, by name or id.");
-const moneyCategory = z.string().describe("A money category, by name or id.");
-const amount = z
-  .number()
-  .positive()
-  .describe("Always positive; `type` says which way the money went.");
-const linkKind = z.enum(["task", "event", "transaction", "note", "list"]);
+const linkKind = z.enum(["task", "event", "note", "list"]);
 
 const orClear = "Pass null to clear.";
 
@@ -191,63 +179,12 @@ function checkOccurrence(
   return wanted;
 }
 
-function checkMonth(
-  series: Transaction,
-  wanted: SeriesScope | undefined,
-  monthKey: string | undefined,
-): SeriesScope {
-  if (!series.recurring) return "all";
-  if (!wanted) {
-    throw new Error(
-      `"${series.description}" repeats every month. Pass scope: this, following or all. If the person did not say, ask them.`,
-    );
-  }
-  if (wanted === "all") return wanted;
-  if (!monthKey) throw new Error(`Scope ${wanted} needs month.`);
-  const { startMonth, endMonth } = series.recurring;
-  if (monthKey < startMonth || (endMonth && monthKey > endMonth)) {
-    throw new Error(
-      `"${series.description}" runs from ${startMonth}${endMonth ? ` to ${endMonth}` : ""}, which doesn't include ${monthKey}.`,
-    );
-  }
-  return wanted;
-}
-
-function checkRecurring(
-  recurring: { startMonth?: string; endMonth?: string },
-  date: string,
-) {
-  const startMonth = recurring.startMonth ?? date.slice(0, 7);
-  if (recurring.endMonth && recurring.endMonth < startMonth) {
-    throw new Error(
-      `endMonth ${recurring.endMonth} is before startMonth ${startMonth}.`,
-    );
-  }
-  return { startMonth, endMonth: recurring.endMonth };
-}
-
-async function shapeTransaction(t: Transaction) {
-  return {
-    id: t.id,
-    date: t.date,
-    type: t.type,
-    amount: t.amount,
-    description: t.description,
-    category: categoryName(await repo.listCategories(), t.categoryId),
-    notes: t.notes,
-    recurring: t.recurring ?? null,
-    exceptions: t.exceptions,
-  };
-}
-
 async function itemExists(kind: LinkKind, id: string) {
   switch (kind) {
     case "task":
       return !!(await repo.getTask(id));
     case "event":
       return !!(await repo.getEvent(id));
-    case "transaction":
-      return !!(await repo.getTransaction(id));
     case "note":
       return !!(await repo.getNote(id));
     case "list":
@@ -606,174 +543,6 @@ export function registerWriteTools(server: McpServer) {
     },
   );
 
-  /* ------------------------------------------------------- transactions */
-
-  server.registerTool(
-    "create_transactions",
-    {
-      title: "Add income or expenses",
-      description:
-        "Adds one or more transactions, all together or none. Give `recurring` for one that repeats every month, on the same day of the month.",
-      inputSchema: {
-        transactions: z
-          .array(
-            z.object({
-              type: z.enum(["income", "expense"]),
-              amount,
-              description: text,
-              date: day,
-              category: moneyCategory.optional(),
-              notes: z.string().optional(),
-              recurring: z
-                .object({
-                  startMonth: month
-                    .optional()
-                    .describe("Default the month of date."),
-                  endMonth: month
-                    .optional()
-                    .describe("Last month, included. Default: no end."),
-                })
-                .optional(),
-            }),
-          )
-          .min(1)
-          .max(200),
-      },
-      annotations: adds,
-    },
-    async ({ transactions }) => {
-      const rows: Partial<Transaction>[] = [];
-      for (const { category, recurring, ...fields } of transactions) {
-        rows.push({
-          ...fields,
-          ...(await categoryField(category, "finance")),
-          recurring: recurring && checkRecurring(recurring, fields.date),
-        });
-      }
-      const created = await repo.createTransactions(rows);
-      const shaped = [];
-      for (const row of created) shaped.push(await shapeTransaction(row));
-      return result({ created: shaped });
-    },
-  );
-
-  server.registerTool(
-    "update_transaction",
-    {
-      title: "Change a transaction",
-      description: `Changes a transaction: send only what changes. ${orClear} For a monthly one pass scope, and for this or following also month. Scope this changes only amount, description and category; date and recurring need scope all.`,
-      inputSchema: {
-        id: z.string(),
-        scope: scope.optional(),
-        month: month.optional().describe("The month being changed."),
-        type: z.enum(["income", "expense"]).optional(),
-        amount: amount.optional(),
-        description: text.optional(),
-        date: day.optional(),
-        category: moneyCategory.nullable().optional(),
-        notes: z.string().nullable().optional(),
-        recurring: z
-          .object({ startMonth: month.optional(), endMonth: month.optional() })
-          .nullable()
-          .optional()
-          .describe("Make it monthly, change the months, or null for a one-off."),
-      },
-      annotations: changes,
-    },
-    async ({ id, scope: wanted, month: monthKey, category, recurring, ...args }) => {
-      const current = must(
-        await repo.getTransaction(id),
-        "transaction",
-        id,
-      );
-      const reach = checkMonth(current, wanted, monthKey);
-      if (reach !== "all" && (args.date || recurring !== undefined)) {
-        throw new Error(
-          `date and recurring change the whole series: use scope all, not ${reach}.`,
-        );
-      }
-      if (reach === "this" && (args.type || args.notes !== undefined)) {
-        throw new Error(
-          "One month can only change its amount, description and category.",
-        );
-      }
-      if (reach === "this" && category === null) {
-        throw new Error(
-          "One month can't drop its category; choose another, or use scope all.",
-        );
-      }
-
-      const fields: Partial<Transaction> = {
-        ...patchOf<Transaction>(args),
-        ...(await categoryField(category, "finance")),
-      };
-      if (recurring !== undefined) {
-        fields.recurring = recurring
-          ? checkRecurring(
-              { ...current.recurring, ...recurring },
-              args.date ?? current.date,
-            )
-          : undefined;
-      }
-
-      const plan = planSeriesEdit(
-        current,
-        monthKey ?? current.date.slice(0, 7),
-        reach,
-        fields,
-      );
-      if (plan.kind === "delete") throw new Error("Nothing to change.");
-      const updated = await repo.updateTransaction(plan.id, plan.patch);
-      const created =
-        plan.kind === "split"
-          ? await repo.createTransaction(plan.create)
-          : null;
-      return result({
-        updated: await shapeTransaction(updated!),
-        ...(created && {
-          startedAsNewSeries: await shapeTransaction(created),
-        }),
-      });
-    },
-  );
-
-  server.registerTool(
-    "delete_transaction",
-    {
-      title: "Delete a transaction",
-      description:
-        "Deletes a transaction for good. For a monthly one pass scope, and for this or following also month.",
-      inputSchema: {
-        id: z.string(),
-        scope: scope.optional(),
-        month: month.optional(),
-      },
-      annotations: removes,
-    },
-    async ({ id, scope: wanted, month: monthKey }) => {
-      const current = must(
-        await repo.getTransaction(id),
-        "transaction",
-        id,
-      );
-      const reach = checkMonth(current, wanted, monthKey);
-      const plan = planSeriesDelete(
-        current,
-        monthKey ?? current.date.slice(0, 7),
-        reach,
-      );
-      if (plan.kind === "delete") await repo.deleteTransaction(plan.id);
-      else await repo.updateTransaction(plan.id, plan.patch);
-      return result({
-        deleted: {
-          id,
-          description: current.description,
-          ...(current.recurring && { scope: reach, month: monthKey }),
-        },
-      });
-    },
-  );
-
   /* -------------------------------------------------------------- notes */
 
   server.registerTool(
@@ -965,22 +734,21 @@ export function registerWriteTools(server: McpServer) {
     {
       title: "Add a category",
       description:
-        "Adds a category. kind is task for tasks and routines, finance for income and expenses.",
+        "Adds a category for tasks and routines.",
       inputSchema: {
         name: text,
-        kind: z.enum(["task", "finance"]),
         color: color.optional().describe("Default slate."),
       },
       annotations: adds,
     },
-    async ({ name, kind, color: chosen }) => {
+    async ({ name, color: chosen }) => {
       const all = await repo.listCategories();
       const same = all.find(
-        (c) => c.kind === kind && c.name.toLowerCase() === name.toLowerCase(),
+        (c) => c.name.toLowerCase() === name.toLowerCase(),
       );
-      if (same) throw new Error(`There is already a ${kind} category "${name}".`);
+      if (same) throw new Error(`There is already a category "${name}".`);
       return result(
-        await repo.createCategory({ name, kind, color: chosen ?? "slate" }),
+        await repo.createCategory({ name, kind: "task", color: chosen ?? "slate" }),
       );
     },
   );
@@ -1008,7 +776,7 @@ export function registerWriteTools(server: McpServer) {
     {
       title: "Delete a category",
       description:
-        "Deletes a category for good. The tasks and transactions in it stay, without a category.",
+        "Deletes a category for good. The tasks in it stay, without a category.",
       inputSchema: { id: z.string() },
       annotations: removes,
     },
@@ -1024,40 +792,12 @@ export function registerWriteTools(server: McpServer) {
     },
   );
 
-  /* ---------------------------------------------- budgets and preferences */
-
-  server.registerTool(
-    "set_budget",
-    {
-      title: "Set a monthly budget",
-      description:
-        "Sets the monthly budget of one money category. Other categories keep theirs. amount null removes it. finance_summary shows budgets against spending.",
-      inputSchema: {
-        category: moneyCategory,
-        amount: z.number().positive().nullable(),
-      },
-      annotations: changes,
-    },
-    async ({ category, amount: wanted }) => {
-      const id = await resolveCategory(category, "finance");
-      const budgets = { ...(await repo.getBudgets()) };
-      if (wanted === null) delete budgets[id];
-      else budgets[id] = wanted;
-      const saved = (await repo.setBudgets(budgets)) ?? {};
-      const categories = await repo.listCategories();
-      return result(
-        Object.entries(saved).map(([key, value]) => ({
-          category: categoryName(categories, key),
-          budget: value,
-        })),
-      );
-    },
-  );
+  /* -------------------------------------------------------- preferences */
 
   const shapePrefs = async () => {
-    const { userName, weekStart, currency, defaultReminder } =
+    const { userName, weekStart, defaultReminder } =
       await repo.getPrefs();
-    return { userName, weekStart, currency, defaultReminder };
+    return { userName, weekStart, defaultReminder };
   };
 
   server.registerTool(
@@ -1065,7 +805,7 @@ export function registerWriteTools(server: McpServer) {
     {
       title: "Read preferences",
       description:
-        "The person's name, first day of the week (0 Sunday, 1 Monday, 6 Saturday), currency, and default reminder in minutes.",
+        "The person's name, first day of the week (0 Sunday, 1 Monday, 6 Saturday) and default reminder in minutes.",
       annotations: { readOnlyHint: true, openWorldHint: false },
     },
     async () => result(await shapePrefs()),
@@ -1082,7 +822,6 @@ export function registerWriteTools(server: McpServer) {
           .union([z.literal(0), z.literal(1), z.literal(6)])
           .optional()
           .describe("0 Sunday, 1 Monday, 6 Saturday."),
-        currency: z.enum(["ILS", "USD", "EUR"]).optional(),
         defaultReminder: reminder.nullable().optional(),
       },
       annotations: changes,

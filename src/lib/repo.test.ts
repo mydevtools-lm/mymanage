@@ -22,16 +22,13 @@ import {
   createCategory,
   createChecklist,
   createTask,
-  createTransaction,
   deleteCategory,
   getTask,
-  getTransaction,
   listCategories,
   listChecklists,
   readAll,
   replaceAll,
   updateTask,
-  updateTransaction,
   createRoutine,
   deleteRoutine,
   ensureRoutineCopies,
@@ -44,11 +41,6 @@ import {
   updateEvent,
   getCalendarPrefs,
   setCalendarPrefs,
-  getBudgets,
-  setBudgets,
-  createTransactions,
-  deleteTransactions,
-  listTransactions,
   createLink,
   deleteLink,
   listLinks,
@@ -72,9 +64,9 @@ describe("schema", () => {
   });
 
   it("seeds the default categories once", async () => {
-    expect(await listCategories()).toHaveLength(12);
+    expect(await listCategories()).toHaveLength(4);
     resetDbForTests();
-    expect(await listCategories()).toHaveLength(12);
+    expect(await listCategories()).toHaveLength(4);
   });
 });
 
@@ -109,37 +101,6 @@ describe("tasks", () => {
   it("leaves fields that are absent from the patch untouched", async () => {
     await createTask({ id: "t", title: "x", dueDate: "2026-09-28" });
     expect((await updateTask("t", { title: "y" }))?.dueDate).toBe("2026-09-28");
-  });
-});
-
-describe("transactions", () => {
-  it("round-trips per-month exceptions", async () => {
-    await createTransaction({
-      id: "rent",
-      type: "expense",
-      amount: 4500,
-      description: "שכר דירה",
-      date: "2026-09-01",
-      recurring: { startMonth: "2026-09" },
-    });
-    await updateTransaction("rent", {
-      exceptions: [{ month: "2026-10", skip: true }],
-    });
-    expect((await getTransaction("rent"))?.exceptions).toEqual([
-      { month: "2026-10", skip: true },
-    ]);
-  });
-
-  it("stops recurring when recurring arrives as null", async () => {
-    await createTransaction({
-      id: "r",
-      amount: 1,
-      description: "x",
-      date: "2026-09-01",
-      recurring: { startMonth: "2026-09" },
-    });
-    await updateTransaction("r", { recurring: null } as never);
-    expect((await getTransaction("r"))?.recurring).toBeUndefined();
   });
 });
 
@@ -250,20 +211,11 @@ describe("backup round trip", () => {
   it("export → wipe → import restores the same data", async () => {
     await createTask({ id: "t1", title: "להחליף סיסמה", priority: "high" });
     await createChecklist("קניות", ["שמן בישול", "אקונומיקה"], "l1");
-    await createTransaction({
-      id: "x1",
-      amount: 12000,
-      type: "income",
-      description: "משכורת",
-      date: "2026-09-10",
-      recurring: { startMonth: "2026-09" },
-      exceptions: [{ month: "2026-12", amount: 15000 }],
-    });
 
     const exported = JSON.parse(JSON.stringify(await readAll()));
     const wiped = await clearAll();
     expect(wiped.tasks).toHaveLength(0);
-    expect(wiped.categories).toHaveLength(12); // re-seeded
+    expect(wiped.categories).toHaveLength(4); // re-seeded
 
     const restored = await replaceAll(exported);
     const strip = (snapshot: typeof exported) => ({
@@ -485,42 +437,6 @@ describe("calendar preferences", () => {
   });
 });
 
-describe("budgets", () => {
-  it("replaces the whole set, drops zeros, and travels with a backup", async () => {
-    await setBudgets({ food: 2000, fun: 0 });
-    expect(await getBudgets()).toEqual({ food: 2000 });
-    await setBudgets({ car: 500 });
-    expect(await getBudgets()).toEqual({ car: 500 });
-    const snapshot = await readAll();
-    await clearAll();
-    await replaceAll(snapshot);
-    expect(await getBudgets()).toEqual({ car: 500 });
-  });
-});
-
-describe("bulk transactions", () => {
-  it("saves all or nothing, and deletes by ids", async () => {
-    const row = (id: string) => ({
-      id,
-      type: "expense" as const,
-      amount: 10,
-      description: id,
-      date: "2026-09-01",
-    });
-    await createTransactions([row("a"), row("b")]);
-    expect(await listTransactions()).toHaveLength(2);
-
-    // A duplicate id fails the whole batch; "c" must not stay behind.
-    await expect(createTransactions([row("c"), row("a")])).rejects.toThrow();
-    expect(
-      (await listTransactions()).map((t) => t.id).sort(),
-    ).toEqual(["a", "b"]);
-
-    await deleteTransactions(["a", "b"]);
-    expect(await listTransactions()).toHaveLength(0);
-  });
-});
-
 describe("links", () => {
   it("links two items once, either way round, and unlinks", async () => {
     const first = await createLink({
@@ -551,21 +467,77 @@ describe("links", () => {
 describe("preferences", () => {
   it("merge in, clear with null, and travel with a backup", async () => {
     expect(await getPrefs()).toEqual({});
-    await setPrefs({ weekStart: 1, currency: "USD" });
+    await setPrefs({ weekStart: 1 });
     await setPrefs({ defaultReminder: 10 });
-    expect(await getPrefs()).toEqual({
-      weekStart: 1,
-      currency: "USD",
-      defaultReminder: 10,
-    });
+    expect(await getPrefs()).toEqual({ weekStart: 1, defaultReminder: 10 });
     await setPrefs({ defaultReminder: null });
-    expect(await getPrefs()).toEqual({ weekStart: 1, currency: "USD" });
+    expect(await getPrefs()).toEqual({ weekStart: 1 });
 
     const snapshot = await readAll();
     await clearAll();
     expect(await getPrefs()).toEqual({});
     await replaceAll(snapshot);
-    expect(await getPrefs()).toEqual({ weekStart: 1, currency: "USD" });
+    expect(await getPrefs()).toEqual({ weekStart: 1 });
+  });
+});
+
+describe("the money tables, which the app no longer shows", () => {
+  function moneyInTheFile() {
+    const sql = getDb();
+    sql
+      .prepare(
+        "INSERT INTO categories (id, name, color, kind) VALUES ('food', 'אוכל', 'amber', 'finance')",
+      )
+      .run();
+    sql
+      .prepare(
+        `INSERT INTO transactions (id, type, amount, description, date, categoryId, createdAt)
+         VALUES ('x', 'expense', 40, 'סופר', '2026-10-01', 'food', 'n')`,
+      )
+      .run();
+  }
+  const count = (table: string) =>
+    (
+      getDb().prepare(`SELECT COUNT(*) AS n FROM ${table}`).get() as {
+        n: number;
+      }
+    ).n;
+
+  it("reads no money, and shows no money category", async () => {
+    moneyInTheFile();
+    const all = await readAll();
+    expect("transactions" in all).toBe(false);
+    expect(all.categories.map((c) => c.id)).not.toContain("food");
+  });
+
+  it("an import leaves them, whatever the file holds", async () => {
+    moneyInTheFile();
+    await replaceAll({
+      tasks: [],
+      transactions: [{ id: "old", amount: 1 }],
+      categories: [{ id: "c2", name: "ישן", color: "teal", kind: "finance" }],
+      links: [
+        { id: "l", aKind: "transaction", aId: "old", bKind: "task", bId: "t" },
+      ],
+    } as never);
+    const kept = getDb()
+      .prepare("SELECT id, categoryId FROM transactions")
+      .all();
+    expect(kept).toEqual([{ id: "x", categoryId: "food" }]);
+    expect(await listCategories()).toEqual([]);
+    expect(await listLinks()).toEqual([]);
+  });
+
+  it("a link to a transaction doesn't show", async () => {
+    await createLink({ aKind: "transaction" as never, aId: "x", bKind: "task", bId: "t" });
+    expect(await listLinks()).toEqual([]);
+  });
+
+  it("wiping everything takes them too", async () => {
+    moneyInTheFile();
+    await clearAll();
+    expect(count("transactions")).toBe(0);
+    expect(count("categories")).toBe(4);
   });
 });
 
@@ -575,8 +547,6 @@ describe("sample data", () => {
     const added = await addSampleData("2026-10-13");
     expect(added.tasks.length).toBe(4);
     expect(added.events.map((e) => e.date)).toEqual(["2026-10-13", "2026-10-14"]);
-    // Linked to the default categories by name.
-    expect(added.transactions.every((t) => t.categoryId)).toBe(true);
 
     const sampleTask = added.tasks.find((t) => t.id.startsWith("sample-"))!;
     await createLink({ aKind: "task", aId: sampleTask.id, bKind: "task", bId: mine.id });
@@ -584,7 +554,6 @@ describe("sample data", () => {
     const after = await removeSampleData();
     expect(after.tasks.map((t) => t.id)).toEqual([mine.id]);
     expect(after.events).toEqual([]);
-    expect(after.transactions).toEqual([]);
     expect(after.notes).toEqual([]);
     expect(after.links).toEqual([]);
   });

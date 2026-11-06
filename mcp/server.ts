@@ -6,7 +6,7 @@ import { openWritable } from "./writable-db";
 
 /**
  * mymanage's MCP server: lets a chat read the app's data — tasks, calendar,
- * money, notes, lists (ד9) — and, only with --write, change it (ד11). The chat
+ * notes, lists (ד9) — and, only with --write, change it (ד11). The chat
  * app starts it itself; it talks over stdin/stdout, so everything meant for a
  * person goes to stderr.
  *
