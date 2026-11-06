@@ -2,6 +2,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -772,12 +773,50 @@ describe("a chat app in a Windows package (Claude from the Store)", () => {
 
       expect(answer.isError).toBe(true);
       expect(answer.text).toContain(twin);
-      expect(answer.text).toMatch(/Nothing was changed/);
+      expect(answer.text).toMatch(/Nothing was read or changed/);
       expect(peek(privateFile, "SELECT id FROM tasks")).toEqual([]);
       expect(existsSync(path.join(twin, "backups"))).toBe(false);
-      expect((await call("list_tasks")).isError).toBe(false);
+
+      const reading = await call("list_tasks");
+      expect(reading.isError).toBe(true);
+      expect(reading.text).toContain(twin);
     },
   );
+
+  it("won't read the private folder without --write either, and leaves it as it is", async () => {
+    const { env, real, twin, file: seen } = profile();
+    newDatabase(twin);
+    symlinkSync(twin, real, "junction");
+    const before = readdirSync(twin);
+
+    const database = await openReadOnly(seen, env);
+    opened.push(database);
+    client = await clientOn(database, false);
+    const answer = await call("list_tasks");
+
+    expect(answer.isError).toBe(true);
+    expect(answer.text).toContain(twin);
+    expect(readdirSync(twin)).toEqual(before);
+  });
+
+  it("reads without --write when the private folder is not the one it sees", async () => {
+    const { env, real, twin, file: seen } = profile();
+    newDatabase(real);
+    mkdirSync(twin);
+
+    const database = await openReadOnly(seen, env);
+    opened.push(database);
+    client = await clientOn(database, false);
+
+    expect((await call("list_tasks")).isError).toBe(false);
+  });
+
+  it("works on the private folder when --db names it", async () => {
+    const { env, twin } = profile();
+    const named = newDatabase(twin);
+
+    expect((await createTaskThrough(named, env)).isError).toBe(false);
+  });
 
   it("writes when the private folder is not the one it sees: it runs outside the package", async () => {
     const { env, real, twin, file: seen } = profile();
